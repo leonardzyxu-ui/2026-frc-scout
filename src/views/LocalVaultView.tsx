@@ -18,7 +18,12 @@ export default function LocalVaultView() {
         if (content.trim()) {
           const arr = JSON.parse(content);
           if (Array.isArray(arr)) {
-            setRecords(arr);
+            const sorted = arr.sort((a, b) => {
+              const matchA = parseInt(a.split('|')[1] || '0', 10);
+              const matchB = parseInt(b.split('|')[1] || '0', 10);
+              return matchB - matchA;
+            });
+            setRecords(sorted);
           }
         }
       } catch (e) {

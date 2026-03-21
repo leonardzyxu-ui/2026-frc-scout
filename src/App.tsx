@@ -8,9 +8,14 @@ import SetupView from './views/SetupView';
 import GameView from './views/GameView';
 import CheckoutView from './views/CheckoutView';
 import AdminView from './views/AdminView';
+import AdminAnalyticsView from './views/AdminAnalyticsView';
 import SpeedScoutView from './views/SpeedScoutView';
+import MatchScoutView from './views/MatchScoutView';
 import HistoryView from './views/HistoryView';
 import LocalVaultView from './views/LocalVaultView';
+import PitScoutView from './views/PitScoutView';
+import TeamLookupView from './views/TeamLookupView';
+import QRScannerView from './views/QRScannerView';
 
 export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
@@ -46,6 +51,8 @@ export default function App() {
           <Routes>
             {/* Admin Route - No Header */}
             <Route path="/admin" element={<AdminView />} />
+            <Route path="/admin/analytics" element={<AdminAnalyticsView />} />
+            <Route path="/admin/qr-scanner" element={<QRScannerView />} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={
@@ -61,9 +68,12 @@ export default function App() {
                     <Route path="/" element={<SetupView />} />
                     <Route path="/game" element={<GameView />} />
                     <Route path="/speed" element={<SpeedScoutView />} />
+                    <Route path="/match-scout" element={<MatchScoutView />} />
                     <Route path="/history" element={<HistoryView />} />
                     <Route path="/localvault" element={<LocalVaultView />} />
                     <Route path="/checkout" element={<CheckoutView />} />
+                    <Route path="/pit-scout" element={<PitScoutView />} />
+                    <Route path="/team-lookup" element={<TeamLookupView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

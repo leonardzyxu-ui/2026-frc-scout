@@ -23,6 +23,106 @@ export interface PitScoutData {
   fuelIntakeMethod: string;
 }
 
+export interface PitScoutingV2 {
+  teamNumber: string;
+  teamName: string;
+  drivetrainType: string;
+  weight: number;
+  length: number;
+  width: number;
+  notes: string;
+}
+
+export interface MatchScoutingV2 {
+  // Meta
+  eventKey: string;
+  matchKey: string;
+  teamNumber: string;
+  scoutName: string;
+  alliance: 'Red' | 'Blue' | '';
+  deviceId?: string;
+  timestamp?: number;
+
+  // Auto
+  autoMobility: boolean;
+  autoScore: number;
+  autoTower: boolean;
+  
+  // Teleop
+  teleopScore: number;
+  hoardScore: number;
+
+  // Defense Branching
+  playedDefense: boolean;
+  defenseInstances: number;
+  defenseDuration: number;
+  defenseEffectiveness: number; // 0-10
+
+  // Endgame
+  climbStatus: 'None' | 'Parked' | 'L1' | 'L2' | 'L3' | 'Failed';
+
+  // Subjective (0-10)
+  autoFluidity: number;
+  teleopFluidity: number;
+  underPressure: number;
+
+  // Critical Failures
+  robotDied: boolean;
+  commsLost: boolean;
+  mechanismBroke: boolean;
+  failureReason: string;
+
+  // Notes
+  notes: string;
+}
+
+export interface TeamAnalyticsV2 {
+  teamNumber: string;
+  eventKey: string;
+  opr: number;
+  dpr: number;
+  popr: number;
+  avgAutoFluidity: number;
+  avgTeleopFluidity: number;
+  avgUnderPressure: number;
+  avgDefenseEffectiveness: number;
+  matchesPlayed: number;
+}
+
+export const initialMatchScoutingV2: MatchScoutingV2 = {
+  eventKey: '2026sh', // Default to Shanghai Regional
+  matchKey: 'qm1',
+  teamNumber: '',
+  scoutName: '',
+  alliance: '',
+  deviceId: '',
+
+  autoMobility: false,
+  autoScore: 0,
+  autoTower: false,
+
+  teleopScore: 0,
+  hoardScore: 0,
+
+  playedDefense: false,
+  defenseInstances: 0,
+  defenseDuration: 0,
+  defenseEffectiveness: 0,
+
+  climbStatus: 'None',
+
+  autoFluidity: 5,
+  teleopFluidity: 5,
+  underPressure: 5,
+
+  robotDied: false,
+  commsLost: false,
+  mechanismBroke: false,
+  failureReason: '',
+
+  notes: ''
+};
+
 export interface MatchData {
   scout: string;
   match: number;
@@ -58,6 +158,7 @@ export interface MatchData {
   importedViaQR?: boolean;
   deviceId?: string;
   userAgent?: string;
+  timestamp?: any;
 }
 
 export interface TeamStats {

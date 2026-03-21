@@ -9,6 +9,8 @@ import Scanner from '../components/admin/Scanner';
 import PitScoutStats from '../components/admin/PitScoutStats';
 import RawDataEditor from '../components/admin/RawDataEditor';
 
+import { useNavigate } from 'react-router-dom';
+
 const SECRET_HASH = "7dd41e237b514a64cb404ede0ddfa462ced85a3c3ef4a46e015c3063ee34cde2";
 
 async function sha256(message: string) {
@@ -18,6 +20,7 @@ async function sha256(message: string) {
 }
 
 export default function AdminView() {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
@@ -164,7 +167,13 @@ export default function AdminView() {
           <h1 className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">Scout Analytics v8.1</h1>
           <p className="text-slate-500 text-xs font-bold uppercase tracking-[0.2em] mt-2">Data Processing & Direct Scanner API</p>
         </div>
-        <div className="text-right">
+        <div className="text-right flex gap-2">
+          <button onClick={() => navigate('/admin/qr-scanner')} className="bg-purple-600 px-6 py-2 rounded-lg font-bold hover:bg-purple-500 transition shadow-lg shadow-purple-900/20 active:scale-95 text-white text-sm">
+            📷 QR SCANNER
+          </button>
+          <button onClick={() => navigate('/admin/analytics')} className="bg-emerald-600 px-6 py-2 rounded-lg font-bold hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 active:scale-95 text-white text-sm">
+            📈 THE SHOWCASE
+          </button>
           <button onClick={loadData} className="bg-blue-600 px-6 py-2 rounded-lg font-bold hover:bg-blue-500 transition shadow-lg shadow-blue-900/20 active:scale-95 text-white text-sm">
             {isLoading ? '🔄 LOADING...' : '🔄 FORCE REFRESH'}
           </button>

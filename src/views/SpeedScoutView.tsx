@@ -140,7 +140,6 @@ export default function SpeedScoutView() {
             <NumberInput 
               value={matchData.counters.auto_score}
               onChange={(val) => handleCounterInput('auto_score', val)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               className="w-20 h-14 bg-black/50 border border-white/10 rounded-lg text-3xl font-black font-mono text-center outline-none focus:border-blue-500"
             />
             <button onClick={() => handleCounter('auto_score', 1)} className="w-14 h-14 bg-blue-600 rounded-lg font-black text-3xl active:scale-95 select-none touch-manipulation">+</button>
@@ -159,7 +158,6 @@ export default function SpeedScoutView() {
             <NumberInput 
               value={matchData.counters.teleop_fuel}
               onChange={(val) => handleCounterInput('teleop_fuel', val)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               className="w-20 h-14 bg-black/50 border border-white/10 rounded-lg text-3xl font-black font-mono text-center text-yellow-500 outline-none focus:border-yellow-500"
             />
             <button onClick={() => handleCounter('teleop_fuel', 1)} className="w-14 h-14 bg-yellow-600 text-black rounded-lg font-black text-3xl active:scale-95 select-none touch-manipulation">+</button>
@@ -173,7 +171,6 @@ export default function SpeedScoutView() {
             <NumberInput 
               value={matchData.counters.hoard_fuel}
               onChange={(val) => handleCounterInput('hoard_fuel', val)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               className="w-20 h-14 bg-black/50 border border-white/10 rounded-lg text-3xl font-black font-mono text-center text-orange-400 outline-none focus:border-orange-500"
             />
             <button onClick={() => handleCounter('hoard_fuel', 1)} className="w-14 h-14 bg-orange-600 text-white rounded-lg font-black text-3xl active:scale-95 select-none touch-manipulation">+</button>

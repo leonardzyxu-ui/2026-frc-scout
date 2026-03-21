@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { PitScoutData } from '../../types';
@@ -7,7 +8,6 @@ import { X, Search } from 'lucide-react';
 export default function PitScoutStats() {
   const [data, setData] = useState<PitScoutData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<PitScoutData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -18,18 +18,19 @@ export default function PitScoutStats() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const snapshot = await getDocs(collection(db, 'pitScouting'));
-      const fetchedData: PitScoutData[] = [];
-      snapshot.forEach(doc => {
-        fetchedData.push({ id: doc.id, ...doc.data() } as PitScoutData);
-      });
-      // Sort by team number
-      fetchedData.sort((a, b) => {
-        const numA = parseInt(a.teamNumber) || 0;
-        const numB = parseInt(b.teamNumber) || 0;
-        return numA - numB;
-      });
-      setData(fetchedData);
+      const response = await fetch('/finalPitScout.csv');
+      if (response.ok) {
+        const text = await response.text();
+        const parsedData = parseCSV(text);
+        parsedData.sort((a, b) => {
+          const numA = parseInt(a.teamNumber) || 0;
+          const numB = parseInt(b.teamNumber) || 0;
+          return numA - numB;
+        });
+        setData(parsedData);
+      } else {
+        console.error("Failed to fetch /finalPitScout.csv");
+      }
     } catch (err) {
       console.error("Error fetching pit scout data:", err);
     }
@@ -215,36 +216,6 @@ export default function PitScoutStats() {
     return parsedData;
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const parsed = parseCSV(text);
-      setData(parsed);
-    };
-    reader.readAsText(file);
-  };
-
-  const syncToFirebase = async () => {
-    if (data.length === 0) return;
-    setUploading(true);
-    try {
-      for (const item of data) {
-        const docId = item.teamNumber ? item.teamNumber.toString() : item.id;
-        await setDoc(doc(db, 'pitScouting', docId), item);
-      }
-      alert("Successfully synced to Firebase!");
-      fetchData();
-    } catch (err) {
-      console.error("Error syncing to Firebase:", err);
-      alert("Error syncing to Firebase. Check console.");
-    }
-    setUploading(false);
-  };
-
   const filteredData = data.filter(item => 
     item.teamNumber.includes(searchQuery) || 
     (item.teamName && item.teamName.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -268,17 +239,6 @@ export default function PitScoutStats() {
               className="bg-slate-900/50 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 w-48"
             />
           </div>
-          <label className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold cursor-pointer transition text-sm">
-            Upload CSV
-            <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-          </label>
-          <button 
-            onClick={syncToFirebase}
-            disabled={uploading || data.length === 0}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg font-bold transition text-sm"
-          >
-            {uploading ? 'Syncing...' : 'Sync to Firebase'}
-          </button>
         </div>
       </div>
 
@@ -286,7 +246,7 @@ export default function PitScoutStats() {
         {loading ? (
           <div className="flex-1 flex items-center justify-center text-gray-400">Loading data...</div>
         ) : data.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400">No pit scouting data found. Upload a CSV to begin.</div>
+          <div className="flex-1 flex items-center justify-center text-gray-400">No pit scouting data found.</div>
         ) : (
           <div className="overflow-auto flex-1 p-0">
             <table className="w-full text-left text-sm text-gray-300">
@@ -325,8 +285,8 @@ export default function PitScoutStats() {
         )}
       </div>
 
-      {selectedTeam && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {selectedTeam && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex justify-between items-center p-6 border-b border-white/10 shrink-0">
               <div>
@@ -418,7 +378,8 @@ export default function PitScoutStats() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -110,7 +110,6 @@ export default function SetupView() {
           <NumberInput 
             value={matchData.match}
             onChange={(val) => updateMatchData({ match: val })}
-            onKeyDown={(e) => e.key === 'Enter' && handleStart()}
             className="w-1/2 bg-black/30 border border-white/10 rounded-2xl p-5 text-3xl font-mono text-center outline-none focus:border-blue-500 transition placeholder-gray-600" 
             placeholder="Match #" 
           />
@@ -123,7 +122,6 @@ export default function SetupView() {
               const val = e.target.value;
               if (/^\d*$/.test(val)) updateMatchData({ team: val });
             }}
-            onKeyDown={(e) => e.key === 'Enter' && handleStart()}
             className="w-1/2 bg-black/30 border border-white/10 rounded-2xl p-5 text-3xl font-mono text-center font-bold outline-none focus:border-blue-500 transition placeholder-gray-600" 
             placeholder="Team #" 
           />
@@ -173,6 +171,13 @@ export default function SetupView() {
       </button>
 
       <button 
+        onClick={() => navigate('/match-scout')}
+        className="w-full py-4 bg-cyan-900/30 border-2 border-cyan-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-cyan-300 transition-all hover:bg-cyan-900/50"
+      >
+        📝 MATCH SCOUT (V2)
+      </button>
+
+      <button 
         onClick={() => navigate('/speed')}
         className="w-full py-4 bg-slate-800 border-2 border-slate-700 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-slate-300 transition-all hover:bg-slate-700"
       >
@@ -185,6 +190,22 @@ export default function SetupView() {
       >
         📜 MATCH HISTORY
       </button>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button 
+          onClick={() => navigate('/pit-scout')}
+          className="w-full py-4 bg-fuchsia-900/30 border-2 border-fuchsia-800/50 rounded-2xl text-lg font-bold shadow-lg active:scale-95 text-fuchsia-300 transition-all hover:bg-fuchsia-900/50"
+        >
+          🛠️ PIT SCOUT
+        </button>
+
+        <button 
+          onClick={() => navigate('/team-lookup')}
+          className="w-full py-4 bg-emerald-900/30 border-2 border-emerald-800/50 rounded-2xl text-lg font-bold shadow-lg active:scale-95 text-emerald-300 transition-all hover:bg-emerald-900/50"
+        >
+          🔍 TEAM LOOKUP
+        </button>
+      </div>
 
       {isLocalMode && (
         <button 

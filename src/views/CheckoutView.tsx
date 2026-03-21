@@ -222,7 +222,6 @@ export default function CheckoutView() {
         <NumberInput 
           value={matchData.allianceScore}
           onChange={(val) => updateMatchData({ allianceScore: val })}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
           className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-4xl font-black outline-none focus:border-blue-500 transition text-white text-center shadow-inner" 
           placeholder="000" 
         />

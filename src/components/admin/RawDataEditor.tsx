@@ -2,14 +2,20 @@ import React, { useState } from 'react';
 import { MatchData } from '../../types';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import NumberInput from '../NumberInput';
 
 export default function RawDataEditor({ matches, onRefresh, verifyPassword }: { matches: MatchData[], onRefresh: () => void, verifyPassword: (pwd: string) => Promise<boolean> }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editingMatch, setEditingMatch] = useState<MatchData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sort matches by match number
-  const sortedMatches = [...matches].sort((a, b) => a.match - b.match);
+  // Sort matches by timestamp (newest to oldest), fallback to match number
+  const sortedMatches = [...matches].sort((a, b) => {
+    if (b.timestamp && a.timestamp) {
+      return b.timestamp - a.timestamp;
+    }
+    return b.match - a.match;
+  });
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -209,10 +215,9 @@ export default function RawDataEditor({ matches, onRefresh, verifyPassword }: { 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Match Number</label>
-                <input 
-                  type="number" 
+                <NumberInput 
                   value={editingMatch.match} 
-                  onChange={e => setEditingMatch({...editingMatch, match: parseInt(e.target.value) || 0})}
+                  onChange={val => setEditingMatch({...editingMatch, match: val})}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
                 />
               </div>
@@ -250,28 +255,25 @@ export default function RawDataEditor({ matches, onRefresh, verifyPassword }: { 
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Auto Fuel</label>
-                <input 
-                  type="number" 
+                <NumberInput 
                   value={editingMatch.counters.auto_score} 
-                  onChange={e => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, auto_score: parseInt(e.target.value) || 0}})}
+                  onChange={val => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, auto_score: val}})}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Teleop Fuel</label>
-                <input 
-                  type="number" 
+                <NumberInput 
                   value={editingMatch.counters.teleop_fuel} 
-                  onChange={e => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, teleop_fuel: parseInt(e.target.value) || 0}})}
+                  onChange={val => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, teleop_fuel: val}})}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Hoard Fuel</label>
-                <input 
-                  type="number" 
+                <NumberInput 
                   value={editingMatch.counters.hoard_fuel} 
-                  onChange={e => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, hoard_fuel: parseInt(e.target.value) || 0}})}
+                  onChange={val => setEditingMatch({...editingMatch, counters: {...editingMatch.counters, hoard_fuel: val}})}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
                 />
               </div>
@@ -324,10 +326,9 @@ export default function RawDataEditor({ matches, onRefresh, verifyPassword }: { 
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Alliance Score</label>
-                <input 
-                  type="number" 
-                  value={editingMatch.allianceScore} 
-                  onChange={e => setEditingMatch({...editingMatch, allianceScore: parseInt(e.target.value) || 0})}
+                <NumberInput 
+                  value={editingMatch.allianceScore || 0} 
+                  onChange={val => setEditingMatch({...editingMatch, allianceScore: val})}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 outline-none"
                 />
               </div>
