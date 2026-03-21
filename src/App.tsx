@@ -4,13 +4,14 @@ import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ScoutProvider } from './context/ScoutContext';
 import { LocalFileProvider } from './context/LocalFileContext';
+
+// V2 Components
 import SetupView from './views/SetupView';
-import AdminView from './views/AdminView';
-import AdminAnalyticsView from './views/AdminAnalyticsView';
 import MatchScoutView from './views/MatchScoutView';
 import PitScoutView from './views/PitScoutView';
 import TeamLookupView from './views/TeamLookupView';
 import QRScannerView from './views/QRScannerView';
+import AdminAnalyticsView from './views/AdminAnalyticsView';
 import AdminGuard from './components/admin/AdminGuard';
 
 export default function App() {
@@ -45,10 +46,8 @@ export default function App() {
       <ScoutProvider>
         <Router>
           <Routes>
-            {/* Admin Route - No Header */}
-            <Route path="/admin" element={<AdminGuard><AdminView /></AdminGuard>} />
-            <Route path="/admin/analytics" element={<AdminGuard><AdminAnalyticsView /></AdminGuard>} />
-            <Route path="/admin/qr-scanner" element={<AdminGuard><QRScannerView /></AdminGuard>} />
+            {/* Admin Route - Protected */}
+            <Route path="/admin" element={<AdminGuard><AdminAnalyticsView /></AdminGuard>} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={
@@ -62,9 +61,10 @@ export default function App() {
                 <main className="flex-1 relative overflow-hidden">
                   <Routes>
                     <Route path="/" element={<SetupView />} />
-                    <Route path="/match-scout" element={<MatchScoutView />} />
-                    <Route path="/pit-scout" element={<PitScoutView />} />
-                    <Route path="/team-lookup" element={<TeamLookupView />} />
+                    <Route path="/scout" element={<MatchScoutView />} />
+                    <Route path="/pit" element={<PitScoutView />} />
+                    <Route path="/lookup" element={<TeamLookupView />} />
+                    <Route path="/scanner" element={<QRScannerView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

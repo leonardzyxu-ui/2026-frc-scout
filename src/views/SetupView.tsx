@@ -20,7 +20,7 @@ export default function SetupView() {
     if (matchData.startPos.x === null) return alert("Please tap the field map to set the robot's Starting Position!");
 
     updateMatchData({ startTime: Date.now() });
-    navigate('/game');
+    navigate('/scout');
   };
 
   const handleOpenFile = async () => {
@@ -171,50 +171,41 @@ export default function SetupView() {
       </button>
 
       <button 
-        onClick={() => navigate('/match-scout')}
+        onClick={() => navigate('/scout')}
         className="w-full py-4 bg-cyan-900/30 border-2 border-cyan-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-cyan-300 transition-all hover:bg-cyan-900/50"
       >
         📝 MATCH SCOUT (V2)
       </button>
 
-      <button 
-        onClick={() => navigate('/speed')}
-        className="w-full py-4 bg-slate-800 border-2 border-slate-700 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-slate-300 transition-all hover:bg-slate-700"
-      >
-        ⚡ SPEED SCOUT (FORM MODE)
-      </button>
-
-      <button 
-        onClick={() => navigate('/history')}
-        className="w-full py-4 bg-indigo-900/30 border-2 border-indigo-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-indigo-300 transition-all hover:bg-indigo-900/50"
-      >
-        📜 MATCH HISTORY
-      </button>
-
       <div className="grid grid-cols-2 gap-4">
         <button 
-          onClick={() => navigate('/pit-scout')}
+          onClick={() => navigate('/pit')}
           className="w-full py-4 bg-fuchsia-900/30 border-2 border-fuchsia-800/50 rounded-2xl text-lg font-bold shadow-lg active:scale-95 text-fuchsia-300 transition-all hover:bg-fuchsia-900/50"
         >
           🛠️ PIT SCOUT
         </button>
 
         <button 
-          onClick={() => navigate('/team-lookup')}
+          onClick={() => navigate('/lookup')}
           className="w-full py-4 bg-emerald-900/30 border-2 border-emerald-800/50 rounded-2xl text-lg font-bold shadow-lg active:scale-95 text-emerald-300 transition-all hover:bg-emerald-900/50"
         >
           🔍 TEAM LOOKUP
         </button>
       </div>
 
-      {isLocalMode && (
-        <button 
-          onClick={() => navigate('/localvault')}
-          className="w-full py-4 bg-yellow-900/30 border-2 border-yellow-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-yellow-300 transition-all hover:bg-yellow-900/50"
-        >
-          📦 LOCAL VAULT
-        </button>
-      )}
+      <button 
+        onClick={() => navigate('/scanner')}
+        className="w-full py-4 bg-purple-900/30 border-2 border-purple-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-purple-300 transition-all hover:bg-purple-900/50"
+      >
+        📷 QR SCANNER
+      </button>
+
+      <button 
+        onClick={() => navigate('/admin')}
+        className="w-full py-4 bg-red-900/30 border-2 border-red-800/50 rounded-2xl text-xl font-bold shadow-lg active:scale-95 text-red-300 transition-all hover:bg-red-900/50"
+      >
+        🔒 ADMIN MAINFRAME
+      </button>
     </div>
   );
 }

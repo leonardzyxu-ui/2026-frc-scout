@@ -90,7 +90,7 @@ export default function AdminAnalyticsView() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate('/')}
               className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6" />
