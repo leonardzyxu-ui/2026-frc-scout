@@ -10,6 +10,10 @@ export interface TBAMatch {
     red: { score: number; team_keys: string[] };
     blue: { score: number; team_keys: string[] };
   };
+  score_breakdown?: {
+    red: { autoPoints?: number; teleopPoints?: number; endGameTotalStagePoints?: number; endGamePoints?: number };
+    blue: { autoPoints?: number; teleopPoints?: number; endGameTotalStagePoints?: number; endGamePoints?: number };
+  };
 }
 
 export interface TeamMetrics {
@@ -17,6 +21,9 @@ export interface TeamMetrics {
   opr: number;
   dpr: number;
   oprc: number;
+  autoOprc: number;
+  teleopOprc: number;
+  endgameOprc: number;
   oprcHistory: { match: number; oprc: number }[];
   avgAutoFluidity: number;
   avgTeleopFluidity: number;
@@ -37,6 +44,11 @@ export class MathEngine {
       console.warn("No TBA API Key provided. Math Engine cannot fetch matches.");
       return [];
     }
+    
+    if (eventKey === 'TEST') {
+      console.log("Test event selected, skipping TBA fetch.");
+      return [];
+    }
 
     try {
       const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/matches`, {
@@ -44,7 +56,10 @@ export class MathEngine {
           'X-TBA-Auth-Key': this.tbaApiKey
         }
       });
-      if (!response.ok) throw new Error(`TBA API Error: ${response.statusText}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`TBA API Error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
       const matches: TBAMatch[] = await response.json();
       
       // Filter out unplayed matches and sort by time
@@ -131,10 +146,16 @@ export class MathEngine {
     // oprcSum[team] = sum of OPRc across matches
     // oprcCount[team] = number of matches played
     const oprcSum = new Map<string, number>();
+    const oprcSumAuto = new Map<string, number>();
+    const oprcSumTeleop = new Map<string, number>();
+    const oprcSumEndgame = new Map<string, number>();
     const oprcCount = new Map<string, number>();
     const oprcHistory = new Map<string, { match: number; oprc: number }[]>();
     teams.forEach(t => { 
       oprcSum.set(t, 0); 
+      oprcSumAuto.set(t, 0);
+      oprcSumTeleop.set(t, 0);
+      oprcSumEndgame.set(t, 0);
       oprcCount.set(t, 0); 
       oprcHistory.set(t, []);
     });
@@ -142,58 +163,92 @@ export class MathEngine {
     // For rolling OPR, we iterate through matches
     let AtA_rolling = Matrix.zeros(numTeams, numTeams);
     let Atb_rolling = Matrix.zeros(numTeams, 1);
+    let Atb_rolling_auto = Matrix.zeros(numTeams, 1);
+    let Atb_rolling_teleop = Matrix.zeros(numTeams, 1);
+    let Atb_rolling_endgame = Matrix.zeros(numTeams, 1);
     let matchesProcessed = 0;
 
     tbaMatches.forEach((m) => {
       // Calculate OPRs using matches 0 to index-1
       let currentOPRs = new Array(numTeams).fill(0);
+      let currentOPRsAuto = new Array(numTeams).fill(0);
+      let currentOPRsTeleop = new Array(numTeams).fill(0);
+      let currentOPRsEndgame = new Array(numTeams).fill(0);
       if (matchesProcessed > 0) {
         currentOPRs = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling, lambda);
+        currentOPRsAuto = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_auto, lambda);
+        currentOPRsTeleop = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_teleop, lambda);
+        currentOPRsEndgame = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_endgame, lambda);
       }
 
       // Calculate OPRc for this match
-      const processAlliance = (allianceTeams: string[], allianceScore: number) => {
+      const processAlliance = (allianceTeams: string[], allianceScore: number, breakdown?: any) => {
         const teamKeys = allianceTeams.map(tk => tk.replace('frc', ''));
         
+        const autoScore = breakdown?.autoPoints || 0;
+        const teleopScore = breakdown?.teleopPoints || 0;
+        const endgameScore = breakdown?.endGameTotalStagePoints || breakdown?.endGamePoints || 0;
+
         teamKeys.forEach(targetTeam => {
           let expectedPartnerScore = 0;
+          let expectedPartnerAuto = 0;
+          let expectedPartnerTeleop = 0;
+          let expectedPartnerEndgame = 0;
+
           teamKeys.forEach(partner => {
             if (partner !== targetTeam) {
               const pIdx = teamToIndex.get(partner);
               if (pIdx !== undefined) {
                 expectedPartnerScore += currentOPRs[pIdx];
+                expectedPartnerAuto += currentOPRsAuto[pIdx];
+                expectedPartnerTeleop += currentOPRsTeleop[pIdx];
+                expectedPartnerEndgame += currentOPRsEndgame[pIdx];
               }
             }
           });
 
           const oprc = allianceScore - expectedPartnerScore;
+          const autoOprc = autoScore - expectedPartnerAuto;
+          const teleopOprc = teleopScore - expectedPartnerTeleop;
+          const endgameOprc = endgameScore - expectedPartnerEndgame;
+
           oprcSum.set(targetTeam, (oprcSum.get(targetTeam) || 0) + oprc);
+          oprcSumAuto.set(targetTeam, (oprcSumAuto.get(targetTeam) || 0) + autoOprc);
+          oprcSumTeleop.set(targetTeam, (oprcSumTeleop.get(targetTeam) || 0) + teleopOprc);
+          oprcSumEndgame.set(targetTeam, (oprcSumEndgame.get(targetTeam) || 0) + endgameOprc);
           oprcCount.set(targetTeam, (oprcCount.get(targetTeam) || 0) + 1);
           oprcHistory.get(targetTeam)?.push({ match: m.match_number, oprc });
         });
       };
 
-      processAlliance(m.alliances.red.team_keys, m.alliances.red.score);
-      processAlliance(m.alliances.blue.team_keys, m.alliances.blue.score);
+      processAlliance(m.alliances.red.team_keys, m.alliances.red.score, m.score_breakdown?.red);
+      processAlliance(m.alliances.blue.team_keys, m.alliances.blue.score, m.score_breakdown?.blue);
 
       // Add this match to the rolling matrices for the NEXT match's predictions
-      const updateRolling = (teamKeys: string[], score: number) => {
+      const updateRolling = (teamKeys: string[], score: number, breakdown?: any) => {
         const indices: number[] = [];
         teamKeys.forEach(tk => {
           const idx = teamToIndex.get(tk.replace('frc', ''));
           if (idx !== undefined) indices.push(idx);
         });
 
+        const autoScore = breakdown?.autoPoints || 0;
+        const teleopScore = breakdown?.teleopPoints || 0;
+        const endgameScore = breakdown?.endGameTotalStagePoints || breakdown?.endGamePoints || 0;
+
         indices.forEach(i => {
           Atb_rolling.set(i, 0, Atb_rolling.get(i, 0) + score);
+          Atb_rolling_auto.set(i, 0, Atb_rolling_auto.get(i, 0) + autoScore);
+          Atb_rolling_teleop.set(i, 0, Atb_rolling_teleop.get(i, 0) + teleopScore);
+          Atb_rolling_endgame.set(i, 0, Atb_rolling_endgame.get(i, 0) + endgameScore);
           indices.forEach(j => {
             AtA_rolling.set(i, j, AtA_rolling.get(i, j) + 1);
           });
         });
       };
 
-      updateRolling(m.alliances.red.team_keys, m.alliances.red.score);
-      updateRolling(m.alliances.blue.team_keys, m.alliances.blue.score);
+      updateRolling(m.alliances.red.team_keys, m.alliances.red.score, m.score_breakdown?.red);
+      updateRolling(m.alliances.blue.team_keys, m.alliances.blue.score, m.score_breakdown?.blue);
       matchesProcessed++;
     });
 
@@ -230,6 +285,9 @@ export class MathEngine {
         opr: eventOPRs[i] || 0,
         dpr: eventDPRs[i] || 0,
         oprc: (oprcSum.get(t) || 0) / pCount,
+        autoOprc: (oprcSumAuto.get(t) || 0) / pCount,
+        teleopOprc: (oprcSumTeleop.get(t) || 0) / pCount,
+        endgameOprc: (oprcSumEndgame.get(t) || 0) / pCount,
         oprcHistory: oprcHistory.get(t) || [],
         avgAutoFluidity: s.auto / sCount,
         avgTeleopFluidity: s.teleop / sCount,

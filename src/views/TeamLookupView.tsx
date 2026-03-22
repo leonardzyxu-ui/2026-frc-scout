@@ -13,7 +13,7 @@ interface PitData {
   weight: string;
   dimensions: string;
   autoStart: string;
-  photoUrl: string;
+  photoBase64?: string;
 }
 
 export default function TeamLookupView({ isEmbedded = false, eventKey: propEventKey }: { isEmbedded?: boolean, eventKey?: string }) {
@@ -26,7 +26,7 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
   const [pitData, setPitData] = useState<PitData | null>(null);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null);
 
-  const eventKey = propEventKey || localStorage.getItem('globalEventKey') || '2024casj';
+  const eventKey = propEventKey || localStorage.getItem('globalEventKey') || '2026mnum';
   const tbaApiKey = import.meta.env.VITE_TBA_API_KEY || '';
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -152,9 +152,9 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
                 
                 {/* Image */}
                 <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden aspect-square flex items-center justify-center relative group">
-                  {pitData?.photoUrl ? (
+                  {pitData?.photoBase64 ? (
                     <img 
-                      src={pitData.photoUrl} 
+                      src={pitData.photoBase64} 
                       alt={`Team ${searchedTeam} Robot`} 
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
@@ -233,6 +233,22 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
                     <span className="text-3xl font-black text-purple-400">
                       {metrics ? calculateConsistency(metrics.oprcHistory).toFixed(2) : '--'}
                     </span>
+                  </div>
+                </div>
+
+                {/* OPRc Breakdown */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">AUTO OPRc</span>
+                    <span className="text-2xl font-black text-emerald-300">{metrics?.autoOprc?.toFixed(1) || '--'}</span>
+                  </div>
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">TELEOP OPRc</span>
+                    <span className="text-2xl font-black text-emerald-400">{metrics?.teleopOprc?.toFixed(1) || '--'}</span>
+                  </div>
+                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">ENDGAME OPRc</span>
+                    <span className="text-2xl font-black text-emerald-500">{metrics?.endgameOprc?.toFixed(1) || '--'}</span>
                   </div>
                 </div>
 

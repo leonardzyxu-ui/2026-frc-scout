@@ -21,7 +21,7 @@ export default function HistoryView() {
 
         // We assume the eventKey is stored globally, or we fetch across all events?
         // Let's fetch from the current eventKey.
-        const eventKey = localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2024casj';
+        const eventKey = localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2026mnum';
         
         const q = query(
           collection(db, 'events', eventKey, 'matchScouting'),

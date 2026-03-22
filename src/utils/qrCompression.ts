@@ -19,13 +19,15 @@ export const compressMatchData = (data: MatchScoutingV2): string => {
     data.commsLost ? 1 : 0,
     data.mechanismBroke ? 1 : 0,
     data.failureReason,
-    data.notes
+    data.notes,
+    data.climbLevel,
+    data.tippedOver ? 1 : 0
   ];
-  return "V3|" + JSON.stringify(arr);
+  return "V4|" + JSON.stringify(arr);
 };
 
 export const decompressMatchData = (str: string): MatchScoutingV2 | null => {
-  if (!str.startsWith("V3|")) return null;
+  if (!str.startsWith("V4|")) return null;
   try {
     const arr = JSON.parse(str.substring(3));
     return {
@@ -47,6 +49,8 @@ export const decompressMatchData = (str: string): MatchScoutingV2 | null => {
       mechanismBroke: !!arr[15],
       failureReason: arr[16],
       notes: arr[17],
+      climbLevel: arr[18] || 'None',
+      tippedOver: !!arr[19],
       timestamp: Date.now()
     };
   } catch (e) {

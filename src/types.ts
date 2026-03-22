@@ -55,14 +55,17 @@ export interface MatchScoutingV2 {
   teleopFluidity: number;
   driverPressure: number;
 
-  // Critical Failures
+  // Toggles & Critical Failures
+  climbLevel: 'None' | 'Parked' | 'Shallow' | 'Deep';
   robotDied: boolean;
   commsLost: boolean;
   mechanismBroke: boolean;
+  tippedOver: boolean;
   failureReason: string;
 
   // Notes
   notes: string;
+  comments?: string;
 }
 
 export interface TeamAnalyticsV2 {
@@ -95,9 +98,11 @@ export const initialMatchScoutingV2: MatchScoutingV2 = {
   teleopFluidity: 5,
   driverPressure: 5,
 
+  climbLevel: 'None',
   robotDied: false,
   commsLost: false,
   mechanismBroke: false,
+  tippedOver: false,
   failureReason: '',
 
   notes: ''

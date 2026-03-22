@@ -15,7 +15,7 @@ export default function MatchScoutView() {
     ...initialMatchScoutingV2,
     deviceId: localStorage.getItem('scout_device_id') || `device_${Math.random().toString(36).substr(2, 9)}`,
     scoutName: localStorage.getItem('scout_name') || '',
-    eventKey: localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2024casj'
+    eventKey: localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2026mnum'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -99,6 +99,9 @@ export default function MatchScoutView() {
     if (!data.scoutName) return alert("Please enter your Scout Name.");
     if (!data.matchKey) return alert("Please enter the Match Key (e.g. qm1).");
     if (!data.teamNumber) return alert("Please enter the Team Number.");
+    if (data.eventKey !== 'TEST' && scheduledTeams.length > 0 && !scheduledTeams.includes(data.teamNumber)) {
+      return alert(`Team ${data.teamNumber} is not scheduled for this event. Please check the team number.`);
+    }
     if (!data.alliance) return alert("Please select an Alliance.");
 
     setIsSubmitting(true);
@@ -299,7 +302,7 @@ export default function MatchScoutView() {
 
         <div>
           <div className="flex justify-between mb-2">
-            <label className="text-xs font-bold text-slate-500 uppercase">Driver Pressure</label>
+            <label className="text-xs font-bold text-slate-500 uppercase">Driver performance under pressure</label>
             <span className="text-xs font-black text-emerald-400">{data.driverPressure} / 10</span>
           </div>
           <input 
@@ -379,43 +382,70 @@ export default function MatchScoutView() {
         )}
       </div>
 
-      {/* Critical Failures */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <h2 className="text-xl font-black text-red-400 border-b border-slate-800 pb-2">CRITICAL FAILURES</h2>
-        
-        <div className="grid grid-cols-3 gap-2">
-          <button 
-            onClick={() => updateData({ robotDied: !data.robotDied })}
-            className={`p-3 rounded-xl font-black text-xs transition-all ${data.robotDied ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-          >
-            ROBOT DIED
-          </button>
-          <button 
-            onClick={() => updateData({ commsLost: !data.commsLost })}
-            className={`p-3 rounded-xl font-black text-xs transition-all ${data.commsLost ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-          >
-            COMMUNICATIONS LOST
-          </button>
-          <button 
-            onClick={() => updateData({ mechanismBroke: !data.mechanismBroke })}
-            className={`p-3 rounded-xl font-black text-xs transition-all ${data.mechanismBroke ? 'bg-yellow-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-          >
-            MECHANISM BROKE
-          </button>
+      {/* Endgame & Failures */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-6">
+        <div>
+          <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2 mb-4">ENDGAME</h2>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Climb Level</label>
+          <div className="grid grid-cols-4 gap-2">
+            {['None', 'Parked', 'Shallow', 'Deep'].map((level) => (
+              <button
+                key={level}
+                onClick={() => updateData({ climbLevel: level as any })}
+                className={`py-3 rounded-xl font-black text-xs transition-all ${
+                  data.climbLevel === level
+                    ? 'bg-emerald-600 text-white shadow-inner'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                }`}
+              >
+                {level.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {(data.robotDied || data.commsLost || data.mechanismBroke) && (
-          <div className="animate-in fade-in slide-in-from-top-4">
-            <label className="block text-xs font-bold text-red-400 uppercase mb-1">Failure Reason</label>
-            <input 
-              type="text" 
-              value={data.failureReason}
-              onChange={(e) => updateData({ failureReason: e.target.value })}
-              className="w-full bg-black/50 border border-red-900/50 rounded-xl p-3 outline-none focus:border-red-500 transition" 
-              placeholder="What happened?"
-            />
+        <div>
+          <h2 className="text-xl font-black text-red-400 border-b border-slate-800 pb-2 mb-4">CRITICAL FAILURES</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <button 
+              onClick={() => updateData({ robotDied: !data.robotDied })}
+              className={`p-3 rounded-xl font-black text-xs transition-all ${data.robotDied ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+            >
+              ROBOT DIED
+            </button>
+            <button 
+              onClick={() => updateData({ commsLost: !data.commsLost })}
+              className={`p-3 rounded-xl font-black text-xs transition-all ${data.commsLost ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+            >
+              COMMS LOST
+            </button>
+            <button 
+              onClick={() => updateData({ mechanismBroke: !data.mechanismBroke })}
+              className={`p-3 rounded-xl font-black text-xs transition-all ${data.mechanismBroke ? 'bg-yellow-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+            >
+              MECH BROKE
+            </button>
+            <button 
+              onClick={() => updateData({ tippedOver: !data.tippedOver })}
+              className={`p-3 rounded-xl font-black text-xs transition-all ${data.tippedOver ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+            >
+              TIPPED OVER
+            </button>
           </div>
-        )}
+
+          {(data.robotDied || data.commsLost || data.mechanismBroke || data.tippedOver) && (
+            <div className="animate-in fade-in slide-in-from-top-4 mt-4">
+              <label className="block text-xs font-bold text-red-400 uppercase mb-1">Failure Reason</label>
+              <input 
+                type="text" 
+                value={data.failureReason}
+                onChange={(e) => updateData({ failureReason: e.target.value })}
+                className="w-full bg-black/50 border border-red-900/50 rounded-xl p-3 outline-none focus:border-red-500 transition" 
+                placeholder="What happened?"
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Notes */}

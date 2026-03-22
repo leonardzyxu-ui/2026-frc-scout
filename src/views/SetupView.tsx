@@ -1,12 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function SetupView() {
   const navigate = useNavigate();
+  const [clickCount, setClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  const handleTitleClick = () => {
+    const now = Date.now();
+    if (now - lastClickTime > 500) {
+      setClickCount(1);
+    } else {
+      const newCount = clickCount + 1;
+      setClickCount(newCount);
+      if (newCount >= 5) {
+        navigate('/admin');
+        setClickCount(0);
+      }
+    }
+    setLastClickTime(now);
+  };
 
   return (
     <div className="flex flex-col p-6 space-y-6 overflow-y-auto h-full pb-12 items-center justify-center">
-      <div className="text-center mb-8">
+      <div className="text-center mb-8" onClick={handleTitleClick} style={{ cursor: 'pointer', userSelect: 'none' }}>
         <h1 className="text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">
           REBUILT
         </h1>
@@ -35,13 +52,6 @@ export default function SetupView() {
           My Device History
         </button>
       </div>
-
-      <button 
-        onClick={() => navigate('/admin')}
-        className="mt-12 text-xs font-mono text-slate-600 hover:text-slate-400 transition-colors"
-      >
-        [ Admin Access ]
-      </button>
     </div>
   );
 }
