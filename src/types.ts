@@ -42,29 +42,18 @@ export interface MatchScoutingV2 {
   alliance: 'Red' | 'Blue' | '';
   deviceId?: string;
   timestamp?: number;
-
-  // Auto
-  autoMobility: boolean;
-  autoScore: number;
-  autoTower: boolean;
-  
-  // Teleop
-  teleopScore: number;
-  hoardScore: number;
+  editHistory?: any[]; // For versioning
 
   // Defense Branching
   playedDefense: boolean;
   defenseInstances: number;
-  defenseDuration: number;
+  defenseDuration: string; // '<1', '<2', etc.
   defenseEffectiveness: number; // 0-10
-
-  // Endgame
-  climbStatus: 'None' | 'Parked' | 'L1' | 'L2' | 'L3' | 'Failed';
 
   // Subjective (0-10)
   autoFluidity: number;
   teleopFluidity: number;
-  underPressure: number;
+  driverPressure: number;
 
   // Critical Failures
   robotDied: boolean;
@@ -81,39 +70,30 @@ export interface TeamAnalyticsV2 {
   eventKey: string;
   opr: number;
   dpr: number;
-  popr: number;
+  oprc: number;
   avgAutoFluidity: number;
   avgTeleopFluidity: number;
-  avgUnderPressure: number;
+  avgDriverPressure: number;
   avgDefenseEffectiveness: number;
   matchesPlayed: number;
 }
 
 export const initialMatchScoutingV2: MatchScoutingV2 = {
-  eventKey: '2026sh', // Default to Shanghai Regional
+  eventKey: '2026cnsh', // Default to Shanghai Regional
   matchKey: 'qm1',
   teamNumber: '',
   scoutName: '',
   alliance: '',
   deviceId: '',
 
-  autoMobility: false,
-  autoScore: 0,
-  autoTower: false,
-
-  teleopScore: 0,
-  hoardScore: 0,
-
   playedDefense: false,
   defenseInstances: 0,
-  defenseDuration: 0,
-  defenseEffectiveness: 0,
-
-  climbStatus: 'None',
+  defenseDuration: '<1',
+  defenseEffectiveness: 5,
 
   autoFluidity: 5,
   teleopFluidity: 5,
-  underPressure: 5,
+  driverPressure: 5,
 
   robotDied: false,
   commsLost: false,

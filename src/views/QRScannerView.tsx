@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { doc, setDoc } from 'firebase/firestore';
@@ -7,11 +7,12 @@ import { decompressMatchData } from '../utils/qrCompression';
 import { ArrowLeft, CheckCircle2, AlertTriangle, ScanLine } from 'lucide-react';
 import { MatchScoutingV2 } from '../types';
 
-export default function QRScannerView() {
+export default function QRScannerView({ isEmbedded = false }: { isEmbedded?: boolean }) {
   const navigate = useNavigate();
   const [scannedData, setScannedData] = useState<MatchScoutingV2 | null>(null);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
     // Initialize scanner
@@ -20,6 +21,7 @@ export default function QRScannerView() {
       { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true },
       /* verbose= */ false
     );
+    scannerRef.current = scanner;
 
     scanner.render(onScanSuccess, onScanFailure);
 
@@ -39,9 +41,11 @@ export default function QRScannerView() {
     }
 
     return () => {
-      scanner.clear().catch(error => {
-        console.error("Failed to clear html5QrcodeScanner. ", error);
-      });
+      if (scannerRef.current) {
+        scannerRef.current.clear().catch(error => {
+          console.error("Failed to clear html5QrcodeScanner. ", error);
+        });
+      }
     };
   }, []);
 
@@ -59,8 +63,11 @@ export default function QRScannerView() {
       setTimeout(() => {
         setScannedData(null);
         setStatus('idle');
-        // Resume scanning if possible, or force reload
-        window.location.reload(); 
+        if (!isEmbedded) {
+          window.location.reload(); 
+        } else if (scannerRef.current) {
+          scannerRef.current.resume();
+        }
       }, 2000);
       
     } catch (err) {
@@ -73,29 +80,35 @@ export default function QRScannerView() {
   const handleCancel = () => {
     setScannedData(null);
     setStatus('idle');
-    window.location.reload(); // Quick way to reset scanner state
+    if (!isEmbedded) {
+      window.location.reload();
+    } else if (scannerRef.current) {
+      scannerRef.current.resume();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans">
-      <div className="max-w-3xl mx-auto space-y-8">
+    <div className={isEmbedded ? "" : "min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans"}>
+      <div className={isEmbedded ? "space-y-8" : "max-w-3xl mx-auto space-y-8"}>
         
         {/* Header */}
-        <div className="flex items-center gap-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
-          <button 
-            onClick={() => navigate('/')}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div>
-            <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-              <ScanLine className="text-emerald-500 w-8 h-8" />
-              QR SCOUT SCANNER
-            </h1>
-            <p className="text-slate-400 mt-1">Offline Protocol: Sync data from scout devices</p>
+        {!isEmbedded && (
+          <div className="flex items-center gap-4 bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+            <button 
+              onClick={() => navigate('/')}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
+                <ScanLine className="text-emerald-500 w-8 h-8" />
+                QR SCOUT SCANNER
+              </h1>
+              <p className="text-slate-400 mt-1">Offline Protocol: Sync data from scout devices</p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Scanner Container */}
         <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Eye, EyeOff } from 'lucide-react';
 
 const ADMIN_HASH = "f51017681489feaa432c4f86ceb66aae7bf383ed137b75ae9eeeea61e616af02";
 
@@ -15,6 +15,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem('admin_unlocked') === 'true') {
@@ -53,9 +54,9 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
         <p className="text-slate-500 text-center text-sm mb-8 font-medium">Please enter the mainframe password to continue.</p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="relative">
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
@@ -66,6 +67,13 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
               }`}
               autoFocus
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
           </div>
           <button 
             type="submit"

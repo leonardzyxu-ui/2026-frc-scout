@@ -41,10 +41,10 @@ export default function MatchSimulator({ metrics }: MatchSimulatorProps) {
     localStorage.setItem('discordWebhookUrl', e.target.value);
   };
 
-  const calculateConsistency = (history: { match: number; popr: number }[]) => {
+  const calculateConsistency = (history: { match: number; oprc: number }[]) => {
     if (!history || history.length < 2) return 5.0; // Default std dev if not enough data
-    const mean = history.reduce((sum, h) => sum + h.popr, 0) / history.length;
-    const variance = history.reduce((sum, h) => sum + Math.pow(h.popr - mean, 2), 0) / history.length;
+    const mean = history.reduce((sum, h) => sum + h.oprc, 0) / history.length;
+    const variance = history.reduce((sum, h) => sum + Math.pow(h.oprc - mean, 2), 0) / history.length;
     return Math.sqrt(variance) || 5.0;
   };
 
@@ -57,28 +57,28 @@ export default function MatchSimulator({ metrics }: MatchSimulatorProps) {
 
   const generateSynergyNotes = (redTeams: string[], blueTeams: string[]) => {
     let redAuto = 0, blueAuto = 0;
-    let redEndgame = 0, blueEndgame = 0;
+    let redTeleop = 0, blueTeleop = 0;
 
     redTeams.forEach(t => {
       if (metrics[t]) {
         redAuto += metrics[t].avgAutoFluidity;
-        redEndgame += metrics[t].avgClimbRate;
+        redTeleop += metrics[t].avgTeleopFluidity;
       }
     });
     blueTeams.forEach(t => {
       if (metrics[t]) {
         blueAuto += metrics[t].avgAutoFluidity;
-        blueEndgame += metrics[t].avgClimbRate;
+        blueTeleop += metrics[t].avgTeleopFluidity;
       }
     });
 
     const autoAdvantage = redAuto > blueAuto ? 'Red' : 'Blue';
-    const endgameAdvantage = redEndgame > blueEndgame ? 'Red' : 'Blue';
+    const teleopAdvantage = redTeleop > blueTeleop ? 'Red' : 'Blue';
 
-    if (autoAdvantage === endgameAdvantage) {
-      return `${autoAdvantage} Alliance shows superior performance in both Autonomous fluidity and Endgame reliability.`;
+    if (autoAdvantage === teleopAdvantage) {
+      return `${autoAdvantage} Alliance shows superior performance in both Autonomous and Teleop fluidity.`;
     } else {
-      return `${autoAdvantage} dominates in Auto, but ${endgameAdvantage} has superior Endgame reliability.`;
+      return `${autoAdvantage} dominates in Auto, but ${teleopAdvantage} has superior Teleop fluidity.`;
     }
   };
 
@@ -106,7 +106,7 @@ export default function MatchSimulator({ metrics }: MatchSimulatorProps) {
       const getTeamStats = (team: string) => {
         const m = metrics[team];
         if (!m) return { mean: 0, stdDev: 5.0 }; // Fallback
-        return { mean: m.popr, stdDev: calculateConsistency(m.poprHistory) };
+        return { mean: m.oprc, stdDev: calculateConsistency(m.oprcHistory) };
       };
 
       const redStats = redTeams.map(getTeamStats);

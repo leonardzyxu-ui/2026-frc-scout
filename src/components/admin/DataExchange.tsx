@@ -12,14 +12,13 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
   const handleCopy = async () => {
     const exportData = Object.values(metrics).map(m => ({
       team: m.teamNumber,
-      popr: Number(m.popr.toFixed(2)),
+      oprc: Number(m.oprc.toFixed(2)),
       opr: Number(m.opr.toFixed(2)),
       dpr: Number(m.dpr.toFixed(2)),
       auto: Number(m.avgAutoFluidity.toFixed(1)),
       teleop: Number(m.avgTeleopFluidity.toFixed(1)),
-      evasion: Number(m.avgUnderPressure.toFixed(1)),
-      defense: Number(m.avgDefenseEffectiveness.toFixed(1)),
-      climb: Number(m.avgClimbRate.toFixed(2))
+      evasion: Number(m.avgDriverPressure.toFixed(1)),
+      defense: Number(m.avgDefenseEffectiveness.toFixed(1))
     }));
 
     const jsonString = JSON.stringify(exportData);
@@ -45,9 +44,9 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
 
       <div className="flex-1 flex flex-col justify-center items-center text-center space-y-6">
         <div className="space-y-2">
-          <h3 className="text-lg font-bold text-white">Gracious Professionalism</h3>
+          <h3 className="text-lg font-bold text-white">Data Export</h3>
           <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-            Export all calculated metrics (POPR, Subjective Averages, Climb Rates) as a minimized JSON payload. 
+            Export all calculated metrics (OPRc, Subjective Averages, Defense Ratings) as a minimized JSON payload. 
             Instantly share with alliance partners via Airdrop, Slack, or Email.
           </p>
         </div>
@@ -79,7 +78,7 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
           <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Payload Preview</div>
           <pre className="text-xs font-mono text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">
             {JSON.stringify([
-              { team: "254", popr: 45.2, opr: 40.1, dpr: 12.5, auto: 9.5, teleop: 9.8, evasion: 8.5, defense: 2.1, climb: 0.95 },
+              { team: "254", oprc: 45.2, opr: 40.1, dpr: 12.5, auto: 9.5, teleop: 9.8, evasion: 8.5, defense: 2.1, climb: 0.95 },
               { team: "..." }
             ])}
           </pre>

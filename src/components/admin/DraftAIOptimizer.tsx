@@ -18,36 +18,36 @@ export default function DraftAIOptimizer({ metrics, targetTeam = '10479' }: Draf
     // 1. Define Elite Thresholds
     const ELITE_AUTO = 8.0;
     const ELITE_DEFENSE = 7.0;
-    const ELITE_CLIMB = 0.8;
+    const ELITE_TELEOP = 8.0;
 
     // 2. Calculate Gaps for Target Team
     const autoGap = Math.max(0, ELITE_AUTO - target.avgAutoFluidity);
     const defenseGap = Math.max(0, ELITE_DEFENSE - target.avgDefenseEffectiveness);
-    const climbGap = Math.max(0, ELITE_CLIMB - target.avgClimbRate);
-    const totalGap = autoGap + defenseGap + climbGap || 1; // Prevent division by zero
+    const teleopGap = Math.max(0, ELITE_TELEOP - target.avgTeleopFluidity);
+    const totalGap = autoGap + defenseGap + teleopGap || 1; // Prevent division by zero
 
     // 3. Normalize Metrics across all teams
-    const maxPOPR = Math.max(...teams.map(t => t.popr));
-    const minPOPR = Math.min(...teams.map(t => t.popr));
-    const poprRange = maxPOPR - minPOPR || 1;
+    const maxOPRc = Math.max(...teams.map(t => t.oprc));
+    const minOPRc = Math.min(...teams.map(t => t.oprc));
+    const oprcRange = maxOPRc - minOPRc || 1;
 
     const scoredTeams = teams
       .filter(t => t.teamNumber !== targetTeam)
       .map(team => {
         // Normalize 0-1
-        const normPOPR = (team.popr - minPOPR) / poprRange;
+        const normOPRc = (team.oprc - minOPRc) / oprcRange;
         const normAuto = team.avgAutoFluidity / 10;
         const normDefense = team.avgDefenseEffectiveness / 10;
-        const normClimb = team.avgClimbRate;
+        const normTeleop = team.avgTeleopFluidity / 10;
 
         // Calculate Synergy Match (60% weight)
         const synergyMatch = 
           (normAuto * (autoGap / totalGap)) + 
           (normDefense * (defenseGap / totalGap)) + 
-          (normClimb * (climbGap / totalGap));
+          (normTeleop * (teleopGap / totalGap));
 
-        // Final Score: 40% Base POPR + 60% Synergy
-        const finalScore = (0.4 * normPOPR) + (0.6 * synergyMatch);
+        // Final Score: 40% Base OPRc + 60% Synergy
+        const finalScore = (0.4 * normOPRc) + (0.6 * synergyMatch);
 
         // Determine Key Reason
         let keyReason = '';
@@ -55,8 +55,8 @@ export default function DraftAIOptimizer({ metrics, targetTeam = '10479' }: Draf
         const contributions = [
           { name: 'Elite Auto', val: normAuto * (autoGap / totalGap), icon: <Zap className="w-4 h-4 text-amber-400" /> },
           { name: 'Elite Defense', val: normDefense * (defenseGap / totalGap), icon: <Shield className="w-4 h-4 text-rose-400" /> },
-          { name: 'Reliable Climb', val: normClimb * (climbGap / totalGap), icon: <ArrowUp className="w-4 h-4 text-cyan-400" /> },
-          { name: 'Raw Scoring Power', val: normPOPR * 0.4, icon: <Target className="w-4 h-4 text-emerald-400" /> }
+          { name: 'Elite Teleop', val: normTeleop * (teleopGap / totalGap), icon: <ArrowUp className="w-4 h-4 text-cyan-400" /> },
+          { name: 'Raw Scoring Power', val: normOPRc * 0.4, icon: <Target className="w-4 h-4 text-emerald-400" /> }
         ].sort((a, b) => b.val - a.val);
 
         keyReason = `Fills Gap: ${contributions[0].name}`;
@@ -73,7 +73,7 @@ export default function DraftAIOptimizer({ metrics, targetTeam = '10479' }: Draf
 
     return {
       target,
-      gaps: { autoGap, defenseGap, climbGap, totalGap },
+      gaps: { autoGap, defenseGap, teleopGap, totalGap },
       scoredTeams
     };
   }, [metrics, targetTeam]);
@@ -119,9 +119,9 @@ export default function DraftAIOptimizer({ metrics, targetTeam = '10479' }: Draf
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-500 mb-1">Climb Rate</div>
+            <div className="text-xs text-slate-500 mb-1">Teleop Fluidity</div>
             <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-400" style={{ width: `${(gaps.climbGap / 0.8) * 100}%` }} />
+              <div className="h-full bg-cyan-400" style={{ width: `${(gaps.teleopGap / 8) * 100}%` }} />
             </div>
           </div>
         </div>

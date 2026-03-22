@@ -9,9 +9,8 @@ import { LocalFileProvider } from './context/LocalFileContext';
 import SetupView from './views/SetupView';
 import MatchScoutView from './views/MatchScoutView';
 import PitScoutView from './views/PitScoutView';
-import TeamLookupView from './views/TeamLookupView';
-import QRScannerView from './views/QRScannerView';
-import AdminAnalyticsView from './views/AdminAnalyticsView';
+import HistoryView from './views/HistoryView';
+import AdminMainframeView from './views/AdminMainframeView';
 import AdminGuard from './components/admin/AdminGuard';
 
 export default function App() {
@@ -47,7 +46,7 @@ export default function App() {
         <Router>
           <Routes>
             {/* Admin Route - Protected */}
-            <Route path="/admin" element={<AdminGuard><AdminAnalyticsView /></AdminGuard>} />
+            <Route path="/admin" element={<AdminGuard><AdminMainframeView /></AdminGuard>} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={
@@ -63,8 +62,7 @@ export default function App() {
                     <Route path="/" element={<SetupView />} />
                     <Route path="/scout" element={<MatchScoutView />} />
                     <Route path="/pit" element={<PitScoutView />} />
-                    <Route path="/lookup" element={<TeamLookupView />} />
-                    <Route path="/scanner" element={<QRScannerView />} />
+                    <Route path="/history" element={<HistoryView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>

@@ -1,27 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { MatchScoutingV2, initialMatchScoutingV2 } from '../types';
 import NumberInput from '../components/NumberInput';
 import { QRCodeSVG } from 'qrcode.react';
 import { compressMatchData } from '../utils/qrCompression';
-import { QrCode, X } from 'lucide-react';
+import { QrCode, X, AlertTriangle } from 'lucide-react';
+import { MathEngine, TBAMatch } from '../utils/mathEngine';
 
 export default function MatchScoutView() {
   const navigate = useNavigate();
   const [data, setData] = useState<MatchScoutingV2>({
     ...initialMatchScoutingV2,
     deviceId: localStorage.getItem('scout_device_id') || `device_${Math.random().toString(36).substr(2, 9)}`,
-    scoutName: localStorage.getItem('scout_name') || ''
+    scoutName: localStorage.getItem('scout_name') || '',
+    eventKey: localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2024casj'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
+  const [teamWarning, setTeamWarning] = useState('');
+
+  useEffect(() => {
+    // Check if we are editing a match
+    const editDataStr = localStorage.getItem('edit_match_data');
+    if (editDataStr) {
+      try {
+        const editData = JSON.parse(editDataStr);
+        setData(editData);
+        setIsEditing(true);
+        localStorage.removeItem('edit_match_data');
+      } catch (e) {
+        console.error("Failed to parse edit data", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('scout_device_id', data.deviceId!);
     localStorage.setItem('scout_name', data.scoutName);
   }, [data.deviceId, data.scoutName]);
+
+  useEffect(() => {
+    // Fetch and cache scheduled teams for validation
+    const fetchTeams = async () => {
+      if (data.eventKey === 'TEST') return;
+      
+      const cachedTeamsStr = localStorage.getItem(`teams_${data.eventKey}`);
+      if (cachedTeamsStr) {
+        try {
+          setScheduledTeams(JSON.parse(cachedTeamsStr));
+        } catch (e) {}
+      }
+
+      const tbaApiKey = import.meta.env.VITE_TBA_API_KEY;
+      if (!tbaApiKey) return;
+
+      try {
+        const engine = new MathEngine(tbaApiKey);
+        const matches = await engine.fetchEventMatches(data.eventKey);
+        const teams = new Set<string>();
+        matches.forEach(m => {
+          m.alliances.red.team_keys.forEach(tk => teams.add(tk.replace('frc', '')));
+          m.alliances.blue.team_keys.forEach(tk => teams.add(tk.replace('frc', '')));
+        });
+        const teamsArray = Array.from(teams);
+        if (teamsArray.length > 0) {
+          setScheduledTeams(teamsArray);
+          localStorage.setItem(`teams_${data.eventKey}`, JSON.stringify(teamsArray));
+        }
+      } catch (e) {
+        console.error("Failed to fetch teams for validation", e);
+      }
+    };
+    fetchTeams();
+  }, [data.eventKey]);
+
+  useEffect(() => {
+    if (data.eventKey === 'TEST' || scheduledTeams.length === 0 || !data.teamNumber) {
+      setTeamWarning('');
+      return;
+    }
+    if (!scheduledTeams.includes(data.teamNumber)) {
+      setTeamWarning(`Warning: Team ${data.teamNumber} is not scheduled for this event.`);
+    } else {
+      setTeamWarning('');
+    }
+  }, [data.teamNumber, scheduledTeams, data.eventKey]);
 
   const updateData = (updates: Partial<MatchScoutingV2>) => {
     setData(prev => ({ ...prev, ...updates }));
@@ -33,38 +101,47 @@ export default function MatchScoutView() {
     if (!data.teamNumber) return alert("Please enter the Team Number.");
     if (!data.alliance) return alert("Please select an Alliance.");
 
-    if (data.robotDied || data.commsLost || data.mechanismBroke) {
-      if (!data.failureReason.trim()) {
-        return alert("Please provide a reason for the critical failure.");
-      }
-    }
-
     setIsSubmitting(true);
     try {
       const docId = `${data.matchKey}_${data.teamNumber}`;
       const docRef = doc(db, 'events', data.eventKey, 'matchScouting', docId);
       
-      const payload = {
-        ...data,
-        timestamp: Date.now()
-      };
+      let payload = { ...data, timestamp: Date.now() };
+
+      // Versioning logic
+      const existingDoc = await getDoc(docRef);
+      if (existingDoc.exists()) {
+        const existingData = existingDoc.data() as MatchScoutingV2;
+        const history = existingData.editHistory || [];
+        // Remove editHistory from the old data before pushing to history array
+        const { editHistory, ...oldData } = existingData;
+        payload.editHistory = [...history, oldData];
+      }
 
       await setDoc(docRef, payload);
       
-      // Save locally for history/backup
-      const history = JSON.parse(localStorage.getItem('scout_history_v2') || '[]');
-      history.push(payload);
-      localStorage.setItem('scout_history_v2', JSON.stringify(history));
-
-      alert("Match submitted successfully!");
+      alert(isEditing ? "Match updated successfully!" : "Match submitted successfully!");
       
-      // Reset for next match
+      if (isEditing) {
+        navigate('/history');
+        return;
+      }
+
+      // Post-Submit Loop: Auto-increment match number, retain scout, alliance
+      let nextMatchKey = data.matchKey;
+      const matchNumMatch = data.matchKey.match(/(\D+)(\d+)/);
+      if (matchNumMatch) {
+        nextMatchKey = `${matchNumMatch[1]}${parseInt(matchNumMatch[2]) + 1}`;
+      }
+
       setData({
         ...initialMatchScoutingV2,
         scoutName: data.scoutName,
         deviceId: data.deviceId,
         eventKey: data.eventKey,
-        matchKey: data.matchKey.startsWith('qm') ? `qm${parseInt(data.matchKey.substring(2)) + 1}` : data.matchKey
+        alliance: data.alliance,
+        matchKey: nextMatchKey,
+        teamNumber: ''
       });
       
       window.scrollTo(0, 0);
@@ -81,9 +158,9 @@ export default function MatchScoutView() {
       <div className="flex justify-between items-center border-b border-white/10 pb-4">
         <div>
           <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">
-            MATCH SCOUT
+            {isEditing ? 'EDIT MATCH' : 'MATCH SCOUT'}
           </h1>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Phase 1 Data Collection</p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Analytics Engine Data Collection</p>
         </div>
         <button 
           onClick={() => navigate('/')}
@@ -104,7 +181,8 @@ export default function MatchScoutView() {
               type="text" 
               value={data.eventKey}
               onChange={(e) => updateData({ eventKey: e.target.value })}
-              className="w-full bg-black/50 border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 transition" 
+              disabled={isEditing}
+              className={`w-full bg-black/50 border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 transition ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`} 
             />
           </div>
           <div>
@@ -125,7 +203,8 @@ export default function MatchScoutView() {
               type="text" 
               value={data.matchKey}
               onChange={(e) => updateData({ matchKey: e.target.value })}
-              className="w-full bg-black/50 border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 transition font-mono" 
+              disabled={isEditing}
+              className={`w-full bg-black/50 border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 transition font-mono ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`} 
               placeholder="e.g. qm1"
             />
           </div>
@@ -136,12 +215,19 @@ export default function MatchScoutView() {
               inputMode="numeric"
               pattern="[0-9]*"
               value={data.teamNumber}
+              disabled={isEditing}
               onChange={(e) => {
                 const val = e.target.value;
                 if (/^\d*$/.test(val)) updateData({ teamNumber: val });
               }}
-              className="w-full bg-black/50 border border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500 transition font-mono font-bold" 
+              className={`w-full bg-black/50 border rounded-xl p-3 outline-none transition font-mono font-bold ${teamWarning ? 'border-amber-500 focus:border-amber-400' : 'border-slate-700 focus:border-emerald-500'} ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`} 
             />
+            {teamWarning && (
+              <div className="flex items-center gap-1 mt-2 text-amber-400 text-xs font-bold animate-in fade-in">
+                <AlertTriangle className="w-3 h-3" />
+                {teamWarning}
+              </div>
+            )}
           </div>
         </div>
 
@@ -173,66 +259,58 @@ export default function MatchScoutView() {
         </div>
       </div>
 
-      {/* Auto */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2">AUTONOMOUS</h2>
+      {/* Subjective */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-6">
+        <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2">SUBJECTIVE RATING</h2>
         
-        <div className="grid grid-cols-2 gap-4">
-          <button 
-            onClick={() => updateData({ autoMobility: !data.autoMobility })}
-            className={`p-4 rounded-xl font-black text-sm transition-all ${data.autoMobility ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-          >
-            MOBILITY (Left Zone)
-          </button>
-          <button 
-            onClick={() => updateData({ autoTower: !data.autoTower })}
-            className={`p-4 rounded-xl font-black text-sm transition-all ${data.autoTower ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-          >
-            TOWER (L1 Climb)
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between bg-black/30 p-4 rounded-xl border border-slate-700">
-          <span className="font-bold text-slate-300">Auto Fuel Scored</span>
-          <div className="flex items-center gap-3">
-            <button onClick={() => updateData({ autoScore: Math.max(0, data.autoScore - 1) })} className="w-12 h-12 bg-slate-800 rounded-lg font-black text-2xl active:scale-95">-</button>
-            <NumberInput 
-              value={data.autoScore}
-              onChange={(val) => updateData({ autoScore: val })}
-              className="w-16 h-12 bg-black/50 border border-slate-600 rounded-lg text-2xl font-black font-mono text-center outline-none focus:border-emerald-500"
-            />
-            <button onClick={() => updateData({ autoScore: data.autoScore + 1 })} className="w-12 h-12 bg-emerald-600 rounded-lg font-black text-2xl active:scale-95">+</button>
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-xs font-bold text-slate-500 uppercase">Auto Fluidity</label>
+            <span className="text-xs font-black text-emerald-400">{data.autoFluidity} / 10</span>
           </div>
-        </div>
-      </div>
-
-      {/* Teleop */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2">TELEOP</h2>
-        
-        <div className="flex items-center justify-between bg-black/30 p-4 rounded-xl border border-slate-700">
-          <span className="font-bold text-yellow-500">Teleop Fuel Scored</span>
-          <div className="flex items-center gap-3">
-            <button onClick={() => updateData({ teleopScore: Math.max(0, data.teleopScore - 1) })} className="w-12 h-12 bg-slate-800 rounded-lg font-black text-2xl active:scale-95">-</button>
-            <NumberInput 
-              value={data.teleopScore}
-              onChange={(val) => updateData({ teleopScore: val })}
-              className="w-16 h-12 bg-black/50 border border-slate-600 rounded-lg text-2xl font-black font-mono text-center text-yellow-500 outline-none focus:border-yellow-500"
-            />
-            <button onClick={() => updateData({ teleopScore: data.teleopScore + 1 })} className="w-12 h-12 bg-yellow-600 text-black rounded-lg font-black text-2xl active:scale-95">+</button>
+          <input 
+            type="range" min="0" max="10" 
+            value={data.autoFluidity}
+            onChange={(e) => updateData({ autoFluidity: parseInt(e.target.value) })}
+            className="w-full accent-emerald-500"
+          />
+          <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mt-1">
+            <span>Terrible</span>
+            <span>Perfect</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between bg-black/30 p-4 rounded-xl border border-slate-700">
-          <span className="font-bold text-orange-400">Hoarded Fuel</span>
-          <div className="flex items-center gap-3">
-            <button onClick={() => updateData({ hoardScore: Math.max(0, data.hoardScore - 1) })} className="w-12 h-12 bg-slate-800 rounded-lg font-black text-2xl active:scale-95">-</button>
-            <NumberInput 
-              value={data.hoardScore}
-              onChange={(val) => updateData({ hoardScore: val })}
-              className="w-16 h-12 bg-black/50 border border-slate-600 rounded-lg text-2xl font-black font-mono text-center text-orange-400 outline-none focus:border-orange-500"
-            />
-            <button onClick={() => updateData({ hoardScore: data.hoardScore + 1 })} className="w-12 h-12 bg-orange-600 text-white rounded-lg font-black text-2xl active:scale-95">+</button>
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-xs font-bold text-slate-500 uppercase">Teleop Fluidity</label>
+            <span className="text-xs font-black text-emerald-400">{data.teleopFluidity} / 10</span>
+          </div>
+          <input 
+            type="range" min="0" max="10" 
+            value={data.teleopFluidity}
+            onChange={(e) => updateData({ teleopFluidity: parseInt(e.target.value) })}
+            className="w-full accent-emerald-500"
+          />
+          <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mt-1">
+            <span>Terrible</span>
+            <span>Perfect</span>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-xs font-bold text-slate-500 uppercase">Driver Pressure</label>
+            <span className="text-xs font-black text-emerald-400">{data.driverPressure} / 10</span>
+          </div>
+          <input 
+            type="range" min="0" max="10" 
+            value={data.driverPressure}
+            onChange={(e) => updateData({ driverPressure: parseInt(e.target.value) })}
+            className="w-full accent-emerald-500"
+          />
+          <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mt-1">
+            <span>Terrible</span>
+            <span>Perfect</span>
           </div>
         </div>
       </div>
@@ -252,7 +330,7 @@ export default function MatchScoutView() {
           <div className="space-y-6 pt-4 border-t border-slate-800 animate-in fade-in slide-in-from-top-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Instances</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Number of times</label>
                 <div className="flex items-center gap-2">
                   <button onClick={() => updateData({ defenseInstances: Math.max(0, data.defenseInstances - 1) })} className="w-10 h-10 bg-slate-800 rounded-lg font-black text-xl active:scale-95">-</button>
                   <NumberInput 
@@ -264,12 +342,19 @@ export default function MatchScoutView() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration (sec)</label>
-                <NumberInput 
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration</label>
+                <select 
                   value={data.defenseDuration}
-                  onChange={(val) => updateData({ defenseDuration: val })}
+                  onChange={(e) => updateData({ defenseDuration: e.target.value })}
                   className="w-full h-10 bg-black/50 border border-slate-600 rounded-lg text-xl font-black font-mono text-center outline-none focus:border-red-500"
-                />
+                >
+                  <option value="<1">&lt;1</option>
+                  <option value="<2">&lt;2</option>
+                  <option value="<3">&lt;3</option>
+                  <option value="<4">&lt;4</option>
+                  <option value="<5">&lt;5</option>
+                  <option value="<6">&lt;6</option>
+                </select>
               </div>
             </div>
 
@@ -287,85 +372,11 @@ export default function MatchScoutView() {
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mt-1">
                 <span>Ineffective</span>
-                <span>Shutdown</span>
+                <span>Effective</span>
               </div>
             </div>
           </div>
         )}
-      </div>
-
-      {/* Endgame */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2">ENDGAME</h2>
-        
-        <div className="grid grid-cols-3 gap-2">
-          {['None', 'Parked', 'Failed'].map((status) => (
-            <button 
-              key={status}
-              onClick={() => updateData({ climbStatus: status as any })} 
-              className={`p-3 rounded-xl font-black text-xs transition-all ${data.climbStatus === status ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-            >
-              {status.toUpperCase()}
-            </button>
-          ))}
-          {['L1', 'L2', 'L3'].map((status) => (
-            <button 
-              key={status}
-              onClick={() => updateData({ climbStatus: status as any })} 
-              className={`p-3 rounded-xl font-black text-xs transition-all ${data.climbStatus === status ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-            >
-              {status} CLIMB
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Subjective */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-6">
-        <h2 className="text-xl font-black text-slate-300 border-b border-slate-800 pb-2">SUBJECTIVE RATING</h2>
-        
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-xs font-bold text-slate-500 uppercase">Auto Fluidity</label>
-            <span className="text-xs font-black text-emerald-400">{data.autoFluidity} / 10</span>
-          </div>
-          <input 
-            type="range" min="0" max="10" 
-            value={data.autoFluidity}
-            onChange={(e) => updateData({ autoFluidity: parseInt(e.target.value) })}
-            className="w-full accent-emerald-500"
-          />
-        </div>
-
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-xs font-bold text-slate-500 uppercase">Teleop Fluidity</label>
-            <span className="text-xs font-black text-emerald-400">{data.teleopFluidity} / 10</span>
-          </div>
-          <input 
-            type="range" min="0" max="10" 
-            value={data.teleopFluidity}
-            onChange={(e) => updateData({ teleopFluidity: parseInt(e.target.value) })}
-            className="w-full accent-emerald-500"
-          />
-        </div>
-
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-xs font-bold text-slate-500 uppercase">Under Pressure</label>
-            <span className="text-xs font-black text-emerald-400">{data.underPressure} / 10</span>
-          </div>
-          <input 
-            type="range" min="0" max="10" 
-            value={data.underPressure}
-            onChange={(e) => updateData({ underPressure: parseInt(e.target.value) })}
-            className="w-full accent-emerald-500"
-          />
-          <div className="flex justify-between text-[10px] text-slate-500 font-bold uppercase mt-1">
-            <span>Crumbles</span>
-            <span>Ice in Veins</span>
-          </div>
-        </div>
       </div>
 
       {/* Critical Failures */}
@@ -383,19 +394,19 @@ export default function MatchScoutView() {
             onClick={() => updateData({ commsLost: !data.commsLost })}
             className={`p-3 rounded-xl font-black text-xs transition-all ${data.commsLost ? 'bg-orange-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
           >
-            COMMS LOST
+            COMMUNICATIONS LOST
           </button>
           <button 
             onClick={() => updateData({ mechanismBroke: !data.mechanismBroke })}
             className={`p-3 rounded-xl font-black text-xs transition-all ${data.mechanismBroke ? 'bg-yellow-600 text-white' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
           >
-            MECH BROKE
+            MECHANISM BROKE
           </button>
         </div>
 
         {(data.robotDied || data.commsLost || data.mechanismBroke) && (
           <div className="animate-in fade-in slide-in-from-top-4">
-            <label className="block text-xs font-bold text-red-400 uppercase mb-1">Failure Reason (Required)</label>
+            <label className="block text-xs font-bold text-red-400 uppercase mb-1">Failure Reason</label>
             <input 
               type="text" 
               value={data.failureReason}
@@ -430,7 +441,7 @@ export default function MatchScoutView() {
           disabled={isSubmitting}
           className="col-span-3 py-6 bg-gradient-to-r from-emerald-600 to-cyan-600 rounded-2xl text-2xl font-black shadow-xl active:scale-95 text-white transition-all disabled:opacity-50"
         >
-          {isSubmitting ? 'SUBMITTING...' : 'SUBMIT MATCH ➔'}
+          {isSubmitting ? 'SUBMITTING...' : (isEditing ? 'UPDATE MATCH ➔' : 'SUBMIT MATCH ➔')}
         </button>
       </div>
 

@@ -16,7 +16,7 @@ interface PitData {
   photoUrl: string;
 }
 
-export default function TeamLookupView() {
+export default function TeamLookupView({ isEmbedded = false, eventKey: propEventKey }: { isEmbedded?: boolean, eventKey?: string }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedTeam, setSearchedTeam] = useState('');
@@ -26,7 +26,7 @@ export default function TeamLookupView() {
   const [pitData, setPitData] = useState<PitData | null>(null);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null);
 
-  const eventKey = '2024casj'; // Default or from config
+  const eventKey = propEventKey || localStorage.getItem('globalEventKey') || '2024casj';
   const tbaApiKey = import.meta.env.VITE_TBA_API_KEY || '';
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -80,28 +80,30 @@ export default function TeamLookupView() {
     }
   };
 
-  // Calculate Consistency Index (Standard Deviation of POPR)
-  const calculateConsistency = (history: { match: number; popr: number }[]) => {
+  // Calculate Consistency Index (Standard Deviation of OPRc)
+  const calculateConsistency = (history: { match: number; oprc: number }[]) => {
     if (!history || history.length < 2) return 0;
-    const mean = history.reduce((sum, h) => sum + h.popr, 0) / history.length;
-    const variance = history.reduce((sum, h) => sum + Math.pow(h.popr - mean, 2), 0) / history.length;
+    const mean = history.reduce((sum, h) => sum + h.oprc, 0) / history.length;
+    const variance = history.reduce((sum, h) => sum + Math.pow(h.oprc - mean, 2), 0) / history.length;
     // Lower standard deviation = higher consistency. Let's invert it or just show std dev.
     // We'll show standard deviation directly, but maybe label it "Volatility" or just "Consistency (Std Dev)"
     return Math.sqrt(variance);
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className={isEmbedded ? "pb-24" : "min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24"}>
+      <div className={isEmbedded ? "space-y-8" : "max-w-5xl mx-auto space-y-8"}>
         
         {/* Header & Search Bar */}
         <div className="bg-slate-900/50 p-6 md:p-10 rounded-3xl border border-slate-800 shadow-2xl relative">
-          <button 
-            onClick={() => navigate('/')}
-            className="absolute top-6 left-6 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
+          {!isEmbedded && (
+            <button 
+              onClick={() => navigate('/')}
+              className="absolute top-6 left-6 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+          )}
           <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-6 text-center">
             Team Lookup Hub
           </h1>
@@ -215,8 +217,8 @@ export default function TeamLookupView() {
                 {/* Top Level Metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">POPR</span>
-                    <span className="text-4xl font-black text-emerald-400">{metrics?.popr.toFixed(1) || '--'}</span>
+                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">OPRc</span>
+                    <span className="text-4xl font-black text-emerald-400">{metrics?.oprc.toFixed(1) || '--'}</span>
                   </div>
                   <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
                     <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">OPR</span>
@@ -229,7 +231,7 @@ export default function TeamLookupView() {
                   <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
                     <span className="text-slate-400 text-sm font-bold tracking-widest mb-2 text-center leading-tight">CONSISTENCY<br/>(STD DEV)</span>
                     <span className="text-3xl font-black text-purple-400">
-                      {metrics ? calculateConsistency(metrics.poprHistory).toFixed(2) : '--'}
+                      {metrics ? calculateConsistency(metrics.oprcHistory).toFixed(2) : '--'}
                     </span>
                   </div>
                 </div>
@@ -265,11 +267,11 @@ export default function TeamLookupView() {
 
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">Under Pressure (Evasion)</span>
-                          <span className="text-white">{metrics.avgUnderPressure.toFixed(1)}</span>
+                          <span className="text-slate-400">Driver Pressure</span>
+                          <span className="text-white">{metrics.avgDriverPressure.toFixed(1)}</span>
                         </div>
                         <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${(metrics.avgUnderPressure / 10) * 100}%` }} />
+                          <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${(metrics.avgDriverPressure / 10) * 100}%` }} />
                         </div>
                       </div>
 
@@ -288,16 +290,16 @@ export default function TeamLookupView() {
                   )}
                 </div>
 
-                {/* POPR Trajectory */}
-                {metrics && metrics.poprHistory.length > 0 && (
+                {/* OPRc Trajectory */}
+                {metrics && metrics.oprcHistory.length > 0 && (
                   <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col h-[300px]">
                     <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
                       <Target className="w-5 h-5 text-emerald-400" />
-                      POPR Trajectory
+                      OPRc Trajectory
                     </h3>
                     <div className="flex-1 w-full relative">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={metrics.poprHistory} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                        <LineChart data={metrics.oprcHistory} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                           <XAxis dataKey="match" stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
                           <YAxis stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
@@ -307,8 +309,8 @@ export default function TeamLookupView() {
                           />
                           <Line 
                             type="monotone" 
-                            dataKey="popr" 
-                            name="POPR"
+                            dataKey="oprc" 
+                            name="OPRc"
                             stroke="#34d399" 
                             strokeWidth={3}
                             dot={{ r: 4, fill: '#34d399', strokeWidth: 0 }}

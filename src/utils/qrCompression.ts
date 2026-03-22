@@ -8,30 +8,24 @@ export const compressMatchData = (data: MatchScoutingV2): string => {
     data.scoutName,
     data.alliance,
     data.deviceId || '',
-    data.autoMobility ? 1 : 0,
-    data.autoScore,
-    data.autoTower ? 1 : 0,
-    data.teleopScore,
-    data.hoardScore,
     data.playedDefense ? 1 : 0,
     data.defenseInstances,
     data.defenseDuration,
     data.defenseEffectiveness,
-    data.climbStatus,
     data.autoFluidity,
     data.teleopFluidity,
-    data.underPressure,
+    data.driverPressure,
     data.robotDied ? 1 : 0,
     data.commsLost ? 1 : 0,
     data.mechanismBroke ? 1 : 0,
     data.failureReason,
     data.notes
   ];
-  return "V2|" + JSON.stringify(arr);
+  return "V3|" + JSON.stringify(arr);
 };
 
 export const decompressMatchData = (str: string): MatchScoutingV2 | null => {
-  if (!str.startsWith("V2|")) return null;
+  if (!str.startsWith("V3|")) return null;
   try {
     const arr = JSON.parse(str.substring(3));
     return {
@@ -41,24 +35,18 @@ export const decompressMatchData = (str: string): MatchScoutingV2 | null => {
       scoutName: arr[3],
       alliance: arr[4],
       deviceId: arr[5],
-      autoMobility: !!arr[6],
-      autoScore: arr[7],
-      autoTower: !!arr[8],
-      teleopScore: arr[9],
-      hoardScore: arr[10],
-      playedDefense: !!arr[11],
-      defenseInstances: arr[12],
-      defenseDuration: arr[13],
-      defenseEffectiveness: arr[14],
-      climbStatus: arr[15],
-      autoFluidity: arr[16],
-      teleopFluidity: arr[17],
-      underPressure: arr[18],
-      robotDied: !!arr[19],
-      commsLost: !!arr[20],
-      mechanismBroke: !!arr[21],
-      failureReason: arr[22],
-      notes: arr[23],
+      playedDefense: !!arr[6],
+      defenseInstances: arr[7],
+      defenseDuration: arr[8],
+      defenseEffectiveness: arr[9],
+      autoFluidity: arr[10],
+      teleopFluidity: arr[11],
+      driverPressure: arr[12],
+      robotDied: !!arr[13],
+      commsLost: !!arr[14],
+      mechanismBroke: !!arr[15],
+      failureReason: arr[16],
+      notes: arr[17],
       timestamp: Date.now()
     };
   } catch (e) {

@@ -19,7 +19,7 @@ export default function PitScoutView() {
   const [error, setError] = useState('');
 
   // Default event key for now, could be passed as prop or from context
-  const eventKey = '2024casj';
+  const eventKey = localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event') || '2024casj';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
