@@ -80,16 +80,16 @@ export default function AdminMainframeView() {
       const engine = new MathEngine(tbaApiKey);
       const tbaMatches = await engine.fetchEventMatches(eventKey);
 
-      if (tbaMatches.length === 0) {
-        setError('No TBA matches found or API key missing.');
-      }
-
       // 3. Calculate Metrics
       const calculatedMetrics = engine.calculateMetrics(tbaMatches, scoutingData);
       setMetrics(calculatedMetrics);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching analytics data:", err);
-      setError('Failed to load analytics data.');
+      if (err.message === "ERROR: TBA API Key Missing" || err.message === "ERROR: No Matches Found for this Event.") {
+        setError(err.message);
+      } else {
+        setError('Failed to load analytics data: ' + err.message);
+      }
     }
     setLoading(false);
   };
@@ -166,13 +166,14 @@ export default function AdminMainframeView() {
 
           {/* Advanced Search */}
           <div className="pt-4 border-t border-slate-800/50">
-            <label className="text-xs text-slate-500 mb-2 block">TBA Search (Year)</label>
+            <label className="text-xs text-slate-500 mb-2 block">TBA Event Search</label>
             <div className="flex gap-2 mb-3">
               <input 
                 type="number" 
                 value={searchYear} 
                 onChange={e => setSearchYear(e.target.value)} 
-                className="w-20 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" 
+                className="w-24 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors" 
+                placeholder="Year"
               />
               <button 
                 onClick={searchEvents} 
@@ -188,17 +189,18 @@ export default function AdminMainframeView() {
                 <input 
                   type="text" 
                   list="tba-events" 
-                  placeholder="Search event name..." 
+                  placeholder="Type to search events..." 
                   onChange={(e) => {
                     const val = e.target.value;
-                    const match = searchResults.find(ev => `${ev.name} [${ev.key}]` === val);
-                    if (match) setEventKey(match.key);
+                    if (searchResults.some(ev => ev.key === val)) {
+                      setEventKey(val);
+                    }
                   }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
                 />
                 <datalist id="tba-events">
                   {searchResults.map(ev => (
-                    <option key={ev.key} value={`${ev.name} [${ev.key}]`} />
+                    <option key={ev.key} value={ev.key}>{ev.name}</option>
                   ))}
                 </datalist>
               </div>

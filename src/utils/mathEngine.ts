@@ -42,7 +42,7 @@ export class MathEngine {
   async fetchEventMatches(eventKey: string): Promise<TBAMatch[]> {
     if (!this.tbaApiKey) {
       console.warn("No TBA API Key provided. Math Engine cannot fetch matches.");
-      return [];
+      throw new Error("ERROR: TBA API Key Missing");
     }
     
     if (eventKey === 'TEST') {
@@ -63,12 +63,18 @@ export class MathEngine {
       const matches: TBAMatch[] = await response.json();
       
       // Filter out unplayed matches and sort by time
-      return matches
+      const playedMatches = matches
         .filter(m => m.alliances.red.score !== -1 && m.alliances.blue.score !== -1)
         .sort((a, b) => a.time - b.time);
+        
+      if (playedMatches.length === 0) {
+        throw new Error("ERROR: No Matches Found for this Event.");
+      }
+      
+      return playedMatches;
     } catch (error) {
       console.error("Failed to fetch TBA matches:", error);
-      return [];
+      throw error;
     }
   }
 
