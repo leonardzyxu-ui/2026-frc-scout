@@ -6,6 +6,7 @@ import { MathEngine, TBAMatch, TeamMetrics } from '../utils/mathEngine';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ZAxis, LineChart, Line, Legend } from 'recharts';
 import { RefreshCw, TrendingUp, Target, Shield, ArrowLeft, ScanLine, Search, Database, ListOrdered, X, BrainCircuit, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { TBA_API_KEY } from '../config';
 
 // We will import the other views as components to render in tabs
 import QRScannerView from './QRScannerView';
@@ -28,7 +29,7 @@ export default function AdminMainframeView() {
   const [searchResults, setSearchResults] = useState<{ key: string; name: string; short_name: string }[]>([]);
   const [isSearchingEvents, setIsSearchingEvents] = useState(false);
 
-  const tbaApiKey = import.meta.env.VITE_TBA_API_KEY || '';
+  const tbaApiKey = TBA_API_KEY;
 
   useEffect(() => {
     localStorage.setItem('globalEventKey', eventKey);

@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Loader2 } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { MatchScoutingV2 } from '../types';
+import { TBA_API_KEY } from '../config';
 
 interface TeamSorterViewProps {
   eventKey: string;
@@ -23,7 +24,7 @@ export default function TeamSorterView({ eventKey }: TeamSorterViewProps) {
     const fetchMetricsAndRanks = async () => {
       setIsLoading(true);
       try {
-        const tbaApiKey = import.meta.env.VITE_TBA_API_KEY;
+        const tbaApiKey = TBA_API_KEY;
         if (!tbaApiKey || eventKey === 'TEST') {
           setMetrics({});
           setTbaRanks({});

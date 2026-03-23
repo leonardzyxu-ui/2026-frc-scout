@@ -8,6 +8,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { compressMatchData } from '../utils/qrCompression';
 import { QrCode, X, AlertTriangle } from 'lucide-react';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
+import { TBA_API_KEY } from '../config';
 
 export default function MatchScoutView() {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ export default function MatchScoutView() {
         } catch (e) {}
       }
 
-      const tbaApiKey = import.meta.env.VITE_TBA_API_KEY;
+      const tbaApiKey = TBA_API_KEY;
       if (!tbaApiKey) return;
 
       try {

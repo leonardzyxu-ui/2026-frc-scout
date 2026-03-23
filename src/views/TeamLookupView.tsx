@@ -7,6 +7,8 @@ import { Search, Activity, Shield, Target, Camera, Database, Ruler, Scale, Car, 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 
+import { TBA_API_KEY } from '../config';
+
 interface PitData {
   teamNumber: string;
   drivetrain: string;
@@ -27,7 +29,7 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null);
 
   const eventKey = propEventKey || localStorage.getItem('globalEventKey') || '2026mnum';
-  const tbaApiKey = import.meta.env.VITE_TBA_API_KEY || '';
+  const tbaApiKey = TBA_API_KEY;
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
