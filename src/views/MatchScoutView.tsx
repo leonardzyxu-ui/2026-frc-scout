@@ -23,6 +23,7 @@ export default function MatchScoutView() {
   
   const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
   const [teamWarning, setTeamWarning] = useState('');
+  const [notification, setNotification] = useState<{ message: string, type: 'error' | 'success' } | null>(null);
 
   useEffect(() => {
     // Check if we are editing a match
@@ -95,14 +96,19 @@ export default function MatchScoutView() {
     setData(prev => ({ ...prev, ...updates }));
   };
 
+  const showNotification = (message: string, type: 'error' | 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   const handleSubmit = async () => {
-    if (!data.scoutName) return alert("Please enter your Scout Name.");
-    if (!data.matchKey) return alert("Please enter the Match Key (e.g. qm1).");
-    if (!data.teamNumber) return alert("Please enter the Team Number.");
+    if (!data.scoutName) return showNotification("Please enter your Scout Name.", 'error');
+    if (!data.matchKey) return showNotification("Please enter the Match Key (e.g. qm1).", 'error');
+    if (!data.teamNumber) return showNotification("Please enter the Team Number.", 'error');
     if (data.eventKey !== 'TEST' && scheduledTeams.length > 0 && !scheduledTeams.includes(data.teamNumber)) {
-      return alert(`Team ${data.teamNumber} is not scheduled for this event. Please check the team number.`);
+      return showNotification(`Team ${data.teamNumber} is not scheduled for this event. Please check the team number.`, 'error');
     }
-    if (!data.alliance) return alert("Please select an Alliance.");
+    if (!data.alliance) return showNotification("Please select an Alliance.", 'error');
 
     setIsSubmitting(true);
     try {
@@ -116,17 +122,19 @@ export default function MatchScoutView() {
       if (existingDoc.exists()) {
         const existingData = existingDoc.data() as MatchScoutingV2;
         const history = existingData.editHistory || [];
-        // Remove editHistory from the old data before pushing to history array
-        const { editHistory, ...oldData } = existingData;
-        payload.editHistory = [...history, oldData];
+        payload.editHistory = [...history, {
+          timestamp: Date.now(),
+          editor: data.scoutName,
+          changes: 'Match updated by scout'
+        }];
       }
 
       await setDoc(docRef, payload);
       
-      alert(isEditing ? "Match updated successfully!" : "Match submitted successfully!");
+      showNotification(isEditing ? "Match updated successfully!" : "Match submitted successfully!", 'success');
       
       if (isEditing) {
-        navigate('/history');
+        setTimeout(() => navigate('/history'), 1500);
         return;
       }
 
@@ -150,7 +158,7 @@ export default function MatchScoutView() {
       window.scrollTo(0, 0);
     } catch (error) {
       console.error("Error submitting match:", error);
-      alert("Failed to submit match. Please check your connection.");
+      showNotification("Failed to submit match. Please check your connection.", 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -158,6 +166,13 @@ export default function MatchScoutView() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8 pb-24 bg-slate-950 text-white">
+      {notification && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-full font-bold shadow-2xl transition-all animate-in fade-in slide-in-from-top-4 ${
+          notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
+        }`}>
+          {notification.message}
+        </div>
+      )}
       <div className="flex justify-between items-center border-b border-white/10 pb-4">
         <div>
           <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-500">

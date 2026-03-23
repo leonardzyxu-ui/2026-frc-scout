@@ -25,7 +25,7 @@ export default function AdminMainframeView() {
   const [eventKey, setEventKey] = useState(() => localStorage.getItem('globalEventKey') || '2026mnum');
   const [error, setError] = useState('');
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<{ key: string; name: string; short_name: string }[]>([]);
   const [isSearchingEvents, setIsSearchingEvents] = useState(false);
 
   const tbaApiKey = import.meta.env.VITE_TBA_API_KEY || '';
@@ -39,10 +39,11 @@ export default function AdminMainframeView() {
 
   const searchEvents = async () => {
     if (!tbaApiKey) {
-      alert("TBA API Key is missing.");
+      setError("TBA API Key is missing.");
       return;
     }
     setIsSearchingEvents(true);
+    setError('');
     try {
       const response = await fetch(`https://www.thebluealliance.com/api/v3/events/${searchYear}`, {
         headers: { 'X-TBA-Auth-Key': tbaApiKey }
@@ -52,7 +53,7 @@ export default function AdminMainframeView() {
       setSearchResults(data);
     } catch (err) {
       console.error(err);
-      alert("Error searching events.");
+      setError("Error searching events.");
     }
     setIsSearchingEvents(false);
   };
@@ -83,12 +84,16 @@ export default function AdminMainframeView() {
       // 3. Calculate Metrics
       const calculatedMetrics = engine.calculateMetrics(tbaMatches, scoutingData);
       setMetrics(calculatedMetrics);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching analytics data:", err);
-      if (err.message === "ERROR: TBA API Key Missing" || err.message === "ERROR: No Matches Found for this Event.") {
-        setError(err.message);
+      if (err instanceof Error) {
+        if (err.message === "ERROR: TBA API Key Missing" || err.message === "ERROR: No Matches Found for this Event.") {
+          setError(err.message);
+        } else {
+          setError('Failed to load analytics data: ' + err.message);
+        }
       } else {
-        setError('Failed to load analytics data: ' + err.message);
+        setError('Failed to load analytics data: Unknown error');
       }
     }
     setLoading(false);
@@ -106,7 +111,7 @@ export default function AdminMainframeView() {
 
   // Prepare data for Trajectory Timeline
   const topTeams = metricsArray.slice(0, 5).map(m => m.teamNumber);
-  const trajectoryDataMap = new Map<number, any>();
+  const trajectoryDataMap = new Map<number, { match: number; [team: string]: number }>();
   
   metricsArray.forEach(m => {
     if (topTeams.includes(m.teamNumber)) {

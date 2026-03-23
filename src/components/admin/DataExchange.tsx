@@ -7,29 +7,34 @@ interface DataExchangeProps {
 }
 
 export default function DataExchange({ metrics }: DataExchangeProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const handleCopy = async () => {
-    const exportData = Object.values(metrics).map(m => ({
-      team: m.teamNumber,
-      oprc: Number(m.oprc.toFixed(2)),
-      opr: Number(m.opr.toFixed(2)),
-      dpr: Number(m.dpr.toFixed(2)),
-      auto: Number(m.avgAutoFluidity.toFixed(1)),
-      teleop: Number(m.avgTeleopFluidity.toFixed(1)),
-      evasion: Number(m.avgDriverPressure.toFixed(1)),
-      defense: Number(m.avgDefenseEffectiveness.toFixed(1))
-    }));
+    const headers = ["team", "oprc", "opr", "dpr", "auto", "teleop", "evasion", "defense"];
+    const exportData = [
+      headers,
+      ...Object.values(metrics).map(m => [
+        m.teamNumber,
+        Number(m.oprc.toFixed(2)),
+        Number(m.opr.toFixed(2)),
+        Number(m.dpr.toFixed(2)),
+        Number(m.avgAutoFluidity.toFixed(1)),
+        Number(m.avgTeleopFluidity.toFixed(1)),
+        Number(m.avgDriverPressure.toFixed(1)),
+        Number(m.avgDefenseEffectiveness.toFixed(1))
+      ])
+    ];
 
     const jsonString = JSON.stringify(exportData);
 
     try {
       await navigator.clipboard.writeText(jsonString);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+      setCopyStatus('success');
+      setTimeout(() => setCopyStatus('idle'), 3000);
     } catch (err) {
       console.error('Failed to copy text: ', err);
-      alert('Failed to copy to clipboard. Please check browser permissions.');
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus('idle'), 3000);
     }
   };
 
@@ -55,15 +60,22 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
           <button
             onClick={handleCopy}
             className={`w-full py-4 rounded-xl font-black text-lg tracking-wide shadow-lg transition-all active:scale-95 flex items-center justify-center gap-3 ${
-              copied 
+              copyStatus === 'success'
                 ? 'bg-emerald-600 text-white shadow-emerald-900/20' 
+                : copyStatus === 'error'
+                ? 'bg-red-600 text-white shadow-red-900/20'
                 : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/20'
             }`}
           >
-            {copied ? (
+            {copyStatus === 'success' ? (
               <>
                 <CheckCircle2 className="w-6 h-6" />
                 COPIED TO CLIPBOARD
+              </>
+            ) : copyStatus === 'error' ? (
+              <>
+                <Share2 className="w-6 h-6" />
+                COPY FAILED (CHECK PERMISSIONS)
               </>
             ) : (
               <>
@@ -78,8 +90,9 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
           <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Payload Preview</div>
           <pre className="text-xs font-mono text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">
             {JSON.stringify([
-              { team: "254", oprc: 45.2, opr: 40.1, dpr: 12.5, auto: 9.5, teleop: 9.8, evasion: 8.5, defense: 2.1, climb: 0.95 },
-              { team: "..." }
+              ["team", "oprc", "opr", "dpr", "auto", "teleop", "evasion", "defense"],
+              ["254", 45.2, 40.1, 12.5, 9.5, 9.8, 8.5, 2.1],
+              ["..."]
             ])}
           </pre>
         </div>

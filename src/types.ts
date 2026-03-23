@@ -42,7 +42,7 @@ export interface MatchScoutingV2 {
   alliance: 'Red' | 'Blue' | '';
   deviceId?: string;
   timestamp?: number;
-  editHistory?: any[]; // For versioning
+  editHistory?: { timestamp: number; editor: string; changes: string }[]; // For versioning
 
   // Defense Branching
   playedDefense: boolean;
@@ -143,7 +143,7 @@ export interface MatchData {
   importedViaQR?: boolean;
   deviceId?: string;
   userAgent?: string;
-  timestamp?: any;
+  timestamp?: number;
 }
 
 export interface TeamStats {

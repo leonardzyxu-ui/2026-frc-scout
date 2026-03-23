@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { MatchScoutingV2 } from '../types';
-import { Edit2, Trash2, Search, X, Check, AlertTriangle, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit2, Trash2, Search, X, Check, AlertTriangle, History, ChevronDown, ChevronUp, Shield } from 'lucide-react';
 
 interface RawDataEditorViewProps {
   eventKey: string;
@@ -15,6 +15,13 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<MatchScoutingV2>>({});
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [modalState, setModalState] = useState<{
+    isOpen: boolean;
+    type: 'delete' | 'save' | 'alert';
+    message: string;
+    targetId?: string;
+  }>({ isOpen: false, type: 'alert', message: '' });
+  const [passwordInput, setPasswordInput] = useState('');
 
   const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123';
 
@@ -44,19 +51,25 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
     fetchData();
   }, [eventKey]);
 
-  const handleDelete = async (id: string) => {
-    const password = prompt("Enter admin password to delete this record:");
-    if (password !== adminPassword) {
-      alert("Incorrect password.");
+  const handleDeleteClick = (id: string) => {
+    setModalState({ isOpen: true, type: 'delete', message: 'Enter admin password to delete this record. This cannot be undone.', targetId: id });
+    setPasswordInput('');
+  };
+
+  const executeDelete = async () => {
+    if (passwordInput !== adminPassword) {
+      setModalState({ isOpen: true, type: 'alert', message: 'Incorrect password.' });
       return;
     }
-    if (!window.confirm("Are you sure you want to delete this record? This cannot be undone.")) return;
+    const id = modalState.targetId;
+    if (!id) return;
     try {
       await deleteDoc(doc(db, 'events', eventKey, 'matchScouting', id));
       setData(prev => prev.filter(item => item.id !== id));
+      setModalState({ isOpen: false, type: 'alert', message: '' });
     } catch (error) {
       console.error("Error deleting document:", error);
-      alert("Failed to delete record.");
+      setModalState({ isOpen: true, type: 'alert', message: 'Failed to delete record.' });
     }
   };
 
@@ -65,11 +78,15 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
     setEditForm(match);
   };
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
     if (!editingId) return;
-    const password = prompt("Enter admin password to save changes:");
-    if (password !== adminPassword) {
-      alert("Incorrect password.");
+    setModalState({ isOpen: true, type: 'save', message: 'Enter admin password to save changes.' });
+    setPasswordInput('');
+  };
+
+  const executeSave = async () => {
+    if (passwordInput !== adminPassword) {
+      setModalState({ isOpen: true, type: 'alert', message: 'Incorrect password.' });
       return;
     }
     try {
@@ -102,20 +119,21 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
         // ID changed, create new doc and delete old
         const newDocRef = doc(db, 'events', eventKey, 'matchScouting', newDocId);
         await setDoc(newDocRef, updatedDocData);
-        await deleteDoc(doc(db, 'events', eventKey, 'matchScouting', editingId));
+        await deleteDoc(doc(db, 'events', eventKey, 'matchScouting', editingId as string));
         
         setData(prev => prev.map(item => item.id === editingId ? { ...updatedDocData, id: newDocId } : item));
       } else {
         // ID same, just update
-        const docRef = doc(db, 'events', eventKey, 'matchScouting', editingId);
+        const docRef = doc(db, 'events', eventKey, 'matchScouting', editingId as string);
         await updateDoc(docRef, updatedDocData);
         setData(prev => prev.map(item => item.id === editingId ? { ...updatedDocData, id: editingId } : item));
       }
       
       setEditingId(null);
+      setModalState({ isOpen: false, type: 'alert', message: '' });
     } catch (error) {
       console.error("Error updating document:", error);
-      alert("Failed to update record.");
+      setModalState({ isOpen: true, type: 'alert', message: 'Failed to update record.' });
     }
   };
 
@@ -256,7 +274,7 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
                             </div>
                           </div>
                           <div className="flex justify-end space-x-2">
-                            <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-500 font-bold">
+                            <button onClick={handleSaveClick} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded hover:bg-emerald-500 font-bold">
                               <Check className="w-4 h-4" /> Save Changes
                             </button>
                             <button onClick={() => setEditingId(null)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 font-bold">
@@ -293,7 +311,7 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
                             <button onClick={() => handleEdit(match)} className="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30">
                               <Edit2 className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(match.id)} className="p-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">
+                            <button onClick={() => handleDeleteClick(match.id)} className="p-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/30">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
@@ -327,6 +345,54 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
           </table>
         </div>
       </div>
+
+      {/* Custom Modal */}
+      {modalState.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+              {modalState.type === 'alert' ? <AlertTriangle className="w-6 h-6 text-amber-500" /> : <Shield className="w-6 h-6 text-emerald-500" />}
+              {modalState.type === 'alert' ? 'Notice' : 'Admin Authorization'}
+            </h3>
+            <p className="text-slate-300 mb-6 leading-relaxed">{modalState.message}</p>
+            
+            {(modalState.type === 'delete' || modalState.type === 'save') && (
+              <input
+                type="password"
+                placeholder="Enter Admin Password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white mb-6 focus:outline-none focus:border-emerald-500 transition-colors"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    modalState.type === 'delete' ? executeDelete() : executeSave();
+                  }
+                }}
+              />
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setModalState({ isOpen: false, type: 'alert', message: '' })}
+                className="px-4 py-2 rounded-lg font-bold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              >
+                {modalState.type === 'alert' ? 'Close' : 'Cancel'}
+              </button>
+              {(modalState.type === 'delete' || modalState.type === 'save') && (
+                <button
+                  onClick={modalState.type === 'delete' ? executeDelete : executeSave}
+                  className={`px-6 py-2 rounded-lg font-bold text-white transition-colors ${
+                    modalState.type === 'delete' ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
+                >
+                  Confirm
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

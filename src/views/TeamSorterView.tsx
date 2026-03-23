@@ -153,8 +153,8 @@ export default function TeamSorterView({ eventKey }: TeamSorterViewProps) {
     let normalized = (value - min) / (max - min);
     if (invert) normalized = 1 - normalized;
     // HSL: 0 is red, 120 is green. We go from red (low) to green (high)
-    const hue = normalized * 120;
-    return `hsla(${hue}, 80%, 40%, 0.3)`;
+    const hue = Math.max(0, Math.min(120, normalized * 120));
+    return `hsla(${hue}, 90%, 45%, 0.5)`;
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
