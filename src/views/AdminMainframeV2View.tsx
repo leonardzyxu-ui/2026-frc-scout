@@ -18,7 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { db } from '../firebase';
-import { MatchDefenseScoutingV1, MatchScoutingV3, PreMatchTeamProfile } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV3, MatchScoutingV4, PreMatchTeamProfile } from '../types';
 import { TBA_API_KEY } from '../config';
 import { calculateLegacyDprRatings, calculateLegacyOprRatings, MathEngine, TBAMatch } from '../utils/mathEngine';
 import QRScannerView from './QRScannerView';
@@ -27,7 +27,7 @@ import {
   buildPredictedMatchesFromRatings,
   buildPredictedMatchesV3,
   buildTeamDefenseMetrics,
-  buildTeamHistoricalAverages
+  buildTeamHistoricalAveragesV4Aware
 } from '../utils/adminV2Analytics';
 import {
   buildPlayoffProjection,
@@ -54,8 +54,19 @@ import {
 } from '../utils/adminV2Settings';
 import { fetchPreMatchTeamProfile } from '../utils/preMatchScouting';
 import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
+import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
+import AdminV2StrategyBrainView from './AdminV2StrategyBrainView';
+import {
+  backtestTimeAwareModels,
+  buildAlliancePickRecommendations,
+  buildDefenseAttributions,
+  buildDefenseImpactLookup,
+  buildPpaRatings,
+  buildStrategyMatchPlans,
+  buildTeamPerformanceProfiles
+} from '../utils/strategyBrain';
 
-type AdminV2Tab = 'results' | 'teams' | 'sorter' | 'predictor' | 'simulator' | 'import' | 'export';
+type AdminV2Tab = 'results' | 'teams' | 'sorter' | 'predictor' | 'simulator' | 'strategyBrain' | 'import' | 'export';
 type PredictorDisplayTab = 'ranking' | 'quals' | 'finals';
 type ResultsDisplayTab = 'quals' | 'practice';
 type SorterField = 'team' | 'tbaRank' | 'matches' | 'ppc' | 'autoPpc' | 'teleopPpc' | 'defenseMetric' | 'epa' | 'opr' | 'dpr';
@@ -252,6 +263,7 @@ export default function AdminMainframeV2View() {
   const [sorterDirection, setSorterDirection] = useState<SorterDirection>('desc');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [records, setRecords] = useState<MatchScoutingV3[]>([]);
+  const [v4Records, setV4Records] = useState<MatchScoutingV4[]>([]);
   const [defenseRecords, setDefenseRecords] = useState<MatchDefenseScoutingV1[]>([]);
   const [liveEventMatches, setLiveEventMatches] = useState<TBAMatch[]>([]);
   const [alliances, setAlliances] = useState<TBAEliminationAlliance[] | null>(null);
@@ -281,6 +293,7 @@ export default function AdminMainframeV2View() {
   const [teamProfileError, setTeamProfileError] = useState('');
   const [isTeamProfileLoading, setIsTeamProfileLoading] = useState(false);
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
 
   const eventKey = settings.eventKey;
   const selectedMetric = settings.selectedMetric;
@@ -314,29 +327,45 @@ export default function AdminMainframeV2View() {
     setLiveScheduleUnavailable('');
 
     try {
-      const [v3Snapshot, defenseSnapshot] = await Promise.all([
-        getDocs(collection(db, 'events', eventKey, 'matchScoutingV3')),
-        getDocs(collection(db, 'events', eventKey, 'matchScoutingDefense'))
-      ]);
+      if (isLocalMode) {
+        setRecords([]);
+        setV4Records([]);
+        setDefenseRecords([]);
+      } else {
+        const [v3Snapshot, v4Snapshot, defenseSnapshot] = await Promise.all([
+          getDocs(collection(db, 'events', eventKey, 'matchScoutingV3')),
+          getDocs(collection(db, 'events', eventKey, 'matchScoutingV4')),
+          getDocs(collection(db, 'events', eventKey, 'matchScoutingDefense'))
+        ]);
 
-      const nextRecords = v3Snapshot.docs
-        .map(docSnap => docSnap.data())
-        .filter(isMatchScoutingV3)
-        .sort((left, right) => {
-          const matchDelta = left.matchNumber - right.matchNumber;
-          if (matchDelta !== 0) return matchDelta;
-          return Number(left.teamNumber) - Number(right.teamNumber);
-        });
-      const nextDefenseRecords = defenseSnapshot.docs
-        .map(docSnap => docSnap.data())
-        .filter(isMatchDefenseScoutingV1)
-        .sort((left, right) => {
-          const matchDelta = left.matchNumber - right.matchNumber;
-          if (matchDelta !== 0) return matchDelta;
-          return Number(left.teamNumber) - Number(right.teamNumber);
-        });
-      setRecords(nextRecords);
-      setDefenseRecords(nextDefenseRecords);
+        const nextRecords = v3Snapshot.docs
+          .map(docSnap => docSnap.data())
+          .filter(isMatchScoutingV3)
+          .sort((left, right) => {
+            const matchDelta = left.matchNumber - right.matchNumber;
+            if (matchDelta !== 0) return matchDelta;
+            return Number(left.teamNumber) - Number(right.teamNumber);
+          });
+        const nextDefenseRecords = defenseSnapshot.docs
+          .map(docSnap => docSnap.data())
+          .filter(isMatchDefenseScoutingV1)
+          .sort((left, right) => {
+            const matchDelta = left.matchNumber - right.matchNumber;
+            if (matchDelta !== 0) return matchDelta;
+            return Number(left.teamNumber) - Number(right.teamNumber);
+          });
+        const nextV4Records = v4Snapshot.docs
+          .map(docSnap => docSnap.data())
+          .filter(isMatchScoutingV4)
+          .sort((left, right) => {
+            const matchDelta = left.matchNumber - right.matchNumber;
+            if (matchDelta !== 0) return matchDelta;
+            return Number(left.teamNumber) - Number(right.teamNumber);
+          });
+        setRecords(nextRecords);
+        setV4Records(nextV4Records);
+        setDefenseRecords(nextDefenseRecords);
+      }
 
       if (!TBA_API_KEY || eventKey === 'TEST') {
         setLiveEventMatches([]);
@@ -408,6 +437,7 @@ export default function AdminMainframeV2View() {
       console.error('Failed to load adminv2 data', loadError);
       setError(loadError instanceof Error ? loadError.message : 'Failed to load adminv2 data.');
       setRecords([]);
+      setV4Records([]);
       setDefenseRecords([]);
       setLiveEventMatches([]);
       setAlliances(null);
@@ -446,7 +476,7 @@ export default function AdminMainframeV2View() {
     }
   };
 
-  const teamAverages = useMemo(() => buildTeamHistoricalAverages(records), [records]);
+  const teamAverages = useMemo(() => buildTeamHistoricalAveragesV4Aware(records, v4Records), [records, v4Records]);
   const defenseMetrics = useMemo(() => buildTeamDefenseMetrics(defenseRecords), [defenseRecords]);
   const teamAverageLookupByTeam = useMemo(
     () => Object.fromEntries(teamAverages.map(row => [row.teamNumber, row])),
@@ -496,13 +526,14 @@ export default function AdminMainframeV2View() {
       Array.from(
         new Set([
           ...records.map(record => record.teamNumber),
+          ...v4Records.map(record => record.teamNumber),
           ...defenseRecords.map(record => record.teamNumber),
           ...predictorTeams,
           ...Object.keys(uploadedTeamNames),
           ...(searchedTeamNumber ? [searchedTeamNumber] : [])
         ])
       ).sort((left, right) => Number(left) - Number(right)),
-    [defenseRecords, predictorTeams, records, searchedTeamNumber, uploadedTeamNames]
+    [defenseRecords, predictorTeams, records, searchedTeamNumber, uploadedTeamNames, v4Records]
   );
 
   useEffect(() => {
@@ -815,28 +846,30 @@ export default function AdminMainframeV2View() {
   ]);
 
   const summary = useMemo(() => {
-    const distinctTeams = new Set(defenseRecords.map(record => record.teamNumber)).size;
+    const distinctTeams = new Set([...v4Records.map(record => record.teamNumber), ...defenseRecords.map(record => record.teamNumber)]).size;
     const averageDefenseMetric =
       defenseRecords.length === 0
         ? 0
         : defenseRecords.reduce((sum, record) => sum + record.defenseMetric, 0) / defenseRecords.length;
     return {
-      rows: defenseRecords.length,
+      rows: v4Records.length + defenseRecords.length,
       teams: distinctTeams,
       averageDefenseMetric
     };
-  }, [defenseRecords]);
+  }, [defenseRecords, v4Records]);
 
   const filteredResultsRecords = useMemo(() => {
     const targetMatchType = resultsViewTab === 'quals' ? 'Qualification' : 'Practice';
-    return defenseRecords
-      .filter(record => record.matchType === targetMatchType)
+    return [
+      ...v4Records.filter(record => record.matchType === targetMatchType).map(record => ({ kind: 'v4' as const, record })),
+      ...defenseRecords.filter(record => record.matchType === targetMatchType).map(record => ({ kind: 'defense' as const, record }))
+    ]
       .sort((left, right) => {
-        const matchDelta = left.matchNumber - right.matchNumber;
+        const matchDelta = left.record.matchNumber - right.record.matchNumber;
         if (matchDelta !== 0) return matchDelta;
-        return Number(left.teamNumber) - Number(right.teamNumber);
+        return Number(left.record.teamNumber) - Number(right.record.teamNumber);
       });
-  }, [defenseRecords, resultsViewTab]);
+  }, [defenseRecords, resultsViewTab, v4Records]);
 
   const sorterRows = useMemo<AdminV2SorterRow[]>(() => {
     return allKnownTeams.map(teamNumber => {
@@ -1033,6 +1066,36 @@ export default function AdminMainframeV2View() {
         activeOprRatings,
         effectiveEventSummary
       );
+      const modelBacktests = backtestTimeAwareModels({
+        matches: activePredictorMatches,
+        v3Records: records,
+        v4Records,
+        epaRatings
+      });
+      const exportPpaRatings = buildPpaRatings(modelBacktests, {
+        PPC: averageLookup,
+        'Rolling PPC': averageLookup,
+        OPR: activeOprRatings,
+        'Rolling OPR': activeOprRatings,
+        EPA: epaRatings,
+        'Recency EPA': epaRatings,
+        Ensemble: activeMetricRatings
+      });
+      const defenseAttributions = buildDefenseAttributions(v4Records, Object.keys(exportPpaRatings).length ? exportPpaRatings : activeMetricRatings);
+      const defenseImpactLookup = buildDefenseImpactLookup(defenseAttributions);
+      const teamProfiles = buildTeamPerformanceProfiles({
+        v4Records,
+        v3Records: records,
+        defenseRecords,
+        ppcRows: teamAverages,
+        oprRatings: activeOprRatings,
+        dprRatings: calculatedDprRatings,
+        epaRatings,
+        ppaRatings: exportPpaRatings,
+        defenseImpactLookup
+      });
+      const strategyPlans = buildStrategyMatchPlans(activePredictorMatches, activeMetricRatings, defenseImpactLookup);
+      const allianceRecommendations = buildAlliancePickRecommendations(teamProfiles, 1, {}, ownTeamNumber);
 
       addWorkbookSheet(workbook, 'Overview', [
         { header: 'Field', key: 'field', width: 28 },
@@ -1043,10 +1106,12 @@ export default function AdminMainframeV2View() {
         { field: 'Selected Metric', value: MODEL_LABELS[selectedMetric] },
         { field: 'Own Team', value: ownTeamNumber || '' },
         { field: 'Searched Team', value: searchedTeamNumber || '' },
+        { field: 'Saved V4 Rows', value: v4Records.length },
         { field: 'Saved V3 Rows', value: records.length },
         { field: 'Defense Scout Rows', value: defenseRecords.length },
         { field: 'Defense Teams', value: summary.teams },
         { field: 'Average Defense Metric', value: formatPercentMetric(summary.averageDefenseMetric) },
+        { field: 'Distinct V4 Teams', value: new Set(v4Records.map(record => record.teamNumber)).size },
         { field: 'Distinct Rich V3 Teams', value: new Set(records.map(record => record.teamNumber)).size },
         { field: 'Schedule Source', value: predictorMatchSourceLabel },
         { field: 'OPR Source', value: hasUsableCsvOpr ? 'Uploaded TBA OPR' : 'Calculated OPR' },
@@ -1064,6 +1129,60 @@ export default function AdminMainframeV2View() {
           ].filter(Boolean).join(' | ')
         }
       ]);
+
+      addWorkbookSheet(workbook, 'Raw V4 Data', [
+        { header: 'Event Key', key: 'eventKey', width: 14 },
+        { header: 'Match Type', key: 'matchType', width: 14 },
+        { header: 'Match Number', key: 'matchNumber', width: 12 },
+        { header: 'Match Key', key: 'matchKey', width: 18 },
+        { header: 'Team Number', key: 'teamNumber', width: 12 },
+        { header: 'Scout Name', key: 'scoutName', width: 18 },
+        { header: 'Assigned Scout', key: 'assignedScoutName', width: 18 },
+        { header: 'Assigned Slot', key: 'assignedSlot', width: 12 },
+        { header: 'Substitute', key: 'substituteScoutName', width: 14 },
+        { header: 'Alliance', key: 'alliance', width: 10 },
+        { header: 'Auto Points', key: 'autoPoints', width: 12 },
+        { header: 'Auto Cycles', key: 'autoCycles', width: 12 },
+        { header: 'Teleop Points', key: 'teleopPoints', width: 14 },
+        { header: 'Teleop Cycles', key: 'teleopCycles', width: 14 },
+        { header: 'Endgame Points', key: 'endgamePoints', width: 14 },
+        { header: 'Total Match Points', key: 'totalMatchPoints', width: 18 },
+        { header: 'Role Played', key: 'rolePlayed', width: 14 },
+        { header: 'Defended Team', key: 'defendedTeamNumber', width: 14 },
+        { header: 'Defender Faced', key: 'defenderFacedTeamNumber', width: 14 },
+        { header: 'Defense Intensity', key: 'defenseIntensity', width: 16 },
+        { header: 'Defense Duration Sec', key: 'defenseDurationSeconds', width: 18 },
+        { header: 'Fouls', key: 'fouls', width: 10 },
+        { header: 'Tech Fouls', key: 'techFouls', width: 12 },
+        { header: 'Robot Died', key: 'robotDied', width: 12 },
+        { header: 'Comms Lost', key: 'commsLost', width: 12 },
+        { header: 'Mechanism Broke', key: 'mechanismBroke', width: 16 },
+        { header: 'Tipped Over', key: 'tippedOver', width: 12 },
+        { header: 'Failure Reason', key: 'failureReason', width: 28 },
+        { header: 'Reliability', key: 'reliabilityScore', width: 12 },
+        { header: 'Notes', key: 'notes', width: 36 },
+        { header: 'Strategy Notes', key: 'strategyNotes', width: 36 },
+        { header: 'Timestamp', key: 'timestamp', width: 24 },
+        { header: 'Device ID', key: 'deviceId', width: 24 }
+      ], [...v4Records]
+        .sort((left, right) => {
+          const typeDelta =
+            (left.matchType === 'Qualification' ? 0 : 1) - (right.matchType === 'Qualification' ? 0 : 1);
+          if (typeDelta !== 0) return typeDelta;
+          const matchDelta = left.matchNumber - right.matchNumber;
+          if (matchDelta !== 0) return matchDelta;
+          return Number(left.teamNumber) - Number(right.teamNumber);
+        })
+        .map(record => ({
+          ...record,
+          robotDied: record.robotDied ? 'yes' : 'no',
+          commsLost: record.commsLost ? 'yes' : 'no',
+          mechanismBroke: record.mechanismBroke ? 'yes' : 'no',
+          tippedOver: record.tippedOver ? 'yes' : 'no',
+          substituteScoutName: record.substituteScoutName || '',
+          timestamp: formatWorksheetDate(record.timestamp),
+          deviceId: record.deviceId || ''
+        })));
 
       addWorkbookSheet(workbook, 'Raw Data', [
         { header: 'Event Key', key: 'eventKey', width: 14 },
@@ -1215,6 +1334,87 @@ export default function AdminMainframeV2View() {
       addFinalsProjectionSheet(workbook, 'PPC Finals', ppcFinalsProjection);
       addFinalsProjectionSheet(workbook, 'EPA Finals', epaFinalsProjection);
       addFinalsProjectionSheet(workbook, 'OPR Finals', oprFinalsProjection);
+
+      addWorkbookSheet(workbook, 'Model Lab', [
+        { header: 'Model', key: 'modelName', width: 18 },
+        { header: 'Source', key: 'sourceLabel', width: 44 },
+        { header: 'Matches Tested', key: 'matchesTested', width: 16 },
+        { header: 'Winner Accuracy', key: 'winnerAccuracy', width: 18 },
+        { header: 'Score MAE', key: 'scoreMae', width: 14 },
+        { header: 'Margin MAE', key: 'marginMae', width: 14 },
+        { header: 'Calibration Error', key: 'calibrationError', width: 18 },
+        { header: 'Low Confidence Rate', key: 'lowConfidenceRate', width: 20 }
+      ], modelBacktests.map(row => ({ ...row })));
+
+      addWorkbookSheet(workbook, 'Team Profiles', [
+        { header: 'Team', key: 'teamNumber', width: 10 },
+        { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Matches Played', key: 'matchesPlayed', width: 16 },
+        { header: 'Peak Score', key: 'peakScore', width: 14 },
+        { header: 'Worst Score', key: 'worstScore', width: 14 },
+        { header: 'Lowest Nonzero', key: 'lowestNonZeroScore', width: 16 },
+        { header: 'Average', key: 'averageScore', width: 14 },
+        { header: 'Std Dev', key: 'standardDeviation', width: 14 },
+        { header: 'Volatility', key: 'volatility', width: 14 },
+        { header: 'Reliability', key: 'reliability', width: 14 },
+        { header: 'Recent Trend', key: 'recentTrend', width: 14 },
+        { header: 'PPC', key: 'ppc', width: 12 },
+        { header: 'OPR', key: 'opr', width: 12 },
+        { header: 'DPR', key: 'dpr', width: 12 },
+        { header: 'EPA', key: 'epa', width: 12 },
+        { header: 'PPA', key: 'ppa', width: 12 },
+        { header: 'Defense Impact', key: 'defenseImpact', width: 16 }
+      ], teamProfiles.map(profile => ({
+        ...profile,
+        teamName: resolvedTeamNameLookup[profile.teamNumber] || ''
+      })));
+
+      addWorkbookSheet(workbook, 'Defense Attribution', [
+        { header: 'Event', key: 'eventKey', width: 14 },
+        { header: 'Match', key: 'matchKey', width: 18 },
+        { header: 'Defender', key: 'defenderTeamNumber', width: 12 },
+        { header: 'Target', key: 'targetTeamNumber', width: 12 },
+        { header: 'Expected Target Points', key: 'expectedTargetPoints', width: 22 },
+        { header: 'Actual Target Points', key: 'actualTargetPoints', width: 20 },
+        { header: 'Points Denied', key: 'pointsDenied', width: 16 },
+        { header: 'Confidence', key: 'confidence', width: 14 },
+        { header: 'Source', key: 'source', width: 14 }
+      ], defenseAttributions.map(row => ({ ...row })));
+
+      addWorkbookSheet(workbook, 'Strategy Plans', [
+        { header: 'Match', key: 'matchKey', width: 18 },
+        { header: 'Match Number', key: 'matchNumber', width: 14 },
+        { header: 'Red Teams', key: 'redTeams', width: 28 },
+        { header: 'Blue Teams', key: 'blueTeams', width: 28 },
+        { header: 'Baseline Red', key: 'baselineRedScore', width: 14 },
+        { header: 'Baseline Blue', key: 'baselineBlueScore', width: 14 },
+        { header: 'Best Red Plan', key: 'bestRedPlan', width: 34 },
+        { header: 'Best Blue Plan', key: 'bestBluePlan', width: 34 },
+        { header: 'Winner', key: 'predictedWinner', width: 12 },
+        { header: 'Confidence', key: 'confidence', width: 14 },
+        { header: 'Risk Flags', key: 'riskFlags', width: 36 },
+        { header: 'Win Condition', key: 'winCondition', width: 56 }
+      ], strategyPlans.map(plan => ({
+        ...plan,
+        redTeams: plan.redTeams.join(', '),
+        blueTeams: plan.blueTeams.join(', '),
+        riskFlags: plan.riskFlags.join(' | ')
+      })));
+
+      addWorkbookSheet(workbook, 'Alliance Picklist', [
+        { header: 'Team', key: 'teamNumber', width: 10 },
+        { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Score', key: 'score', width: 14 },
+        { header: 'Seed Fit', key: 'seedFit', width: 24 },
+        { header: 'Role Fit', key: 'roleFit', width: 28 },
+        { header: 'Status', key: 'status', width: 14 },
+        { header: 'Picked By', key: 'pickedBy', width: 16 },
+        { header: 'Rationale', key: 'rationale', width: 70 }
+      ], allianceRecommendations.map(row => ({
+        ...row,
+        teamName: resolvedTeamNameLookup[row.teamNumber] || '',
+        pickedBy: row.pickedBy || ''
+      })));
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
@@ -1499,6 +1699,10 @@ export default function AdminMainframeV2View() {
                 <Swords className="h-4 w-4" />
                 Match Simulator
               </button>
+              <button onClick={() => setActiveTab('strategyBrain')} className={tabClass('strategyBrain')}>
+                <Trophy className="h-4 w-4" />
+                Strategy Brain
+              </button>
               <button onClick={() => setActiveTab('import')} className={tabClass('import')}>
                 <Upload className="h-4 w-4" />
                 Data Import
@@ -1645,8 +1849,8 @@ export default function AdminMainframeV2View() {
           )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <SummaryCard label="Defense Rows" value={summary.rows} />
-            <SummaryCard label="Defense Teams" value={summary.teams} />
+            <SummaryCard label="Scout Rows" value={summary.rows} />
+            <SummaryCard label="Scout Teams" value={summary.teams} />
             <SummaryCard label="Avg Defense Metric" value={formatPercentMetric(summary.averageDefenseMetric)} />
           </div>
 
@@ -1655,7 +1859,7 @@ export default function AdminMainframeV2View() {
               <div className="border-b border-slate-800 px-5 py-4">
                 <h3 className="flex items-center gap-2 text-lg font-black text-white">
                   <ListChecks className="h-5 w-5 text-cyan-400" />
-                  Defense Scout Results
+                  Match Scout Results
                 </h3>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button
@@ -1681,27 +1885,30 @@ export default function AdminMainframeV2View() {
                       <th className="px-4 py-3">Team</th>
                       <th className="px-4 py-3">Scout</th>
                       <th className="px-4 py-3">Alliance</th>
-                      <th className="px-4 py-3">Defense Metric</th>
-                      <th className="px-4 py-3">Defense Comments</th>
-                      <th className="px-4 py-3">General Comments</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Points / Defense</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/70">
                     {loading ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-10 text-center font-semibold text-slate-500">
-                          Loading defense scout results...
+                          Loading match scout results...
                         </td>
                       </tr>
                     ) : filteredResultsRecords.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="px-4 py-10 text-center font-semibold text-slate-500">
-                          No {resultsViewTab === 'quals' ? 'qualification' : 'practice'} defense scout records found for this event.
+                          No {resultsViewTab === 'quals' ? 'qualification' : 'practice'} scout records found for this event.
                         </td>
                       </tr>
                     ) : (
-                      filteredResultsRecords.map(record => (
-                        <tr key={`${record.matchKey}_${record.teamNumber}`} className="hover:bg-slate-800/30">
+                      filteredResultsRecords.map(row => {
+                        const record = row.record;
+                        return (
+                        <tr key={`${row.kind}_${record.matchKey}_${record.teamNumber}`} className="hover:bg-slate-800/30">
                           <td className="px-4 py-3 font-mono font-black text-white">{record.matchKey.toUpperCase()}</td>
                           <td className="px-4 py-3">
                             <TeamBadge
@@ -1713,11 +1920,27 @@ export default function AdminMainframeV2View() {
                           </td>
                           <td className="px-4 py-3 text-slate-300">{record.scoutName}</td>
                           <td className="px-4 py-3 text-slate-300">{record.alliance || '—'}</td>
-                          <td className="px-4 py-3 font-black text-emerald-300">{formatPercentMetric(record.defenseMetric)}</td>
-                          <td className="px-4 py-3 text-slate-300">{record.defenseComments || '—'}</td>
-                          <td className="px-4 py-3 text-slate-300">{record.generalComments || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-3 py-1 text-xs font-black ${row.kind === 'v4' ? 'bg-fuchsia-500/15 text-fuchsia-200' : 'bg-emerald-500/15 text-emerald-200'}`}>
+                              {row.kind === 'v4' ? 'V4' : 'DEFENSE V1'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-black text-emerald-300">
+                            {row.kind === 'v4'
+                              ? `${(record as MatchScoutingV4).totalMatchPoints} pts`
+                              : formatPercentMetric((record as MatchDefenseScoutingV1).defenseMetric)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">
+                            {row.kind === 'v4' ? (record as MatchScoutingV4).rolePlayed || '—' : 'Defense'}
+                          </td>
+                          <td className="px-4 py-3 text-slate-300">
+                            {row.kind === 'v4'
+                              ? (record as MatchScoutingV4).notes || (record as MatchScoutingV4).strategyNotes || '—'
+                              : (record as MatchDefenseScoutingV1).defenseComments || (record as MatchDefenseScoutingV1).generalComments || '—'}
+                          </td>
                         </tr>
-                      ))
+                      );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2327,6 +2550,24 @@ export default function AdminMainframeV2View() {
             </div>
           )}
 
+          {activeTab === 'strategyBrain' && (
+            <AdminV2StrategyBrainView
+              eventKey={eventKey}
+              selectedMetric={selectedMetric}
+              ownTeamNumber={ownTeamNumber}
+              v4Records={v4Records}
+              v3Records={records}
+              defenseRecords={defenseRecords}
+              matches={activePredictorMatches}
+              teamAverages={teamAverages}
+              averageLookup={averageLookup}
+              oprRatings={activeOprRatings}
+              dprRatings={calculatedDprRatings}
+              epaRatings={epaRatings}
+              teamNameLookup={resolvedTeamNameLookup}
+            />
+          )}
+
           {activeTab === 'import' && (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
               <div className="mb-6">
@@ -2336,8 +2577,8 @@ export default function AdminMainframeV2View() {
                 </h3>
                 <p className="mt-2 max-w-3xl text-sm text-slate-400">
                   Import scouting data through live QR scans, QR images, or `.json` archive files. This reuses the
-                  shared importer, so QR and JSON imports stay compatible with defense scout records, current V3 match
-                  records, pit records, and the existing staging protocol.
+                  shared importer, so QR and JSON imports stay compatible with V4 match records, defense scout records,
+                  current V3 match records, pit records, and the existing staging protocol.
                 </p>
               </div>
               <QRScannerView isEmbedded={true} isActive={activeTab === 'import'} />

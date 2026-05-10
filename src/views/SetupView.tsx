@@ -35,7 +35,7 @@ export default function SetupView() {
           onClick={() => navigate('/scout')}
           className="w-full py-12 bg-blue-900/30 border-2 border-blue-800/50 rounded-3xl text-3xl font-black shadow-lg active:scale-95 text-blue-300 transition-all hover:bg-blue-900/50 uppercase tracking-widest"
         >
-          Defense Scout
+          Match Scout V4
         </button>
 
         <button 

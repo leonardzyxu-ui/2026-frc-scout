@@ -7,7 +7,7 @@ import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writeMatch
 import { isScoutArchiveBundle, ScoutArchiveRecord } from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
 
 type ImportStatus = 'pending' | 'uploaded' | 'duplicate' | 'conflict' | 'failed';
 
@@ -277,6 +277,18 @@ export default function QRScannerView({
                 const added = processDecodedText(item);
                 if (added === 'added' || added === 'replaced') successCount += 1;
                 else duplicateCount += 1;
+              } else if (isMatchScoutingV4(item)) {
+                const outcome = addStagedRecord(toMatchV4ImportRecord(item));
+                if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+                else duplicateCount += 1;
+              } else if (isMatchScoutingV3(item)) {
+                const outcome = addStagedRecord(toMatchImportRecord(item));
+                if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+                else duplicateCount += 1;
+              } else if (item && typeof item === 'object' && (item as MatchDefenseScoutingV1).schemaVersion === 'defense-v1') {
+                const outcome = addStagedRecord(toMatchDefenseImportRecord(item as MatchDefenseScoutingV1));
+                if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+                else duplicateCount += 1;
               }
             }
           } else if (isScoutArchiveBundle(parsed)) {
@@ -287,14 +299,20 @@ export default function QRScannerView({
                 return;
               }
 
-              const importRecord: ScoutingImportRecord =
-                archiveRecord.recordType === 'match'
-                  ? toMatchImportRecord(archiveRecord.payload as MatchScoutingV2 | MatchScoutingV3)
-                  : archiveRecord.recordType === 'matchV4' && isMatchScoutingV4(archiveRecord.payload)
-                    ? toMatchV4ImportRecord(archiveRecord.payload)
-                    : archiveRecord.recordType === 'matchDefense'
-                      ? toMatchDefenseImportRecord(archiveRecord.payload as MatchDefenseScoutingV1)
-                      : { recordType: 'pit', eventKey: archiveRecord.eventKey, data: archiveRecord.payload };
+              let importRecord: ScoutingImportRecord | null = null;
+              if (archiveRecord.recordType === 'match') {
+                importRecord = toMatchImportRecord(archiveRecord.payload as MatchScoutingV2 | MatchScoutingV3);
+              } else if (archiveRecord.recordType === 'matchV4' && isMatchScoutingV4(archiveRecord.payload)) {
+                importRecord = toMatchV4ImportRecord(archiveRecord.payload);
+              } else if (archiveRecord.recordType === 'matchDefense') {
+                importRecord = toMatchDefenseImportRecord(archiveRecord.payload as MatchDefenseScoutingV1);
+              } else if (archiveRecord.recordType === 'pit') {
+                importRecord = { recordType: 'pit', eventKey: archiveRecord.eventKey, data: archiveRecord.payload as PitScoutingV2 };
+              }
+              if (!importRecord) {
+                duplicateCount += 1;
+                return;
+              }
               const outcome = addStagedRecord(importRecord);
               if (outcome === 'added' || outcome === 'replaced') successCount += 1;
               else duplicateCount += 1;
@@ -302,6 +320,18 @@ export default function QRScannerView({
             if (deletedCount > 0) {
               setLogMsg(`Skipped ${deletedCount} deleted record${deletedCount === 1 ? '' : 's'} from the JSON archive.`);
             }
+          } else if (isMatchScoutingV4(parsed)) {
+            const outcome = addStagedRecord(toMatchV4ImportRecord(parsed));
+            if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+            else duplicateCount += 1;
+          } else if (isMatchScoutingV3(parsed)) {
+            const outcome = addStagedRecord(toMatchImportRecord(parsed));
+            if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+            else duplicateCount += 1;
+          } else if (parsed && typeof parsed === 'object' && (parsed as MatchDefenseScoutingV1).schemaVersion === 'defense-v1') {
+            const outcome = addStagedRecord(toMatchDefenseImportRecord(parsed as MatchDefenseScoutingV1));
+            if (outcome === 'added' || outcome === 'replaced') successCount += 1;
+            else duplicateCount += 1;
           }
         } else {
           const decodedText = await scanner.scanFile(file, true);
@@ -413,7 +443,7 @@ export default function QRScannerView({
                 <ScanLine className="h-8 w-8 text-emerald-500" />
                 DATA IMPORT & STAGING
               </h1>
-              <p className="mt-1 text-slate-400">Offline protocol for defense, legacy match, and pit scouting data.</p>
+              <p className="mt-1 text-slate-400">Offline protocol for V4, defense, legacy match, and pit scouting data.</p>
             </div>
           </div>
         )}

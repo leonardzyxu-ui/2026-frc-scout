@@ -1,0 +1,101 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - heading "MAINFRAME V2" [level=1] [ref=e6]:
+        - button [ref=e7]:
+          - img [ref=e8]
+        - text: MAINFRAME V2
+      - paragraph [ref=e10]: Event 2026MNUM · Model PPC
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: Prediction Metric
+        - generic [ref=e15]:
+          - button "PPC" [ref=e16]
+          - button "OPR" [ref=e17]
+          - button "EPA" [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Global Team Search
+          - paragraph [ref=e22]: Search one team and keep it highlighted across Admin V2.
+        - generic [ref=e23]:
+          - combobox "Search team number" [ref=e24]
+          - generic [ref=e25]:
+            - button "SEARCH" [ref=e26]:
+              - img [ref=e27]
+              - text: SEARCH
+            - button "CLEAR" [ref=e30]
+        - generic [ref=e32]: Search a team number to inspect it here.
+      - navigation [ref=e33]:
+        - button "Match Results" [ref=e34]:
+          - img [ref=e35]
+          - text: Match Results
+        - button "Team Averages" [ref=e37]:
+          - img [ref=e38]
+          - text: Team Averages
+        - button "Team Sorter" [ref=e41]:
+          - img [ref=e42]
+          - text: Team Sorter
+        - button "Future Predictor" [ref=e45]:
+          - img [ref=e46]
+          - text: Future Predictor
+        - button "Match Simulator" [ref=e55]:
+          - img [ref=e56]
+          - text: Match Simulator
+        - button "Strategy Brain" [ref=e65]:
+          - img [ref=e66]
+          - text: Strategy Brain
+        - button "Data Import" [active] [ref=e72]:
+          - img [ref=e73]
+          - text: Data Import
+        - button "Excel Export" [ref=e76]:
+          - img [ref=e77]
+          - text: Excel Export
+    - button "Settings" [ref=e81]:
+      - img [ref=e82]
+      - text: Settings
+  - main [ref=e85]:
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - heading "Admin V2" [level=2] [ref=e89]
+          - paragraph [ref=e90]: Event 2026MNUM · Active model PPC
+        - button "REFRESH" [ref=e91]:
+          - img [ref=e92]
+          - text: REFRESH
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: Scout Rows
+          - generic [ref=e100]: "0"
+        - generic [ref=e101]:
+          - generic [ref=e102]: Scout Teams
+          - generic [ref=e103]: "0"
+        - generic [ref=e104]:
+          - generic [ref=e105]: Avg Defense Metric
+          - generic [ref=e106]: 0.00%
+      - generic [ref=e201]:
+        - generic [ref=e202]:
+          - heading "Data Import (QR + JSON)" [level=3] [ref=e203]:
+            - img [ref=e204]
+            - text: Data Import (QR + JSON)
+          - paragraph [ref=e207]: "Import scouting data through live QR scans, QR images, or `.json` archive files. This reuses the shared importer, so QR and JSON imports stay compatible with V4 match records, defense scout records, current V3 match records, pit records, and the existing staging protocol."
+        - generic [ref=e210]:
+          - generic [ref=e212]:
+            - generic [ref=e213]:
+              - button "📷 Start Camera" [ref=e214]
+              - generic [ref=e215] [cursor=pointer]:
+                - img [ref=e216]
+                - text: Upload QR / JSON
+            - generic [ref=e220]: Camera Offline
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - generic [ref=e224]:
+                - heading "Staging Area" [level=2] [ref=e225]:
+                  - img [ref=e226]
+                  - text: Staging Area
+                - paragraph [ref=e230]: 0 records waiting for action
+              - button "Push All" [disabled]:
+                - img
+                - text: Push All
+            - generic [ref=e232]:
+              - img [ref=e233]
+              - paragraph [ref=e237]: No data staged. Scan QR codes or upload QR images / JSON files.

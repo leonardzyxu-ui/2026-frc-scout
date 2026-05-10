@@ -7,7 +7,7 @@ import { LocalFileProvider } from './context/LocalFileContext';
 
 // V2 Components
 import SetupView from './views/SetupView';
-import MatchDefenseScoutView from './views/MatchDefenseScoutView';
+import MatchScoutV4View from './views/MatchScoutV4View';
 import PitScoutView from './views/PitScoutView';
 import HistoryView from './views/HistoryView';
 import AdminMainframeView from './views/AdminMainframeView';
@@ -23,12 +23,19 @@ export default function App() {
       setIsAuthReady(true);
       return;
     }
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAuthReady(true);
-      }
+    const fallbackTimer = window.setTimeout(() => {
+      setIsAuthReady(true);
+    }, 1500);
+    const unsubscribe = onAuthStateChanged(auth, () => {
+      // The scout workflow is local-first. Firebase auth being unavailable should
+      // not block IndexedDB history, JSON export, or QR fallback.
+      window.clearTimeout(fallbackTimer);
+      setIsAuthReady(true);
     });
-    return () => unsubscribe();
+    return () => {
+      window.clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, [isLocalMode]);
 
   if (!isAuthReady) {
@@ -62,7 +69,7 @@ export default function App() {
                 <main className="flex-1 relative overflow-hidden">
                   <Routes>
                     <Route path="/" element={<SetupView />} />
-                    <Route path="/scout" element={<MatchDefenseScoutView />} />
+                    <Route path="/scout" element={<MatchScoutV4View />} />
                     <Route path="/pit" element={<PitScoutView />} />
                     <Route path="/history" element={<HistoryView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
@@ -76,4 +83,3 @@ export default function App() {
     </LocalFileProvider>
   );
 }
-

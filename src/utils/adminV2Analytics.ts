@@ -1,4 +1,4 @@
-import { MatchDefenseScoutingV1, MatchScoutingV3 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV3, MatchScoutingV4 } from '../types';
 import { TBAMatch } from './mathEngine';
 
 export interface TeamHistoricalAverageRow {
@@ -77,6 +77,79 @@ export const buildTeamHistoricalAverages = (records: MatchScoutingV3[]): TeamHis
         avgMiddleAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.middleAccuracy, 0)),
         avgFarAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.farAccuracy, 0)),
         avgDriverSkill: divide(teamRecords.reduce((sum, record) => sum + record.driverSkill, 0)),
+        avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0))
+      };
+    })
+    .sort((left, right) => {
+      const scoreDelta = right.avgTotalMatchPoints - left.avgTotalMatchPoints;
+      if (scoreDelta !== 0) return scoreDelta;
+      return Number(left.teamNumber) - Number(right.teamNumber);
+    });
+};
+
+export const buildTeamHistoricalAveragesV4Aware = (
+  v3Records: MatchScoutingV3[],
+  v4Records: MatchScoutingV4[]
+): TeamHistoricalAverageRow[] => {
+  const buckets = new Map<string, Array<{ total: number; auto: number; teleop: number; cycles: number; contribution: number; close: number; middle: number; far: number; driver: number; teamwork: number }>>();
+
+  const addRecord = (teamNumber: string, values: { total: number; auto: number; teleop: number; cycles: number; contribution?: number; close?: number; middle?: number; far?: number; driver?: number; teamwork?: number }) => {
+    const bucket = buckets.get(teamNumber) || [];
+    bucket.push({
+      total: values.total,
+      auto: values.auto,
+      teleop: values.teleop,
+      cycles: values.cycles,
+      contribution: values.contribution ?? 0,
+      close: values.close ?? 0,
+      middle: values.middle ?? 0,
+      far: values.far ?? 0,
+      driver: values.driver ?? 0,
+      teamwork: values.teamwork ?? 0
+    });
+    buckets.set(teamNumber, bucket);
+  };
+
+  v3Records.forEach(record => addRecord(record.teamNumber, {
+    total: record.totalMatchPoints,
+    auto: record.autoPoints,
+    teleop: record.teleopPoints,
+    cycles: record.teleopCycles,
+    contribution: record.contributionScore,
+    close: record.closeAccuracy,
+    middle: record.middleAccuracy,
+    far: record.farAccuracy,
+    driver: record.driverSkill,
+    teamwork: record.teamwork
+  }));
+
+  v4Records.forEach(record => addRecord(record.teamNumber, {
+    total: record.totalMatchPoints,
+    auto: record.autoPoints,
+    teleop: record.teleopPoints + record.endgamePoints,
+    cycles: record.teleopCycles + record.autoCycles,
+    contribution: record.reliabilityScore * 10,
+    driver: record.reliabilityScore * 10,
+    teamwork: record.rolePlayed === 'Support' || record.rolePlayed === 'Mixed' ? 8 : 0
+  }));
+
+  return Array.from(buckets.entries())
+    .map(([teamNumber, teamRecords]) => {
+      const matchesPlayed = teamRecords.length;
+      const divide = (value: number) => (matchesPlayed === 0 ? 0 : value / matchesPlayed);
+
+      return {
+        teamNumber,
+        matchesPlayed,
+        avgTotalMatchPoints: divide(teamRecords.reduce((sum, record) => sum + record.total, 0)),
+        avgAutoPoints: divide(teamRecords.reduce((sum, record) => sum + record.auto, 0)),
+        avgTeleopPoints: divide(teamRecords.reduce((sum, record) => sum + record.teleop, 0)),
+        avgTeleopCycles: divide(teamRecords.reduce((sum, record) => sum + record.cycles, 0)),
+        avgContributionScore: divide(teamRecords.reduce((sum, record) => sum + record.contribution, 0)),
+        avgCloseAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.close, 0)),
+        avgMiddleAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.middle, 0)),
+        avgFarAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.far, 0)),
+        avgDriverSkill: divide(teamRecords.reduce((sum, record) => sum + record.driver, 0)),
         avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0))
       };
     })

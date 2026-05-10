@@ -1,0 +1,86 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: REBUILT Scout (LOCAL)
+    - generic [ref=e6]: System Ready
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e10]:
+        - heading "Set Your Scout Username" [level=2] [ref=e11]
+        - paragraph [ref=e12]: We use this username for the local JSON archive on this device. It stays remembered in IndexedDB and lets us export your scouting history cleanly.
+        - generic [ref=e13]:
+          - generic [ref=e14]: Scout Username
+          - textbox "Required" [active] [ref=e15]
+        - button "Save Username" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - button "Back" [ref=e20]:
+              - img [ref=e21]
+              - text: Back
+            - heading "Match Scout V4" [level=1] [ref=e23]
+            - paragraph [ref=e24]: Full offense, defense, reliability, and strategy notes. Local-first before Firebase.
+          - generic [ref=e25]:
+            - generic [ref=e26]: Total Match Points
+            - generic [ref=e27]: "0"
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - text: Event
+            - textbox "Event" [ref=e30]: 2026MNUM
+          - generic [ref=e31]:
+            - text: Match Type
+            - generic [ref=e32]:
+              - button "Match Type Qualification" [ref=e33]: Practice
+              - button "Qualification" [ref=e34]
+          - generic [ref=e35]:
+            - text: Match Number
+            - spinbutton "Match Number" [ref=e36]: "1"
+          - generic [ref=e37]:
+            - text: Scout Username
+            - textbox "Scout Username" [ref=e38]
+          - generic [ref=e39]:
+            - text: Team Number
+            - textbox "Team Number" [ref=e40]
+          - generic [ref=e41]:
+            - text: Alliance
+            - generic [ref=e42]:
+              - button "Alliance Blue" [ref=e43]: Red
+              - button "Blue" [ref=e44]
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - img [ref=e47]
+            - heading "Fixed Scout Assignment" [level=2] [ref=e51]
+          - generic [ref=e52]:
+            - button "Olivia Red 1" [ref=e53]:
+              - generic [ref=e54]: Olivia
+              - generic [ref=e55]: Red 1
+            - button "Eason Red 2" [ref=e56]:
+              - generic [ref=e57]: Eason
+              - generic [ref=e58]: Red 2
+            - button "Matilda Red 3" [ref=e59]:
+              - generic [ref=e60]: Matilda
+              - generic [ref=e61]: Red 3
+            - button "Sophia Blue 1" [ref=e62]:
+              - generic [ref=e63]: Sophia
+              - generic [ref=e64]: Blue 1
+            - button "Lucas Blue 2" [ref=e65]:
+              - generic [ref=e66]: Lucas
+              - generic [ref=e67]: Blue 2
+            - button "Justin Blue 3" [ref=e68]:
+              - generic [ref=e69]: Justin
+              - generic [ref=e70]: Blue 3
+          - generic [ref=e71]:
+            - generic [ref=e72]: Substitute
+            - button "Charlotte" [ref=e73]
+            - button "Scarlett" [ref=e74]
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - img [ref=e77]
+            - generic [ref=e82]:
+              - heading "PowerCoins Gate" [level=2] [ref=e83]
+              - paragraph [ref=e84]: "Bet before scouting, or skip. Current balance: 1000 coins."
+          - generic [ref=e85]:
+            - button "Bet Red" [ref=e86]
+            - button "Bet Blue" [ref=e87]
+            - spinbutton [ref=e88]: "50"
+            - button "Place Bet" [ref=e89]
+          - button "Skip betting and open form" [ref=e90]

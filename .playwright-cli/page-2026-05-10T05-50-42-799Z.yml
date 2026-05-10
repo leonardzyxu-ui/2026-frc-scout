@@ -1,0 +1,97 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - heading "MAINFRAME V2" [level=1] [ref=e6]:
+        - button [ref=e7]:
+          - img [ref=e8]
+        - text: MAINFRAME V2
+      - paragraph [ref=e10]: Event 2026MNUM · Model PPC
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: Prediction Metric
+        - generic [ref=e15]:
+          - button "PPC" [ref=e16]
+          - button "OPR" [ref=e17]
+          - button "EPA" [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Global Team Search
+          - paragraph [ref=e22]: Search one team and keep it highlighted across Admin V2.
+        - generic [ref=e23]:
+          - combobox "Search team number" [ref=e24]
+          - generic [ref=e25]:
+            - button "SEARCH" [ref=e26]:
+              - img [ref=e27]
+              - text: SEARCH
+            - button "CLEAR" [ref=e30]
+        - generic [ref=e32]: Search a team number to inspect it here.
+      - navigation [ref=e33]:
+        - button "Match Results" [ref=e34]:
+          - img [ref=e35]
+          - text: Match Results
+        - button "Team Averages" [ref=e37]:
+          - img [ref=e38]
+          - text: Team Averages
+        - button "Team Sorter" [ref=e41]:
+          - img [ref=e42]
+          - text: Team Sorter
+        - button "Future Predictor" [ref=e45]:
+          - img [ref=e46]
+          - text: Future Predictor
+        - button "Match Simulator" [ref=e55]:
+          - img [ref=e56]
+          - text: Match Simulator
+        - button "Strategy Brain" [ref=e65]:
+          - img [ref=e66]
+          - text: Strategy Brain
+        - button "Data Import" [ref=e72]:
+          - img [ref=e73]
+          - text: Data Import
+        - button "Excel Export" [ref=e76]:
+          - img [ref=e77]
+          - text: Excel Export
+    - button "Settings" [ref=e81]:
+      - img [ref=e82]
+      - text: Settings
+  - main [ref=e85]:
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - heading "Admin V2" [level=2] [ref=e89]
+          - paragraph [ref=e90]: Event 2026MNUM · Active model PPC
+        - button "REFRESH" [disabled] [ref=e91]:
+          - img [ref=e92]
+          - text: REFRESH
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: Scout Rows
+          - generic [ref=e100]: "0"
+        - generic [ref=e101]:
+          - generic [ref=e102]: Scout Teams
+          - generic [ref=e103]: "0"
+        - generic [ref=e104]:
+          - generic [ref=e105]: Avg Defense Metric
+          - generic [ref=e106]: 0.00%
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - heading "Match Scout Results" [level=3] [ref=e109]:
+            - img [ref=e110]
+            - text: Match Scout Results
+          - generic [ref=e113]:
+            - button "Quals" [ref=e114]
+            - button "Practice Matches" [ref=e115]
+          - paragraph [ref=e116]: Qualification match results ordered from Qual 1 upward.
+        - table [ref=e118]:
+          - rowgroup [ref=e119]:
+            - row "Match Team Scout Alliance Type Points / Defense Role Notes" [ref=e120]:
+              - columnheader "Match" [ref=e121]
+              - columnheader "Team" [ref=e122]
+              - columnheader "Scout" [ref=e123]
+              - columnheader "Alliance" [ref=e124]
+              - columnheader "Type" [ref=e125]
+              - columnheader "Points / Defense" [ref=e126]
+              - columnheader "Role" [ref=e127]
+              - columnheader "Notes" [ref=e128]
+          - rowgroup [ref=e129]:
+            - row "Loading match scout results..." [ref=e130]:
+              - cell "Loading match scout results..." [ref=e131]

@@ -1,0 +1,127 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - heading "MAINFRAME V2" [level=1] [ref=e6]:
+        - button [ref=e7]:
+          - img [ref=e8]
+        - text: MAINFRAME V2
+      - paragraph [ref=e10]: Event 2026MNUM · Model PPC
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]: Prediction Metric
+        - generic [ref=e15]:
+          - button "PPC" [ref=e16]
+          - button "OPR" [ref=e17]
+          - button "EPA" [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: Global Team Search
+          - paragraph [ref=e22]: Search one team and keep it highlighted across Admin V2.
+        - generic [ref=e23]:
+          - combobox "Search team number" [ref=e24]
+          - generic [ref=e25]:
+            - button "SEARCH" [ref=e26]:
+              - img [ref=e27]
+              - text: SEARCH
+            - button "CLEAR" [ref=e30]
+        - generic [ref=e32]: Search a team number to inspect it here.
+      - navigation [ref=e33]:
+        - button "Match Results" [ref=e34]:
+          - img [ref=e35]
+          - text: Match Results
+        - button "Team Averages" [ref=e37]:
+          - img [ref=e38]
+          - text: Team Averages
+        - button "Team Sorter" [ref=e41]:
+          - img [ref=e42]
+          - text: Team Sorter
+        - button "Future Predictor" [ref=e45]:
+          - img [ref=e46]
+          - text: Future Predictor
+        - button "Match Simulator" [ref=e55]:
+          - img [ref=e56]
+          - text: Match Simulator
+        - button "Strategy Brain" [active] [ref=e65]:
+          - img [ref=e66]
+          - text: Strategy Brain
+        - button "Data Import" [ref=e72]:
+          - img [ref=e73]
+          - text: Data Import
+        - button "Excel Export" [ref=e76]:
+          - img [ref=e77]
+          - text: Excel Export
+    - button "Settings" [ref=e81]:
+      - img [ref=e82]
+      - text: Settings
+  - main [ref=e85]:
+    - generic [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - heading "Admin V2" [level=2] [ref=e89]
+          - paragraph [ref=e90]: Event 2026MNUM · Active model PPC
+        - button "REFRESH" [ref=e91]:
+          - img [ref=e92]
+          - text: REFRESH
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: Scout Rows
+          - generic [ref=e100]: "0"
+        - generic [ref=e101]:
+          - generic [ref=e102]: Scout Teams
+          - generic [ref=e103]: "0"
+        - generic [ref=e104]:
+          - generic [ref=e105]: Avg Defense Metric
+          - generic [ref=e106]: 0.00%
+      - generic [ref=e134]:
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - heading "Strategy Brain" [level=3] [ref=e138]:
+              - img [ref=e139]
+              - text: Strategy Brain
+            - paragraph [ref=e147]: V4 evidence, cached APIs, no-future-data model evaluation, defense attribution, match strategy, alliance selection, scout assignment optimization, and PowerCoins live in one Admin V2 workspace.
+          - generic [ref=e148]:
+            - generic [ref=e149]: Best Validated Model
+            - generic [ref=e150]: EPA
+            - generic [ref=e151]: PPA uses validated blend when available.
+        - generic [ref=e152]:
+          - button "Data Foundation" [ref=e153]
+          - button "Model Lab" [ref=e154]
+          - button "Team Profiles" [ref=e155]
+          - button "Match Strategy" [ref=e156]
+          - button "Alliance Selection" [ref=e157]
+          - button "Scout Ops + PowerCoins" [ref=e158]
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - heading "FIRST Events API Local Credentials" [level=4] [ref=e161]:
+              - img [ref=e162]
+              - text: FIRST Events API Local Credentials
+            - paragraph [ref=e165]: "Upload a local JSON file with {\"username\":\"...\",\"token\":\"...\" }. It stays in this browser IndexedDB only and is never committed."
+            - generic [ref=e166]:
+              - generic [ref=e167] [cursor=pointer]:
+                - img [ref=e168]
+                - text: Upload Credential JSON
+              - button "Refresh FIRST Cache" [ref=e171]:
+                - img [ref=e172]
+                - text: Refresh FIRST Cache
+              - button "Clear Credentials" [ref=e177]
+            - generic [ref=e178]:
+              - generic [ref=e179]: "Credential status: Not loaded"
+              - generic [ref=e180]: "Cached entries for event: 0"
+          - generic [ref=e181]:
+            - heading "Source Freshness" [level=4] [ref=e182]:
+              - img [ref=e183]
+              - text: Source Freshness
+            - generic [ref=e187]:
+              - generic [ref=e188]:
+                - generic [ref=e189]: V4 Rows
+                - generic [ref=e190]: "0"
+              - generic [ref=e191]:
+                - generic [ref=e192]: Legacy V3 Rows
+                - generic [ref=e193]: "0"
+              - generic [ref=e194]:
+                - generic [ref=e195]: Defense V1 Rows
+                - generic [ref=e196]: "0"
+              - generic [ref=e197]:
+                - generic [ref=e198]: TBA/FIRST Matches
+                - generic [ref=e199]: "94"
+            - paragraph [ref=e200]: SSH/LAN transfer is intentionally not the primary path. The reliable backbone is IndexedDB, Firebase, QR, JSON archives, local uploaded files, and cached API snapshots.

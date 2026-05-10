@@ -1,0 +1,13 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]: REBUILT Scout
+    - generic [ref=e6]: System Ready
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9] [cursor=pointer]:
+        - heading "REBUILT" [level=1] [ref=e10]
+        - paragraph [ref=e11]: Scout System
+      - generic [ref=e12]:
+        - button "Match Scout V4" [ref=e13]
+        - button "Pit Scout" [ref=e14]
+        - button "My Device History" [ref=e15]

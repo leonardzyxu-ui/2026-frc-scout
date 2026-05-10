@@ -7,12 +7,13 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
 
   useEffect(() => {
-    if (localStorage.getItem('admin_unlocked') === 'true') {
+    if (isLocalMode || localStorage.getItem('admin_unlocked') === 'true') {
       setIsUnlocked(true);
     }
-  }, []);
+  }, [isLocalMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

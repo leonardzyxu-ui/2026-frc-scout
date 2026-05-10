@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock3, Download, Edit3, RefreshCw, Trash2 } from 'lucide-react';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
 import { DEFAULT_EVENT_KEY } from '../utils/sharedEventState';
 import {
   buildScoutArchiveBundle,
@@ -14,7 +14,7 @@ import {
 } from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
-import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writePitScoutingRecord } from '../utils/scoutingWrites';
+import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writeMatchScoutingV4Record, writePitScoutingRecord } from '../utils/scoutingWrites';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 
 const MATCH_DEFENSE_EDIT_STORAGE_KEY = 'edit_match_defense_data_v1';
@@ -57,9 +57,11 @@ export default function HistoryView() {
     return records
       .filter(record => !record.deleted)
       .sort((a, b) => {
-        if ((a.recordType === 'match' || a.recordType === 'matchDefense') && (b.recordType === 'match' || b.recordType === 'matchDefense')) {
+        if ((a.recordType === 'match' || a.recordType === 'matchV4' || a.recordType === 'matchDefense') && (b.recordType === 'match' || b.recordType === 'matchV4' || b.recordType === 'matchDefense')) {
           const getKey = (record: HistoryRow) =>
-            record.recordType === 'match'
+            record.recordType === 'matchV4'
+              ? (record.payload as MatchScoutingV4).matchKey
+              : record.recordType === 'match'
               ? toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3).matchKey
               : (record.payload as MatchDefenseScoutingV1).matchKey;
           const matchDiff = getMatchNumber(getKey(b)) - getMatchNumber(getKey(a));
@@ -138,8 +140,14 @@ export default function HistoryView() {
   };
 
   const handleEdit = (record: HistoryRow) => {
+    if (record.recordType === 'matchV4') {
+      localStorage.setItem('match_scout_v4_draft', JSON.stringify(record.payload));
+      navigate('/scout');
+      return;
+    }
+
     if (record.recordType === 'match') {
-      setError('Legacy V3 match records remain readable here, but new edits now use the defense-only scout form.');
+      setError('Legacy V3 match records remain readable here. New edits should use the V4 scout form.');
       return;
     }
 
@@ -193,7 +201,21 @@ export default function HistoryView() {
         lastFirebaseError: ''
       });
 
-      if (record.recordType === 'match') {
+      if (record.recordType === 'matchV4') {
+        const payload = record.payload as MatchScoutingV4;
+        const writeResult = await writeMatchScoutingV4Record(payload, { mode: 'strict' });
+
+        if (writeResult.outcome === 'conflict') {
+          await updateScoutArchiveRecordSyncState(record.recordId, {
+            syncStatus: 'unsynced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: 'Conflicting V4 match record already exists in Firebase.'
+          });
+          setError('This V4 match record still conflicts with Firebase and remains unsynced.');
+          await loadHistory();
+          return;
+        }
+      } else if (record.recordType === 'match') {
         const payload = toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3);
         const writeResult = await writeMatchScoutingV3Record(payload, { mode: 'strict' });
 
@@ -329,7 +351,57 @@ export default function HistoryView() {
             {recentRecords.map((record) => (
               <div key={record.recordId} className="px-5 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="space-y-2">
-                  {record.recordType === 'match' ? (
+                  {record.recordType === 'matchV4' ? (
+                    (() => {
+                      const matchPayload = record.payload as MatchScoutingV4;
+                      return (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-xs font-black tracking-wider text-fuchsia-200">
+                              MATCH V4
+                            </span>
+                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                              {matchPayload.matchKey.toUpperCase()}
+                            </span>
+                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                              Team {matchPayload.teamNumber}
+                            </span>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${
+                                matchPayload.alliance === 'Red'
+                                  ? 'bg-red-500/15 text-red-200'
+                                  : matchPayload.alliance === 'Blue'
+                                    ? 'bg-blue-500/15 text-blue-200'
+                                    : 'bg-slate-800 text-slate-200'
+                              }`}
+                            >
+                              {matchPayload.alliance || 'No Alliance'}
+                            </span>
+                            <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
+                              {matchPayload.totalMatchPoints} pts
+                            </span>
+                            {record.syncStatus !== 'synced' && (
+                              <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
+                                {record.syncStatus === 'pending_sync' ? 'Pending Sync' : 'Unsynced'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-sm text-slate-300">
+                            <span className="font-bold text-white">{matchPayload.scoutName || 'Unknown Scout'}</span>
+                            {' • '}
+                            {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                          </div>
+
+                          {matchPayload.notes && (
+                            <p className="max-w-3xl line-clamp-2 text-sm text-slate-400">
+                              {matchPayload.notes}
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : record.recordType === 'match' ? (
                     (() => {
                       const matchPayload = toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3);
                       return (
