@@ -1,6 +1,7 @@
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
 import { calculateTotalMatchPoints, mapLegacyMatchScoutingToV3, normalizeMatchScoutingV3 } from './matchScoutingV3';
 import { normalizeMatchDefenseScoutingV1 } from './matchDefenseScouting';
+import { normalizeMatchScoutingV4 } from './matchScoutingV4';
 
 export interface PitQrExportPayload {
   eventKey: string;
@@ -9,6 +10,7 @@ export interface PitQrExportPayload {
 
 export type ScoutingImportRecord =
   | { recordType: 'match'; data: MatchScoutingV3 }
+  | { recordType: 'matchV4'; data: MatchScoutingV4 }
   | { recordType: 'matchDefense'; data: MatchDefenseScoutingV1 }
   | { recordType: 'pit'; eventKey: string; data: PitScoutingV2 };
 
@@ -89,6 +91,15 @@ export const compressMatchDataV3 = (data: MatchScoutingV3): string => {
   return `V7|${JSON.stringify(payload)}`;
 };
 
+export const compressMatchDataV4 = (data: MatchScoutingV4): string => {
+  const payload = normalizeMatchScoutingV4({
+    ...data,
+    timestamp: data.timestamp || Date.now()
+  });
+
+  return `V8|${JSON.stringify(payload)}`;
+};
+
 export const compressPitData = (payload: PitQrExportPayload): string => {
   const { eventKey, data } = payload;
   const arr = [
@@ -167,6 +178,11 @@ function parseModernMatchPayloadV3(str: string): MatchScoutingV3 {
     teleopClimbed: !!payload.teleopClimbed,
     totalMatchPoints: calculateTotalMatchPoints(payload.autoPoints || 0, payload.teleopPoints || 0)
   });
+}
+
+function parseModernMatchPayloadV4(str: string): MatchScoutingV4 {
+  const payload = JSON.parse(str.substring(3)) as Partial<MatchScoutingV4>;
+  return normalizeMatchScoutingV4(payload);
 }
 
 function parseMatchDefensePayloadV1(str: string): MatchDefenseScoutingV1 {
@@ -329,7 +345,7 @@ function parsePitPayload(str: string): ScoutingImportRecord {
 }
 
 export const decompressScoutingData = (str: string): ScoutingImportRecord | null => {
-  if (!str.startsWith('P1|') && !str.startsWith('D1|') && !str.startsWith('V7|') && !str.startsWith('V6|') && !str.startsWith('V5|') && !str.startsWith('V4|')) {
+  if (!str.startsWith('P1|') && !str.startsWith('D1|') && !str.startsWith('V8|') && !str.startsWith('V7|') && !str.startsWith('V6|') && !str.startsWith('V5|') && !str.startsWith('V4|')) {
     return null;
   }
 
@@ -340,6 +356,10 @@ export const decompressScoutingData = (str: string): ScoutingImportRecord | null
 
     if (str.startsWith('D1|')) {
       return { recordType: 'matchDefense', data: parseMatchDefensePayloadV1(str) };
+    }
+
+    if (str.startsWith('V8|')) {
+      return { recordType: 'matchV4', data: parseModernMatchPayloadV4(str) };
     }
 
     if (str.startsWith('V7|')) {

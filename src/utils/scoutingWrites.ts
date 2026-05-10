@@ -1,14 +1,15 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
 import { getMatchScoutingV3DocId } from './matchScoutingV3';
 import { getMatchDefenseScoutingV1DocId } from './matchDefenseScouting';
+import { getMatchScoutingV4DocId } from './matchScoutingV4';
 
 type WriteMode = 'strict' | 'replace';
 
 export interface ScoutingWriteResult {
   outcome: 'created' | 'updated' | 'duplicate' | 'conflict';
-  targetCollection: 'matchScouting' | 'matchScoutingV3' | 'matchScoutingDefense' | 'pitScouting';
+  targetCollection: 'matchScouting' | 'matchScoutingV3' | 'matchScoutingV4' | 'matchScoutingDefense' | 'pitScouting';
   docId: string;
   message: string;
 }
@@ -82,6 +83,41 @@ const canonicalizeMatchV3 = (record: MatchScoutingV3) => ({
   totalMatchPoints: record.totalMatchPoints ?? 0
 });
 
+const canonicalizeMatchV4 = (record: MatchScoutingV4) => ({
+  schemaVersion: 'v4',
+  eventKey: normalizeString(record.eventKey),
+  matchType: record.matchType,
+  matchNumber: record.matchNumber ?? 0,
+  matchKey: normalizeString(record.matchKey),
+  teamNumber: normalizeString(record.teamNumber),
+  scoutName: normalizeString(record.scoutName),
+  assignedScoutName: normalizeString(record.assignedScoutName),
+  assignedSlot: normalizeString(record.assignedSlot),
+  substituteScoutName: normalizeString(record.substituteScoutName || ''),
+  alliance: record.alliance,
+  autoPoints: record.autoPoints ?? 0,
+  autoCycles: record.autoCycles ?? 0,
+  teleopPoints: record.teleopPoints ?? 0,
+  teleopCycles: record.teleopCycles ?? 0,
+  endgamePoints: record.endgamePoints ?? 0,
+  totalMatchPoints: record.totalMatchPoints ?? 0,
+  rolePlayed: record.rolePlayed,
+  defendedTeamNumber: normalizeString(record.defendedTeamNumber),
+  defenderFacedTeamNumber: normalizeString(record.defenderFacedTeamNumber),
+  defenseIntensity: record.defenseIntensity ?? 0,
+  defenseDurationSeconds: record.defenseDurationSeconds ?? 0,
+  fouls: record.fouls ?? 0,
+  techFouls: record.techFouls ?? 0,
+  robotDied: !!record.robotDied,
+  commsLost: !!record.commsLost,
+  mechanismBroke: !!record.mechanismBroke,
+  tippedOver: !!record.tippedOver,
+  failureReason: normalizeString(record.failureReason),
+  reliabilityScore: record.reliabilityScore ?? 1,
+  notes: normalizeString(record.notes),
+  strategyNotes: normalizeString(record.strategyNotes)
+});
+
 const canonicalizeMatchDefense = (record: MatchDefenseScoutingV1) => ({
   schemaVersion: 'defense-v1',
   eventKey: normalizeString(record.eventKey),
@@ -136,6 +172,9 @@ export const getMatchDocId = (record: Pick<MatchScoutingV2, 'matchKey' | 'teamNu
 
 export const getMatchV3DocId = (record: Pick<MatchScoutingV3, 'matchKey' | 'teamNumber'>) =>
   getMatchScoutingV3DocId(record);
+
+export const getMatchV4DocId = (record: Pick<MatchScoutingV4, 'matchKey' | 'teamNumber'>) =>
+  getMatchScoutingV4DocId(record);
 
 export const getMatchDefenseDocId = (record: Pick<MatchDefenseScoutingV1, 'matchKey' | 'teamNumber'>) =>
   getMatchDefenseScoutingV1DocId(record);
@@ -234,6 +273,53 @@ export async function writeMatchScoutingV3Record(
     targetCollection: 'matchScoutingV3',
     docId,
     message: `Conflicting match record already exists at matchScoutingV3/${docId}.`
+  };
+}
+
+export async function writeMatchScoutingV4Record(
+  record: MatchScoutingV4,
+  options?: { mode?: WriteMode }
+): Promise<ScoutingWriteResult> {
+  const mode = options?.mode || 'strict';
+  const docId = getMatchV4DocId(record);
+  const targetRef = doc(db, 'events', record.eventKey, 'matchScoutingV4', docId);
+  const existing = await getDoc(targetRef);
+
+  if (!existing.exists()) {
+    await setDoc(targetRef, record);
+    return {
+      outcome: 'created',
+      targetCollection: 'matchScoutingV4',
+      docId,
+      message: `Saved match record to matchScoutingV4/${docId}.`
+    };
+  }
+
+  const existingRecord = existing.data() as MatchScoutingV4;
+  if (areEqual(canonicalizeMatchV4(existingRecord), canonicalizeMatchV4(record))) {
+    return {
+      outcome: 'duplicate',
+      targetCollection: 'matchScoutingV4',
+      docId,
+      message: `Duplicate match record already exists at matchScoutingV4/${docId}.`
+    };
+  }
+
+  if (mode === 'replace') {
+    await setDoc(targetRef, record);
+    return {
+      outcome: 'updated',
+      targetCollection: 'matchScoutingV4',
+      docId,
+      message: `Updated match record at matchScoutingV4/${docId}.`
+    };
+  }
+
+  return {
+    outcome: 'conflict',
+    targetCollection: 'matchScoutingV4',
+    docId,
+    message: `Conflicting match record already exists at matchScoutingV4/${docId}.`
   };
 }
 

@@ -114,6 +114,8 @@ export type MatchScoutingV3ShootingStyle = 'On the Fly' | 'Stationary' | '';
 export type MatchScoutingV3CapabilityRating = 'Cannot' | 'Limited' | 'Strong' | '';
 export type MatchScoutingV3SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
 export type MatchDefenseScoutingV1SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
+export type MatchScoutingV4SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
+export type MatchScoutingV4Role = '' | 'Offense' | 'Defense' | 'Mixed' | 'Support' | 'Disabled';
 
 export interface MatchDefenseScoutingV1 {
   schemaVersion: 'defense-v1';
@@ -175,6 +177,172 @@ export interface MatchScoutingV3 {
   generalEvaluation: string;
 
   totalMatchPoints: number;
+}
+
+export interface MatchScoutingV4 {
+  schemaVersion: 'v4';
+  eventKey: string;
+  matchType: MatchScoutingV3MatchType;
+  matchNumber: number;
+  matchKey: string;
+  teamNumber: string;
+  scoutName: string;
+  assignedScoutName: string;
+  assignedSlot: string;
+  substituteScoutName?: MatchScoutingV4SubstituteScoutName;
+  alliance: MatchScoutingV3Alliance;
+  deviceId?: string;
+  timestamp?: number;
+  editHistory?: { timestamp: number; editor: string; changes: string }[];
+
+  autoPoints: number;
+  autoCycles: number;
+  teleopPoints: number;
+  teleopCycles: number;
+  endgamePoints: number;
+  totalMatchPoints: number;
+
+  rolePlayed: MatchScoutingV4Role;
+  defendedTeamNumber: string;
+  defenderFacedTeamNumber: string;
+  defenseIntensity: number;
+  defenseDurationSeconds: number;
+
+  fouls: number;
+  techFouls: number;
+  robotDied: boolean;
+  commsLost: boolean;
+  mechanismBroke: boolean;
+  tippedOver: boolean;
+  failureReason: string;
+  reliabilityScore: number;
+
+  notes: string;
+  strategyNotes: string;
+}
+
+export interface PowerCoinBet {
+  id: string;
+  eventKey: string;
+  matchKey: string;
+  matchNumber: number;
+  matchType: MatchScoutingV3MatchType;
+  scoutName: string;
+  side: 'Red' | 'Blue';
+  amount: number;
+  placedAt: number;
+  settledAt?: number;
+  outcome?: 'won' | 'lost' | 'refunded';
+  payout?: number;
+}
+
+export interface PowerCoinLedgerEntry {
+  id: string;
+  eventKey: string;
+  scoutName: string;
+  reason: string;
+  delta: number;
+  balanceAfter: number;
+  createdAt: number;
+  matchKey?: string;
+}
+
+export interface ScoutAssignmentPlan {
+  id: string;
+  eventKey: string;
+  createdAt: number;
+  scoutNames: string[];
+  scoutCount: number;
+  ownTeamNumber: string;
+  assignments: Array<{
+    matchKey: string;
+    matchNumber: number;
+    matchType: MatchScoutingV3MatchType;
+    station: string;
+    teamNumber: string;
+    scoutName: string;
+    priorityReason: string;
+  }>;
+  exposureCounts: Record<string, Record<string, number>>;
+}
+
+export interface ModelFeatureSnapshot {
+  id: string;
+  eventKey: string;
+  modelName: string;
+  beforeMatchKey: string;
+  createdAt: number;
+  featuresByTeam: Record<string, Record<string, number>>;
+}
+
+export interface ModelBacktestResult {
+  modelName: string;
+  sourceLabel: string;
+  matchesTested: number;
+  winnerAccuracy: number;
+  scoreMae: number;
+  marginMae: number;
+  calibrationError: number;
+  lowConfidenceRate: number;
+}
+
+export interface TeamPerformanceProfile {
+  teamNumber: string;
+  matchesPlayed: number;
+  peakScore: number;
+  worstScore: number;
+  lowestNonZeroScore: number | null;
+  averageScore: number;
+  standardDeviation: number;
+  volatility: number;
+  reliability: number;
+  recentTrend: number;
+  ppc: number | null;
+  opr: number | null;
+  dpr: number | null;
+  epa: number | null;
+  ppa: number | null;
+  defenseImpact: number | null;
+  curve: Array<{ matchKey: string; matchNumber: number; score: number; rollingAverage: number; fittedScore: number }>;
+}
+
+export interface DefenseAttributionRecord {
+  id: string;
+  eventKey: string;
+  matchKey: string;
+  targetTeamNumber: string;
+  defenderTeamNumber: string;
+  expectedTargetPoints: number;
+  actualTargetPoints: number;
+  pointsDenied: number;
+  confidence: number;
+  source: 'scouted' | 'calibrated';
+}
+
+export interface StrategyMatchPlan {
+  matchKey: string;
+  matchNumber: number;
+  matchType: MatchScoutingV3MatchType;
+  redTeams: string[];
+  blueTeams: string[];
+  baselineRedScore: number;
+  baselineBlueScore: number;
+  bestRedPlan: string;
+  bestBluePlan: string;
+  predictedWinner: 'Red' | 'Blue' | 'Tie';
+  confidence: number;
+  riskFlags: string[];
+  winCondition: string;
+}
+
+export interface AlliancePickRecommendation {
+  teamNumber: string;
+  score: number;
+  seedFit: string;
+  roleFit: string;
+  rationale: string;
+  status: 'available' | 'picked' | 'declined' | 'unavailable';
+  pickedBy?: string;
 }
 
 export type QualificationStatus = 'likely_qualified' | 'likely_not_qualified' | 'unknown';
@@ -329,6 +497,47 @@ export const initialMatchScoutingV3: MatchScoutingV3 = {
   generalEvaluation: '',
 
   totalMatchPoints: 0
+};
+
+export const initialMatchScoutingV4: MatchScoutingV4 = {
+  schemaVersion: 'v4',
+  eventKey: '2026MNUM',
+  matchType: 'Qualification',
+  matchNumber: 1,
+  matchKey: 'qm1',
+  teamNumber: '',
+  scoutName: '',
+  assignedScoutName: '',
+  assignedSlot: '',
+  substituteScoutName: '',
+  alliance: '',
+  deviceId: '',
+  editHistory: [],
+
+  autoPoints: 0,
+  autoCycles: 0,
+  teleopPoints: 0,
+  teleopCycles: 0,
+  endgamePoints: 0,
+  totalMatchPoints: 0,
+
+  rolePlayed: '',
+  defendedTeamNumber: '',
+  defenderFacedTeamNumber: '',
+  defenseIntensity: 0,
+  defenseDurationSeconds: 0,
+
+  fouls: 0,
+  techFouls: 0,
+  robotDied: false,
+  commsLost: false,
+  mechanismBroke: false,
+  tippedOver: false,
+  failureReason: '',
+  reliabilityScore: 1,
+
+  notes: '',
+  strategyNotes: ''
 };
 
 export const initialMatchDefenseScoutingV1: MatchDefenseScoutingV1 = {

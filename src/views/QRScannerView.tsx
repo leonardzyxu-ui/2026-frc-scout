@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import { decompressScoutingData, ScoutingImportRecord } from '../utils/qrCompression';
 import { ArrowLeft, AlertTriangle, Database, ScanLine, Trash2, Upload, X } from 'lucide-react';
-import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writePitScoutingRecord } from '../utils/scoutingWrites';
+import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writeMatchScoutingV4Record, writePitScoutingRecord } from '../utils/scoutingWrites';
 import { isScoutArchiveBundle, ScoutArchiveRecord } from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3 } from '../types';
+import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4 } from '../types';
 
 type ImportStatus = 'pending' | 'uploaded' | 'duplicate' | 'conflict' | 'failed';
 
@@ -31,9 +32,11 @@ const STATUS_CLASSES: Record<ImportStatus, string> = {
 const getTargetCollection = (record: ScoutingImportRecord) =>
   record.recordType === 'match'
     ? 'matchScoutingV3'
-    : record.recordType === 'matchDefense'
-      ? 'matchScoutingDefense'
-      : 'pitScouting';
+    : record.recordType === 'matchV4'
+      ? 'matchScoutingV4'
+      : record.recordType === 'matchDefense'
+        ? 'matchScoutingDefense'
+        : 'pitScouting';
 
 const toMatchImportRecord = (payload: MatchScoutingV2 | MatchScoutingV3): ScoutingImportRecord => ({
   recordType: 'match',
@@ -45,9 +48,18 @@ const toMatchDefenseImportRecord = (payload: MatchDefenseScoutingV1): ScoutingIm
   data: payload
 });
 
+const toMatchV4ImportRecord = (payload: MatchScoutingV4): ScoutingImportRecord => ({
+  recordType: 'matchV4',
+  data: payload
+});
+
 const getLogicalKey = (record: ScoutingImportRecord) => {
   if (record.recordType === 'match') {
     return `match|${record.data.eventKey}|${record.data.matchKey}|${record.data.teamNumber}`;
+  }
+
+  if (record.recordType === 'matchV4') {
+    return `matchV4|${record.data.eventKey}|${record.data.matchKey}|${record.data.teamNumber}`;
   }
 
   if (record.recordType === 'matchDefense') {
@@ -58,7 +70,7 @@ const getLogicalKey = (record: ScoutingImportRecord) => {
 };
 
 const getRecordTimestamp = (record: ScoutingImportRecord) =>
-  record.recordType === 'match' || record.recordType === 'matchDefense'
+  record.recordType === 'match' || record.recordType === 'matchV4' || record.recordType === 'matchDefense'
     ? record.data.timestamp || 0
     : record.data.timestamp || 0;
 
@@ -66,6 +78,11 @@ const hashRecord = (record: ScoutingImportRecord) => {
   if (record.recordType === 'match') {
     const match = record.data;
     return `match|${match.eventKey}|${match.matchKey}|${match.teamNumber}|${match.scoutName}|${match.timestamp}`;
+  }
+
+  if (record.recordType === 'matchV4') {
+    const match = record.data;
+    return `matchV4|${match.eventKey}|${match.matchKey}|${match.teamNumber}|${match.scoutName}|${match.timestamp}`;
   }
 
   if (record.recordType === 'matchDefense') {
@@ -273,9 +290,11 @@ export default function QRScannerView({
               const importRecord: ScoutingImportRecord =
                 archiveRecord.recordType === 'match'
                   ? toMatchImportRecord(archiveRecord.payload as MatchScoutingV2 | MatchScoutingV3)
-                  : archiveRecord.recordType === 'matchDefense'
-                    ? toMatchDefenseImportRecord(archiveRecord.payload as MatchDefenseScoutingV1)
-                  : { recordType: 'pit', eventKey: archiveRecord.eventKey, data: archiveRecord.payload };
+                  : archiveRecord.recordType === 'matchV4' && isMatchScoutingV4(archiveRecord.payload)
+                    ? toMatchV4ImportRecord(archiveRecord.payload)
+                    : archiveRecord.recordType === 'matchDefense'
+                      ? toMatchDefenseImportRecord(archiveRecord.payload as MatchDefenseScoutingV1)
+                      : { recordType: 'pit', eventKey: archiveRecord.eventKey, data: archiveRecord.payload };
               const outcome = addStagedRecord(importRecord);
               if (outcome === 'added' || outcome === 'replaced') successCount += 1;
               else duplicateCount += 1;
@@ -328,9 +347,11 @@ export default function QRScannerView({
         const writeResult =
           item.record.recordType === 'match'
             ? await writeMatchScoutingV3Record(item.record.data, { mode: 'strict' })
-            : item.record.recordType === 'matchDefense'
-              ? await writeMatchDefenseScoutingRecord(item.record.data, { mode: 'strict' })
-            : await writePitScoutingRecord(item.record.eventKey, item.record.data, { mode: 'strict' });
+            : item.record.recordType === 'matchV4'
+              ? await writeMatchScoutingV4Record(item.record.data, { mode: 'strict' })
+              : item.record.recordType === 'matchDefense'
+                ? await writeMatchDefenseScoutingRecord(item.record.data, { mode: 'strict' })
+                : await writePitScoutingRecord(item.record.eventKey, item.record.data, { mode: 'strict' });
 
         if (writeResult.outcome === 'duplicate') {
           duplicateCount += 1;
@@ -497,10 +518,10 @@ export default function QRScannerView({
                   <div key={item.id} className="group rounded-xl border border-slate-800 bg-slate-950 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className={`mt-1 w-2 self-stretch rounded-full ${item.record.recordType === 'match' ? (item.record.data.alliance === 'Red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-cyan-400'}`} />
+                        <div className={`mt-1 w-2 self-stretch rounded-full ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? (item.record.data.alliance === 'Red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-cyan-400'}`} />
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${item.record.recordType === 'match' ? 'bg-purple-500/15 text-purple-200' : 'bg-cyan-500/15 text-cyan-200'}`}>
+                            <span className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? 'bg-purple-500/15 text-purple-200' : 'bg-cyan-500/15 text-cyan-200'}`}>
                               {item.record.recordType.toUpperCase()}
                             </span>
                             <span className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${STATUS_CLASSES[item.status]}`}>
@@ -509,7 +530,7 @@ export default function QRScannerView({
                             <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black tracking-wider text-slate-300">
                               {getTargetCollection(item.record)}
                             </span>
-                            {item.record.recordType === 'match' ? (
+                            {item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? (
                               <>
                                 <span className="text-lg font-black text-white">{item.record.data.teamNumber}</span>
                                 <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.data.matchKey}</span>
@@ -527,7 +548,7 @@ export default function QRScannerView({
                             )}
                           </div>
                           <div className="mt-1 text-xs text-slate-500">
-                            {item.record.recordType === 'match'
+                            {item.record.recordType === 'match' || item.record.recordType === 'matchV4'
                               ? `Scout: ${item.record.data.scoutName} | Event: ${item.record.data.eventKey}`
                               : item.record.recordType === 'matchDefense'
                                 ? `Scout: ${item.record.data.scoutName || 'Unknown'} | Event: ${item.record.data.eventKey}`

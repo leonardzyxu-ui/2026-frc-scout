@@ -1,6 +1,7 @@
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, PitScoutingV2 } from '../types';
-import { getMatchDefenseDocId, getMatchDocId, getMatchV3DocId, getPitDocId } from './scoutingWrites';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { getMatchDefenseDocId, getMatchDocId, getMatchV3DocId, getMatchV4DocId, getPitDocId } from './scoutingWrites';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from './matchScoutingV3';
+import { isMatchScoutingV4 } from './matchScoutingV4';
 
 const DB_NAME = 'rebuilt-2026-scout-archive';
 const SETTINGS_STORE = 'settings';
@@ -8,9 +9,10 @@ const RECORDS_STORE = 'records';
 const DB_VERSION = 1;
 const USERNAME_KEY = 'scout_username';
 
-export type ScoutArchiveRecordType = 'match' | 'matchDefense' | 'pit';
+export type ScoutArchiveRecordType = 'match' | 'matchV4' | 'matchDefense' | 'pit';
 export type ScoutArchiveSource = 'local_submit' | 'json_import' | 'qr_import';
 export type ArchivedMatchPayload = MatchScoutingV2 | MatchScoutingV3;
+export type ArchivedMatchV4Payload = MatchScoutingV4;
 export type ScoutArchiveSyncStatus = 'pending_sync' | 'synced' | 'unsynced';
 
 interface ScoutArchiveRecordBase<T> {
@@ -34,6 +36,10 @@ export interface MatchArchiveRecord extends ScoutArchiveRecordBase<ArchivedMatch
   recordType: 'match';
 }
 
+export interface MatchV4ArchiveRecord extends ScoutArchiveRecordBase<ArchivedMatchV4Payload> {
+  recordType: 'matchV4';
+}
+
 export interface MatchDefenseArchiveRecord extends ScoutArchiveRecordBase<MatchDefenseScoutingV1> {
   recordType: 'matchDefense';
 }
@@ -42,11 +48,11 @@ export interface PitArchiveRecord extends ScoutArchiveRecordBase<PitScoutingV2> 
   recordType: 'pit';
 }
 
-export type ScoutArchiveRecord = MatchArchiveRecord | MatchDefenseArchiveRecord | PitArchiveRecord;
+export type ScoutArchiveRecord = MatchArchiveRecord | MatchV4ArchiveRecord | MatchDefenseArchiveRecord | PitArchiveRecord;
 
 export interface ScoutArchiveBundle {
   format: 'rebuilt-2026-scout-archive';
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   username: string;
   exportedAt: number;
   deviceId: string;
@@ -114,6 +120,9 @@ const withStore = async <T>(
 
 const buildMatchRecordId = (record: ArchivedMatchPayload) =>
   `match:${record.eventKey}:${isMatchScoutingV3(record) ? getMatchV3DocId(record) : getMatchDocId(record)}`;
+
+const buildMatchV4RecordId = (record: MatchScoutingV4) =>
+  `matchV4:${record.eventKey}:${getMatchV4DocId(record)}`;
 
 const buildPitRecordId = (eventKey: string, record: PitScoutingV2) =>
   `pit:${eventKey}:${getPitDocId(record)}`;
@@ -207,6 +216,34 @@ export const upsertMatchArchiveRecordV3 = async (
     recordId,
     logicalId,
     recordType: 'match',
+    eventKey: record.eventKey,
+    username: normalizeUsername(username),
+    deviceId: record.deviceId || '',
+    updatedAt: record.timestamp || Date.now(),
+    deleted: false,
+    source,
+    syncStatus: syncState?.syncStatus || 'synced',
+    lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
+    lastFirebaseError: syncState?.lastFirebaseError,
+    payload: record
+  };
+
+  await putArchiveRecord(archiveRecord);
+  return archiveRecord;
+};
+
+export const upsertMatchArchiveRecordV4 = async (
+  record: MatchScoutingV4,
+  username: string,
+  source: ScoutArchiveSource = 'local_submit',
+  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+) => {
+  const recordId = buildMatchV4RecordId(record);
+  const logicalId = getMatchV4DocId(record);
+  const archiveRecord: MatchV4ArchiveRecord = {
+    recordId,
+    logicalId,
+    recordType: 'matchV4',
     eventKey: record.eventKey,
     username: normalizeUsername(username),
     deviceId: record.deviceId || '',
@@ -358,7 +395,7 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
   });
   return {
     format: 'rebuilt-2026-scout-archive',
-    version: 3,
+    version: 4,
     username: normalizeUsername(username),
     exportedAt: Date.now(),
     deviceId: normalizedRecords[0]?.deviceId || '',
@@ -371,7 +408,10 @@ export const isScoutArchiveBundle = (value: unknown): value is ScoutArchiveBundl
   const maybeBundle = value as Partial<ScoutArchiveBundle>;
   return (
     maybeBundle.format === 'rebuilt-2026-scout-archive' &&
-    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3) &&
+    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4) &&
     Array.isArray(maybeBundle.records)
   );
 };
+
+export const isArchivedMatchV4Record = (record: ScoutArchiveRecord): record is MatchV4ArchiveRecord =>
+  record.recordType === 'matchV4' && isMatchScoutingV4(record.payload);

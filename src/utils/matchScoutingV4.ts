@@ -1,0 +1,93 @@
+import {
+  MatchScoutingV3Alliance,
+  MatchScoutingV3MatchType,
+  MatchScoutingV4,
+  MatchScoutingV4Role,
+  MatchScoutingV4SubstituteScoutName,
+  initialMatchScoutingV4
+} from '../types';
+import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3, toNonNegativeInt } from './matchScoutingV3';
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+
+const normalizeAlliance = (value: unknown): MatchScoutingV3Alliance =>
+  value === 'Red' || value === 'Blue' ? value : '';
+
+const normalizeSubstituteScoutName = (value: unknown): MatchScoutingV4SubstituteScoutName =>
+  value === 'Charlotte' || value === 'Scarlett' ? value : '';
+
+const normalizeRole = (value: unknown): MatchScoutingV4Role =>
+  value === 'Offense' || value === 'Defense' || value === 'Mixed' || value === 'Support' || value === 'Disabled'
+    ? value
+    : '';
+
+export const calculateTotalMatchPointsV4 = (
+  autoPoints: number,
+  teleopPoints: number,
+  endgamePoints: number
+) => toNonNegativeInt(autoPoints) + toNonNegativeInt(teleopPoints) + toNonNegativeInt(endgamePoints);
+
+export const buildMatchKeyV4 = (matchType: MatchScoutingV3MatchType, matchNumber: number) =>
+  buildMatchKeyV3(matchType, matchNumber);
+
+export const isMatchScoutingV4 = (value: unknown): value is MatchScoutingV4 =>
+  !!value &&
+  typeof value === 'object' &&
+  (value as Partial<MatchScoutingV4>).schemaVersion === 'v4' &&
+  typeof (value as Partial<MatchScoutingV4>).matchKey === 'string' &&
+  typeof (value as Partial<MatchScoutingV4>).teamNumber === 'string';
+
+export const normalizeMatchScoutingV4 = (raw: Partial<MatchScoutingV4>): MatchScoutingV4 => {
+  const matchType = raw.matchType || parseMatchTypeV3(raw.matchKey || initialMatchScoutingV4.matchKey);
+  const matchNumber = Math.max(1, raw.matchNumber ?? parseMatchNumberV3(raw.matchKey || 'qm1'));
+  const autoPoints = toNonNegativeInt(raw.autoPoints ?? 0);
+  const teleopPoints = toNonNegativeInt(raw.teleopPoints ?? 0);
+  const endgamePoints = toNonNegativeInt(raw.endgamePoints ?? 0);
+
+  return {
+    ...initialMatchScoutingV4,
+    ...raw,
+    schemaVersion: 'v4',
+    eventKey: sanitizeEventKeyV3(raw.eventKey || initialMatchScoutingV4.eventKey),
+    matchType,
+    matchNumber,
+    matchKey: (raw.matchKey || buildMatchKeyV4(matchType, matchNumber)).toLowerCase(),
+    teamNumber: (raw.teamNumber || '').trim(),
+    scoutName: (raw.scoutName || '').trim(),
+    assignedScoutName: (raw.assignedScoutName || '').trim(),
+    assignedSlot: (raw.assignedSlot || '').trim(),
+    substituteScoutName: normalizeSubstituteScoutName(raw.substituteScoutName),
+    alliance: normalizeAlliance(raw.alliance),
+    deviceId: raw.deviceId || '',
+    timestamp: raw.timestamp || Date.now(),
+    editHistory: raw.editHistory || [],
+
+    autoPoints,
+    autoCycles: toNonNegativeInt(raw.autoCycles ?? 0),
+    teleopPoints,
+    teleopCycles: toNonNegativeInt(raw.teleopCycles ?? 0),
+    endgamePoints,
+    totalMatchPoints: calculateTotalMatchPointsV4(autoPoints, teleopPoints, endgamePoints),
+
+    rolePlayed: normalizeRole(raw.rolePlayed),
+    defendedTeamNumber: (raw.defendedTeamNumber || '').trim(),
+    defenderFacedTeamNumber: (raw.defenderFacedTeamNumber || '').trim(),
+    defenseIntensity: Number(clamp01(raw.defenseIntensity ?? 0).toFixed(4)),
+    defenseDurationSeconds: toNonNegativeInt(raw.defenseDurationSeconds ?? 0),
+
+    fouls: toNonNegativeInt(raw.fouls ?? 0),
+    techFouls: toNonNegativeInt(raw.techFouls ?? 0),
+    robotDied: !!raw.robotDied,
+    commsLost: !!raw.commsLost,
+    mechanismBroke: !!raw.mechanismBroke,
+    tippedOver: !!raw.tippedOver,
+    failureReason: raw.failureReason || '',
+    reliabilityScore: Number(clamp01(raw.reliabilityScore ?? 1).toFixed(4)),
+
+    notes: raw.notes || '',
+    strategyNotes: raw.strategyNotes || ''
+  };
+};
+
+export const getMatchScoutingV4DocId = (record: Pick<MatchScoutingV4, 'matchKey' | 'teamNumber'>) =>
+  `${record.matchKey}_${record.teamNumber}`;
