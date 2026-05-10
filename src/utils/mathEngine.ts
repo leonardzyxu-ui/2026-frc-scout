@@ -3,34 +3,517 @@ import { MatchScoutingV2 } from '../types';
 
 export interface TBAMatch {
   key: string;
+  event_key?: string;
   comp_level: string;
   match_number: number;
-  time: number;
+  set_number?: number;
+  time: number | null;
+  predicted_time?: number | null;
+  actual_time?: number | null;
+  winning_alliance?: 'red' | 'blue' | '';
   alliances: {
     red: { score: number; team_keys: string[] };
     blue: { score: number; team_keys: string[] };
   };
   score_breakdown?: {
-    red: { autoPoints?: number; teleopPoints?: number; endGameTotalStagePoints?: number; endGamePoints?: number };
-    blue: { autoPoints?: number; teleopPoints?: number; endGameTotalStagePoints?: number; endGamePoints?: number };
+    red: TBAScoreBreakdownAlliance;
+    blue: TBAScoreBreakdownAlliance;
   };
+}
+
+export interface TBAScoreBreakdownAlliance extends Record<string, unknown> {
+  autoPoints?: number;
+  teleopPoints?: number;
+  endGameTotalStagePoints?: number;
+  endGamePoints?: number;
 }
 
 export interface TeamMetrics {
   teamNumber: string;
-  opr: number;
-  dpr: number;
-  oprc: number;
-  autoOprc: number;
-  teleopOprc: number;
-  endgameOprc: number;
-  oprcHistory: { match: number; oprc: number }[];
+  epa: number;
+  epac: number;
+  autoEpac: number;
+  teleopEpac: number;
+  endgameEpac: number;
+  epacHistory: { match: number; epac: number }[];
   avgAutoFluidity: number;
   avgTeleopFluidity: number;
   avgDriverPressure: number;
   avgDefenseEffectiveness: number;
   matchesPlayed: number;
 }
+
+export interface TestTeamMetrics {
+  teamNumber: string;
+  matchesLogged: number;
+  avgAutoFluidity: number;
+  avgTeleopFluidity: number;
+  avgDriverPressure: number;
+  avgDefenseEffectiveness: number;
+  climbReadiness: number;
+  reliabilityScore: number;
+  syntheticScore: number;
+  syntheticHistory: { match: number; syntheticScore: number }[];
+}
+
+interface TeamSubjectiveSummary {
+  auto: number;
+  teleop: number;
+  pressure: number;
+  defense: number;
+  defenseCount: number;
+  count: number;
+}
+
+interface MatchFluiditySummary {
+  auto: number;
+  teleop: number;
+  count: number;
+}
+
+interface RollingFluidityState {
+  autoSum: number;
+  teleopSum: number;
+  count: number;
+}
+
+interface MutableTeamState {
+  epa: number;
+  epac: number;
+  autoEpac: number;
+  teleopEpac: number;
+  endgameEpac: number;
+  matchesPlayed: number;
+  epacHistory: { match: number; epac: number }[];
+}
+
+interface TeamStateSnapshot {
+  epa: number;
+  epac: number;
+  autoEpac: number;
+  teleopEpac: number;
+  endgameEpac: number;
+}
+
+const EPAC_K_FACTOR = 0.29;
+const DEFAULT_FLUIDITY_SCORE = 7;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const normalizeTeamKey = (teamKey: string) => teamKey.replace('frc', '');
+
+const getMatchSortTimestamp = (match: TBAMatch) =>
+  match.actual_time ?? match.predicted_time ?? match.time ?? 0;
+
+const getEndgamePoints = (breakdown?: {
+  endGameTotalStagePoints?: number;
+  endGamePoints?: number;
+}) => breakdown?.endGameTotalStagePoints ?? breakdown?.endGamePoints ?? 0;
+
+const getMatchAliases = (match: TBAMatch) => {
+  const aliases = new Set<string>([match.key]);
+  const [, shortKey] = match.key.split('_');
+  if (shortKey) {
+    aliases.add(shortKey);
+  }
+  return Array.from(aliases);
+};
+
+const getFluencyModifier = (score: number) => clamp(score / 10, 0, 1);
+
+const getClimbReadiness = (climbLevel: MatchScoutingV2['climbLevel'] | string) => {
+  switch (climbLevel) {
+    case 'Parked':
+    case 'L1':
+      return 4;
+    case 'Shallow':
+    case 'L2':
+      return 7;
+    case 'Deep':
+    case 'L3':
+      return 10;
+    case 'None':
+    default:
+      return 0;
+  }
+};
+
+const getRecordPenalty = (record: MatchScoutingV2) =>
+  (record.robotDied ? 4 : 0) +
+  (record.mechanismBroke ? 3 : 0) +
+  (record.commsLost ? 2 : 0) +
+  (record.tippedOver ? 2 : 0);
+
+const getMatchSequenceNumber = (record: MatchScoutingV2, fallbackIndex: number) => {
+  const numericMatch = record.matchKey.match(/(\d+)/);
+  return numericMatch ? parseInt(numericMatch[1], 10) : fallbackIndex + 1;
+};
+
+const getParsedMatchNumber = (record: MatchScoutingV2) => {
+  const numericMatch = record.matchKey.match(/(\d+)/);
+  return numericMatch ? parseInt(numericMatch[1], 10) : null;
+};
+
+const getSyntheticScoreForRecord = (record: MatchScoutingV2) => {
+  const defenseContribution = record.playedDefense ? record.defenseEffectiveness : 0;
+  const climbReadiness = getClimbReadiness(record.climbLevel);
+  const reliabilityScore = clamp(10 - getRecordPenalty(record), 0, 10);
+
+  return clamp(
+    record.autoFluidity * 0.2 +
+      record.teleopFluidity * 0.25 +
+      record.driverPressure * 0.2 +
+      defenseContribution * 0.1 +
+      climbReadiness * 0.15 +
+      reliabilityScore * 0.1,
+    0,
+    10
+  );
+};
+
+const getInitialMutableState = (): MutableTeamState => ({
+  epa: 0,
+  epac: 0,
+  autoEpac: 0,
+  teleopEpac: 0,
+  endgameEpac: 0,
+  matchesPlayed: 0,
+  epacHistory: []
+});
+
+const getStateSnapshot = (state: MutableTeamState): TeamStateSnapshot => ({
+  epa: state.epa,
+  epac: state.epac,
+  autoEpac: state.autoEpac,
+  teleopEpac: state.teleopEpac,
+  endgameEpac: state.endgameEpac
+});
+
+const getRollingFluidityScore = (state?: RollingFluidityState) => {
+  if (!state || state.count === 0) return DEFAULT_FLUIDITY_SCORE;
+  return state.autoSum / state.count;
+};
+
+const getRollingTeleopScore = (state?: RollingFluidityState) => {
+  if (!state || state.count === 0) return DEFAULT_FLUIDITY_SCORE;
+  return state.teleopSum / state.count;
+};
+
+const getMatchFluidityLookup = (scoutingData: MatchScoutingV2[]) => {
+  const lookup = new Map<string, MatchFluiditySummary>();
+
+  scoutingData.forEach(record => {
+    if (!record.teamNumber || !record.matchKey) return;
+    const key = `${record.teamNumber}|${record.matchKey}`;
+    const current = lookup.get(key) || { auto: 0, teleop: 0, count: 0 };
+    current.auto += record.autoFluidity || 0;
+    current.teleop += record.teleopFluidity || 0;
+    current.count += 1;
+    lookup.set(key, current);
+  });
+
+  return lookup;
+};
+
+const getSubjectiveSummaryLookup = (teams: string[], scoutingData: MatchScoutingV2[]) => {
+  const summary = new Map<string, TeamSubjectiveSummary>();
+  teams.forEach(team =>
+    summary.set(team, { auto: 0, teleop: 0, pressure: 0, defense: 0, defenseCount: 0, count: 0 })
+  );
+
+  scoutingData.forEach(record => {
+    if (!summary.has(record.teamNumber)) return;
+    const teamSummary = summary.get(record.teamNumber)!;
+    teamSummary.auto += record.autoFluidity || 0;
+    teamSummary.teleop += record.teleopFluidity || 0;
+    teamSummary.pressure += record.driverPressure || 0;
+    teamSummary.count += 1;
+
+    if (record.playedDefense) {
+      teamSummary.defense += record.defenseEffectiveness || 0;
+      teamSummary.defenseCount += 1;
+    }
+  });
+
+  return summary;
+};
+
+const getTeamMatchFluidity = (
+  teamNumber: string,
+  matchAliases: string[],
+  matchFluidityLookup: Map<string, MatchFluiditySummary>
+) => {
+  for (const alias of matchAliases) {
+    const summary = matchFluidityLookup.get(`${teamNumber}|${alias}`);
+    if (summary) {
+      return {
+        autoScore: summary.auto / summary.count,
+        teleopScore: summary.teleop / summary.count
+      };
+    }
+  }
+  return null;
+};
+
+export const calculateTestMetrics = (scoutingData: MatchScoutingV2[]): Record<string, TestTeamMetrics> => {
+  const groupedData = new Map<string, MatchScoutingV2[]>();
+
+  scoutingData.forEach(record => {
+    if (!record.teamNumber) return;
+    if (!groupedData.has(record.teamNumber)) {
+      groupedData.set(record.teamNumber, []);
+    }
+    groupedData.get(record.teamNumber)!.push(record);
+  });
+
+  const metrics: Record<string, TestTeamMetrics> = {};
+
+  groupedData.forEach((records, teamNumber) => {
+    const sortedRecords = [...records].sort((a, b) => {
+      const aMatchNumber = getParsedMatchNumber(a);
+      const bMatchNumber = getParsedMatchNumber(b);
+      if (aMatchNumber != null && bMatchNumber != null && aMatchNumber !== bMatchNumber) {
+        return aMatchNumber - bMatchNumber;
+      }
+      return (a.timestamp || 0) - (b.timestamp || 0);
+    });
+
+    const defenseRecords = sortedRecords.filter(record => record.playedDefense);
+    const avgAutoFluidity = sortedRecords.reduce((sum, record) => sum + record.autoFluidity, 0) / sortedRecords.length;
+    const avgTeleopFluidity = sortedRecords.reduce((sum, record) => sum + record.teleopFluidity, 0) / sortedRecords.length;
+    const avgDriverPressure = sortedRecords.reduce((sum, record) => sum + record.driverPressure, 0) / sortedRecords.length;
+    const avgDefenseEffectiveness =
+      defenseRecords.length > 0
+        ? defenseRecords.reduce((sum, record) => sum + record.defenseEffectiveness, 0) / defenseRecords.length
+        : 0;
+    const climbReadiness =
+      sortedRecords.reduce((sum, record) => sum + getClimbReadiness(record.climbLevel), 0) / sortedRecords.length;
+    const averagePenalty =
+      sortedRecords.reduce((sum, record) => sum + getRecordPenalty(record), 0) / sortedRecords.length;
+    const reliabilityScore = clamp(10 - averagePenalty, 0, 10);
+    const syntheticScore = clamp(
+      avgAutoFluidity * 0.2 +
+        avgTeleopFluidity * 0.25 +
+        avgDriverPressure * 0.2 +
+        avgDefenseEffectiveness * 0.1 +
+        climbReadiness * 0.15 +
+        reliabilityScore * 0.1,
+      0,
+      10
+    );
+
+    metrics[teamNumber] = {
+      teamNumber,
+      matchesLogged: sortedRecords.length,
+      avgAutoFluidity,
+      avgTeleopFluidity,
+      avgDriverPressure,
+      avgDefenseEffectiveness,
+      climbReadiness,
+      reliabilityScore,
+      syntheticScore,
+      syntheticHistory: sortedRecords.map((record, index) => ({
+        match: getMatchSequenceNumber(record, index),
+        syntheticScore: Number(getSyntheticScoreForRecord(record).toFixed(2))
+      }))
+    };
+  });
+
+  return metrics;
+};
+
+const solveRidgeRegressionFromAtA = (atA: Matrix, atB: Matrix, lambda: number) => {
+  const lambdaI = Matrix.eye(atA.columns).mul(lambda);
+  const regularized = atA.add(lambdaI);
+
+  try {
+    return solve(regularized, atB).to1DArray();
+  } catch (error) {
+    console.error('Legacy OPRc solve failed', error);
+    return new Array(atA.columns).fill(0);
+  }
+};
+
+export const calculateLegacyOprcRatings = (
+  tbaMatches: TBAMatch[],
+  lambda: number = 0.1
+): Record<string, number> => {
+  const playedMatches = [...tbaMatches]
+    .filter(match => match.alliances.red.score !== -1 && match.alliances.blue.score !== -1)
+    .sort((a, b) => getMatchSortTimestamp(a) - getMatchSortTimestamp(b));
+
+  const teamSet = new Set<string>();
+  playedMatches.forEach(match => {
+    match.alliances.red.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+    match.alliances.blue.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+  });
+
+  const teams = Array.from(teamSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  if (teams.length === 0) return {};
+
+  const teamToIndex = new Map<string, number>();
+  teams.forEach((team, index) => teamToIndex.set(team, index));
+
+  const oprcSums = new Map<string, number>();
+  const oprcCounts = new Map<string, number>();
+  teams.forEach(team => {
+    oprcSums.set(team, 0);
+    oprcCounts.set(team, 0);
+  });
+
+  let rollingAtA = Matrix.zeros(teams.length, teams.length);
+  let rollingAtB = Matrix.zeros(teams.length, 1);
+  let matchesProcessed = 0;
+
+  const updateRollingMatrices = (teamKeys: string[], score: number) => {
+    const indices = teamKeys
+      .map(normalizeTeamKey)
+      .map(team => teamToIndex.get(team))
+      .filter((index): index is number => index !== undefined);
+
+    indices.forEach(i => {
+      rollingAtB.set(i, 0, rollingAtB.get(i, 0) + score);
+      indices.forEach(j => {
+        rollingAtA.set(i, j, rollingAtA.get(i, j) + 1);
+      });
+    });
+  };
+
+  const processAlliance = (teamKeys: string[], allianceScore: number, currentOprs: number[]) => {
+    const normalizedTeamKeys = teamKeys.map(normalizeTeamKey);
+    normalizedTeamKeys.forEach(teamNumber => {
+      const expectedPartnerScore = normalizedTeamKeys
+        .filter(partner => partner !== teamNumber)
+        .reduce((sum, partner) => {
+          const partnerIndex = teamToIndex.get(partner);
+          return sum + (partnerIndex !== undefined ? currentOprs[partnerIndex] : 0);
+        }, 0);
+
+      const oprc = allianceScore - expectedPartnerScore;
+      oprcSums.set(teamNumber, (oprcSums.get(teamNumber) ?? 0) + oprc);
+      oprcCounts.set(teamNumber, (oprcCounts.get(teamNumber) ?? 0) + 1);
+    });
+  };
+
+  playedMatches.forEach(match => {
+    const currentOprs =
+      matchesProcessed > 0
+        ? solveRidgeRegressionFromAtA(rollingAtA, rollingAtB, lambda)
+        : new Array(teams.length).fill(0);
+
+    processAlliance(match.alliances.red.team_keys, match.alliances.red.score, currentOprs);
+    processAlliance(match.alliances.blue.team_keys, match.alliances.blue.score, currentOprs);
+
+    updateRollingMatrices(match.alliances.red.team_keys, match.alliances.red.score);
+    updateRollingMatrices(match.alliances.blue.team_keys, match.alliances.blue.score);
+    matchesProcessed += 1;
+  });
+
+  return teams.reduce<Record<string, number>>((accumulator, team) => {
+    const count = oprcCounts.get(team) ?? 0;
+    accumulator[team] = count > 0 ? (oprcSums.get(team) ?? 0) / count : 0;
+    return accumulator;
+  }, {});
+};
+
+export const calculateLegacyOprRatings = (
+  tbaMatches: TBAMatch[],
+  lambda: number = 0.1
+): Record<string, number> => {
+  const playedMatches = [...tbaMatches]
+    .filter(match => match.alliances.red.score !== -1 && match.alliances.blue.score !== -1)
+    .sort((a, b) => getMatchSortTimestamp(a) - getMatchSortTimestamp(b));
+
+  const teamSet = new Set<string>();
+  playedMatches.forEach(match => {
+    match.alliances.red.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+    match.alliances.blue.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+  });
+
+  const teams = Array.from(teamSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  if (teams.length === 0) return {};
+
+  const teamToIndex = new Map<string, number>();
+  teams.forEach((team, index) => teamToIndex.set(team, index));
+
+  const atA = Matrix.zeros(teams.length, teams.length);
+  const atB = Matrix.zeros(teams.length, 1);
+
+  const processAlliance = (teamKeys: string[], allianceScore: number) => {
+    const indices = teamKeys
+      .map(normalizeTeamKey)
+      .map(team => teamToIndex.get(team))
+      .filter((index): index is number => index !== undefined);
+
+    indices.forEach(i => {
+      atB.set(i, 0, atB.get(i, 0) + allianceScore);
+      indices.forEach(j => {
+        atA.set(i, j, atA.get(i, j) + 1);
+      });
+    });
+  };
+
+  playedMatches.forEach(match => {
+    processAlliance(match.alliances.red.team_keys, match.alliances.red.score);
+    processAlliance(match.alliances.blue.team_keys, match.alliances.blue.score);
+  });
+
+  const oprValues = solveRidgeRegressionFromAtA(atA, atB, lambda);
+  return teams.reduce<Record<string, number>>((accumulator, team, index) => {
+    accumulator[team] = oprValues[index] ?? 0;
+    return accumulator;
+  }, {});
+};
+
+export const calculateLegacyDprRatings = (
+  tbaMatches: TBAMatch[],
+  lambda: number = 0.1
+): Record<string, number> => {
+  const playedMatches = [...tbaMatches]
+    .filter(match => match.alliances.red.score !== -1 && match.alliances.blue.score !== -1)
+    .sort((a, b) => getMatchSortTimestamp(a) - getMatchSortTimestamp(b));
+
+  const teamSet = new Set<string>();
+  playedMatches.forEach(match => {
+    match.alliances.red.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+    match.alliances.blue.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+  });
+
+  const teams = Array.from(teamSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  if (teams.length === 0) return {};
+
+  const teamToIndex = new Map<string, number>();
+  teams.forEach((team, index) => teamToIndex.set(team, index));
+
+  const atA = Matrix.zeros(teams.length, teams.length);
+  const atB = Matrix.zeros(teams.length, 1);
+
+  const processAllianceDefense = (defendingTeamKeys: string[], opponentAllianceScore: number) => {
+    const indices = defendingTeamKeys
+      .map(normalizeTeamKey)
+      .map(team => teamToIndex.get(team))
+      .filter((index): index is number => index !== undefined);
+
+    indices.forEach(i => {
+      atB.set(i, 0, atB.get(i, 0) + opponentAllianceScore);
+      indices.forEach(j => {
+        atA.set(i, j, atA.get(i, j) + 1);
+      });
+    });
+  };
+
+  playedMatches.forEach(match => {
+    processAllianceDefense(match.alliances.red.team_keys, match.alliances.blue.score);
+    processAllianceDefense(match.alliances.blue.team_keys, match.alliances.red.score);
+  });
+
+  const dprValues = solveRidgeRegressionFromAtA(atA, atB, lambda);
+  return teams.reduce<Record<string, number>>((accumulator, team, index) => {
+    accumulator[team] = dprValues[index] ?? 0;
+    return accumulator;
+  }, {});
+};
 
 export class MathEngine {
   private tbaApiKey: string;
@@ -39,19 +522,21 @@ export class MathEngine {
     this.tbaApiKey = tbaApiKey;
   }
 
-  async fetchEventMatches(eventKey: string): Promise<TBAMatch[]> {
+  async fetchEventMatches(eventKey: string, options?: { includeUnplayed?: boolean }): Promise<TBAMatch[]> {
+    const includeUnplayed = options?.includeUnplayed ?? false;
     if (!this.tbaApiKey) {
-      console.warn("No TBA API Key provided. Math Engine cannot fetch matches.");
-      throw new Error("ERROR: TBA API Key Missing");
+      console.warn('No TBA API Key provided. Math Engine cannot fetch matches.');
+      throw new Error('ERROR: TBA API Key Missing');
     }
-    
+
     if (eventKey === 'TEST') {
-      console.log("Test event selected, skipping TBA fetch.");
+      console.log('Test event selected, skipping TBA fetch.');
       return [];
     }
 
     try {
-      const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${eventKey}/matches`, {
+      const normalizedEventKey = eventKey.toLowerCase();
+      const response = await fetch(`https://www.thebluealliance.com/api/v3/event/${normalizedEventKey}/matches`, {
         headers: {
           'X-TBA-Auth-Key': this.tbaApiKey
         }
@@ -61,245 +546,174 @@ export class MathEngine {
         throw new Error(`TBA API Error: ${response.status} ${response.statusText} - ${errorText}`);
       }
       const matches: TBAMatch[] = await response.json();
-      
-      // Filter out unplayed matches and sort by time
-      const playedMatches = matches
-        .filter(m => m.alliances.red.score !== -1 && m.alliances.blue.score !== -1)
-        .sort((a, b) => a.time - b.time);
-        
-      if (playedMatches.length === 0) {
-        throw new Error("ERROR: No Matches Found for this Event.");
+
+      const sortedMatches = [...matches].sort((a, b) => getMatchSortTimestamp(a) - getMatchSortTimestamp(b));
+      const selectedMatches = includeUnplayed
+        ? sortedMatches
+        : sortedMatches.filter(match => match.alliances.red.score !== -1 && match.alliances.blue.score !== -1);
+
+      if (selectedMatches.length === 0) {
+        throw new Error('ERROR: No Matches Found');
       }
-      
-      return playedMatches;
+
+      return selectedMatches;
     } catch (error) {
-      console.error("Failed to fetch TBA matches:", error);
+      console.error('Failed to fetch TBA matches:', error);
       throw error;
     }
   }
 
-  // Solves (A^T A + lambda I) x = A^T b
-  private solveRidgeRegression(A_data: number[][], b_data: number[], lambda: number = 0.1): number[] {
-    if (A_data.length === 0 || A_data[0].length === 0) return [];
-    
-    const A = new Matrix(A_data);
-    const b = Matrix.columnVector(b_data);
-    const At = A.transpose();
-    const AtA = At.mmul(A);
-    const Atb = At.mmul(b);
-    
-    return this.solveRidgeRegressionFromAtA(AtA, Atb, lambda);
-  }
+  public calculateMetrics(
+    tbaMatches: TBAMatch[],
+    scoutingData: MatchScoutingV2[],
+    _lambda: number = 0.1
+  ): Record<string, TeamMetrics> {
+    const playedMatches = [...tbaMatches]
+      .filter(match => match.alliances.red.score !== -1 && match.alliances.blue.score !== -1)
+      .sort((a, b) => getMatchSortTimestamp(a) - getMatchSortTimestamp(b));
 
-  private solveRidgeRegressionFromAtA(AtA: Matrix, Atb: Matrix, lambda: number): number[] {
-    const lambdaI = Matrix.eye(AtA.columns).mul(lambda);
-    const AtA_plus_lambdaI = AtA.add(lambdaI);
-    
-    try {
-      const x = solve(AtA_plus_lambdaI, Atb);
-      return x.to1DArray();
-    } catch (e) {
-      console.error("Matrix solve failed", e);
-      return new Array(AtA.columns).fill(0);
-    }
-  }
-
-  public calculateMetrics(tbaMatches: TBAMatch[], scoutingData: MatchScoutingV2[], lambda: number = 0.1): Record<string, TeamMetrics> {
-    // 1. Identify all unique teams
     const teamSet = new Set<string>();
-    tbaMatches.forEach(m => {
-      m.alliances.red.team_keys.forEach(tk => teamSet.add(tk.replace('frc', '')));
-      m.alliances.blue.team_keys.forEach(tk => teamSet.add(tk.replace('frc', '')));
+    playedMatches.forEach(match => {
+      match.alliances.red.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
+      match.alliances.blue.team_keys.forEach(teamKey => teamSet.add(normalizeTeamKey(teamKey)));
     });
-    const teams = Array.from(teamSet).sort();
-    const teamToIndex = new Map<string, number>();
-    teams.forEach((t, i) => teamToIndex.set(t, i));
 
-    const numTeams = teams.length;
-    if (numTeams === 0) return {};
+    const teams = Array.from(teamSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    if (teams.length === 0) return {};
 
-    // 2. Calculate Event OPR and DPR (Using all matches)
-    const A_all: number[][] = [];
-    const b_opr: number[] = [];
-    const b_dpr: number[] = [];
+    const subjectiveSummary = getSubjectiveSummaryLookup(teams, scoutingData);
+    const matchFluidityLookup = getMatchFluidityLookup(scoutingData);
+    const rollingFluidity = new Map<string, RollingFluidityState>();
+    const teamStates = new Map<string, MutableTeamState>();
 
-    tbaMatches.forEach(m => {
-      const redRow = new Array(numTeams).fill(0);
-      const blueRow = new Array(numTeams).fill(0);
+    teams.forEach(team => {
+      rollingFluidity.set(team, { autoSum: 0, teleopSum: 0, count: 0 });
+      teamStates.set(team, getInitialMutableState());
+    });
 
-      m.alliances.red.team_keys.forEach(tk => {
-        const idx = teamToIndex.get(tk.replace('frc', ''));
-        if (idx !== undefined) redRow[idx] = 1;
-      });
-      m.alliances.blue.team_keys.forEach(tk => {
-        const idx = teamToIndex.get(tk.replace('frc', ''));
-        if (idx !== undefined) blueRow[idx] = 1;
+    playedMatches.forEach(match => {
+      const matchAliases = getMatchAliases(match);
+      const snapshots = new Map<string, TeamStateSnapshot>();
+      teams.forEach(team => {
+        snapshots.set(team, getStateSnapshot(teamStates.get(team)!));
       });
 
-      A_all.push(redRow);
-      b_opr.push(m.alliances.red.score);
-      b_dpr.push(m.alliances.blue.score); // Red's DPR is based on Blue's score
+      const applyAllianceUpdate = (
+        allianceTeamKeys: string[],
+        allianceScore: number,
+        breakdown?: {
+          autoPoints?: number;
+          teleopPoints?: number;
+          endGameTotalStagePoints?: number;
+          endGamePoints?: number;
+        }
+      ) => {
+        const normalizedTeamKeys = allianceTeamKeys.map(normalizeTeamKey);
+        const autoScore = breakdown?.autoPoints ?? 0;
+        const teleopScore = breakdown?.teleopPoints ?? 0;
+        const endgameScore = getEndgamePoints(breakdown);
 
-      A_all.push(blueRow);
-      b_opr.push(m.alliances.blue.score);
-      b_dpr.push(m.alliances.red.score); // Blue's DPR is based on Red's score
-    });
+        normalizedTeamKeys.forEach(teamNumber => {
+          const currentState = teamStates.get(teamNumber);
+          const currentSnapshot = snapshots.get(teamNumber);
+          if (!currentState || !currentSnapshot) return;
 
-    const eventOPRs = this.solveRidgeRegression(A_all, b_opr, lambda);
-    const eventDPRs = this.solveRidgeRegression(A_all, b_dpr, lambda);
+          const partnerKeys = normalizedTeamKeys.filter(partner => partner !== teamNumber);
+          const expectedPartnerEPA = partnerKeys.reduce(
+            (sum, partner) => sum + (snapshots.get(partner)?.epa ?? 0),
+            0
+          );
+          const expectedPartnerEPAc = partnerKeys.reduce(
+            (sum, partner) => sum + (snapshots.get(partner)?.epac ?? 0),
+            0
+          );
+          const expectedPartnerAutoEpac = partnerKeys.reduce(
+            (sum, partner) => sum + (snapshots.get(partner)?.autoEpac ?? 0),
+            0
+          );
+          const expectedPartnerTeleopEpac = partnerKeys.reduce(
+            (sum, partner) => sum + (snapshots.get(partner)?.teleopEpac ?? 0),
+            0
+          );
+          const expectedPartnerEndgameEpac = partnerKeys.reduce(
+            (sum, partner) => sum + (snapshots.get(partner)?.endgameEpac ?? 0),
+            0
+          );
 
-    // 3. Calculate Rolling OPR and OPRc
-    // oprcSum[team] = sum of OPRc across matches
-    // oprcCount[team] = number of matches played
-    const oprcSum = new Map<string, number>();
-    const oprcSumAuto = new Map<string, number>();
-    const oprcSumTeleop = new Map<string, number>();
-    const oprcSumEndgame = new Map<string, number>();
-    const oprcCount = new Map<string, number>();
-    const oprcHistory = new Map<string, { match: number; oprc: number }[]>();
-    teams.forEach(t => { 
-      oprcSum.set(t, 0); 
-      oprcSumAuto.set(t, 0);
-      oprcSumTeleop.set(t, 0);
-      oprcSumEndgame.set(t, 0);
-      oprcCount.set(t, 0); 
-      oprcHistory.set(t, []);
-    });
+          const matchFluidity = getTeamMatchFluidity(teamNumber, matchAliases, matchFluidityLookup);
+          const rollingTeamFluidity = rollingFluidity.get(teamNumber);
+          const autoFluidityScore = matchFluidity?.autoScore ?? getRollingFluidityScore(rollingTeamFluidity);
+          const teleopFluidityScore = matchFluidity?.teleopScore ?? getRollingTeleopScore(rollingTeamFluidity);
+          const overallFluidityScore = (autoFluidityScore + teleopFluidityScore) / 2;
 
-    // For rolling OPR, we iterate through matches
-    let AtA_rolling = Matrix.zeros(numTeams, numTeams);
-    let Atb_rolling = Matrix.zeros(numTeams, 1);
-    let Atb_rolling_auto = Matrix.zeros(numTeams, 1);
-    let Atb_rolling_teleop = Matrix.zeros(numTeams, 1);
-    let Atb_rolling_endgame = Matrix.zeros(numTeams, 1);
-    let matchesProcessed = 0;
+          const contributionEPA = allianceScore - expectedPartnerEPA;
+          const contributionEPAc = allianceScore - expectedPartnerEPAc;
+          const autoContributionEPAc = autoScore - expectedPartnerAutoEpac;
+          const teleopContributionEPAc = teleopScore - expectedPartnerTeleopEpac;
+          const endgameContributionEPAc = endgameScore - expectedPartnerEndgameEpac;
 
-    tbaMatches.forEach((m) => {
-      // Calculate OPRs using matches 0 to index-1
-      let currentOPRs = new Array(numTeams).fill(0);
-      let currentOPRsAuto = new Array(numTeams).fill(0);
-      let currentOPRsTeleop = new Array(numTeams).fill(0);
-      let currentOPRsEndgame = new Array(numTeams).fill(0);
-      if (matchesProcessed > 0) {
-        currentOPRs = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling, lambda);
-        currentOPRsAuto = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_auto, lambda);
-        currentOPRsTeleop = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_teleop, lambda);
-        currentOPRsEndgame = this.solveRidgeRegressionFromAtA(AtA_rolling, Atb_rolling_endgame, lambda);
-      }
+          currentState.epa =
+            currentSnapshot.epa * (1 - EPAC_K_FACTOR) + contributionEPA * EPAC_K_FACTOR;
+          currentState.epac =
+            currentSnapshot.epac * (1 - EPAC_K_FACTOR) +
+            contributionEPAc * EPAC_K_FACTOR * getFluencyModifier(overallFluidityScore);
+          currentState.autoEpac =
+            currentSnapshot.autoEpac * (1 - EPAC_K_FACTOR) +
+            autoContributionEPAc * EPAC_K_FACTOR * getFluencyModifier(autoFluidityScore);
+          currentState.teleopEpac =
+            currentSnapshot.teleopEpac * (1 - EPAC_K_FACTOR) +
+            teleopContributionEPAc * EPAC_K_FACTOR * getFluencyModifier(teleopFluidityScore);
+          currentState.endgameEpac =
+            currentSnapshot.endgameEpac * (1 - EPAC_K_FACTOR) +
+            endgameContributionEPAc * EPAC_K_FACTOR * getFluencyModifier(overallFluidityScore);
 
-      // Calculate OPRc for this match
-      const processAlliance = (allianceTeams: string[], allianceScore: number, breakdown?: any) => {
-        const teamKeys = allianceTeams.map(tk => tk.replace('frc', ''));
-        
-        const autoScore = breakdown?.autoPoints || 0;
-        const teleopScore = breakdown?.teleopPoints || 0;
-        const endgameScore = breakdown?.endGameTotalStagePoints || breakdown?.endGamePoints || 0;
-
-        teamKeys.forEach(targetTeam => {
-          let expectedPartnerScore = 0;
-          let expectedPartnerAuto = 0;
-          let expectedPartnerTeleop = 0;
-          let expectedPartnerEndgame = 0;
-
-          teamKeys.forEach(partner => {
-            if (partner !== targetTeam) {
-              const pIdx = teamToIndex.get(partner);
-              if (pIdx !== undefined) {
-                expectedPartnerScore += currentOPRs[pIdx];
-                expectedPartnerAuto += currentOPRsAuto[pIdx];
-                expectedPartnerTeleop += currentOPRsTeleop[pIdx];
-                expectedPartnerEndgame += currentOPRsEndgame[pIdx];
-              }
-            }
+          currentState.matchesPlayed += 1;
+          currentState.epacHistory.push({
+            match: match.match_number,
+            epac: Number(currentState.epac.toFixed(2))
           });
 
-          const oprc = allianceScore - expectedPartnerScore;
-          const autoOprc = autoScore - expectedPartnerAuto;
-          const teleopOprc = teleopScore - expectedPartnerTeleop;
-          const endgameOprc = endgameScore - expectedPartnerEndgame;
-
-          oprcSum.set(targetTeam, (oprcSum.get(targetTeam) || 0) + oprc);
-          oprcSumAuto.set(targetTeam, (oprcSumAuto.get(targetTeam) || 0) + autoOprc);
-          oprcSumTeleop.set(targetTeam, (oprcSumTeleop.get(targetTeam) || 0) + teleopOprc);
-          oprcSumEndgame.set(targetTeam, (oprcSumEndgame.get(targetTeam) || 0) + endgameOprc);
-          oprcCount.set(targetTeam, (oprcCount.get(targetTeam) || 0) + 1);
-          oprcHistory.get(targetTeam)?.push({ match: m.match_number, oprc });
+          if (matchFluidity) {
+            const nextRollingFluidity = rollingFluidity.get(teamNumber)!;
+            nextRollingFluidity.autoSum += matchFluidity.autoScore;
+            nextRollingFluidity.teleopSum += matchFluidity.teleopScore;
+            nextRollingFluidity.count += 1;
+          }
         });
       };
 
-      processAlliance(m.alliances.red.team_keys, m.alliances.red.score, m.score_breakdown?.red);
-      processAlliance(m.alliances.blue.team_keys, m.alliances.blue.score, m.score_breakdown?.blue);
-
-      // Add this match to the rolling matrices for the NEXT match's predictions
-      const updateRolling = (teamKeys: string[], score: number, breakdown?: any) => {
-        const indices: number[] = [];
-        teamKeys.forEach(tk => {
-          const idx = teamToIndex.get(tk.replace('frc', ''));
-          if (idx !== undefined) indices.push(idx);
-        });
-
-        const autoScore = breakdown?.autoPoints || 0;
-        const teleopScore = breakdown?.teleopPoints || 0;
-        const endgameScore = breakdown?.endGameTotalStagePoints || breakdown?.endGamePoints || 0;
-
-        indices.forEach(i => {
-          Atb_rolling.set(i, 0, Atb_rolling.get(i, 0) + score);
-          Atb_rolling_auto.set(i, 0, Atb_rolling_auto.get(i, 0) + autoScore);
-          Atb_rolling_teleop.set(i, 0, Atb_rolling_teleop.get(i, 0) + teleopScore);
-          Atb_rolling_endgame.set(i, 0, Atb_rolling_endgame.get(i, 0) + endgameScore);
-          indices.forEach(j => {
-            AtA_rolling.set(i, j, AtA_rolling.get(i, j) + 1);
-          });
-        });
-      };
-
-      updateRolling(m.alliances.red.team_keys, m.alliances.red.score, m.score_breakdown?.red);
-      updateRolling(m.alliances.blue.team_keys, m.alliances.blue.score, m.score_breakdown?.blue);
-      matchesProcessed++;
+      applyAllianceUpdate(
+        match.alliances.red.team_keys,
+        match.alliances.red.score,
+        match.score_breakdown?.red
+      );
+      applyAllianceUpdate(
+        match.alliances.blue.team_keys,
+        match.alliances.blue.score,
+        match.score_breakdown?.blue
+      );
     });
 
-    // 4. Aggregate Subjective Scouting Data
-    const subjSum = new Map<string, { auto: number; teleop: number; pressure: number; defense: number; defenseCount: number; count: number }>();
-    teams.forEach(t => subjSum.set(t, { auto: 0, teleop: 0, pressure: 0, defense: 0, defenseCount: 0, count: 0 }));
-
-    scoutingData.forEach(sd => {
-      const t = sd.teamNumber;
-      if (!subjSum.has(t)) return;
-      
-      const s = subjSum.get(t)!;
-      s.auto += sd.autoFluidity || 0;
-      s.teleop += sd.teleopFluidity || 0;
-      s.pressure += sd.driverPressure || 0;
-      s.count += 1;
-
-      if (sd.playedDefense) {
-        s.defense += sd.defenseEffectiveness || 0;
-        s.defenseCount += 1;
-      }
-    });
-
-    // 5. Build Final Metrics Object
     const metrics: Record<string, TeamMetrics> = {};
-    teams.forEach((t, i) => {
-      const pCount = oprcCount.get(t) || 1; // avoid div by zero
-      const s = subjSum.get(t)!;
-      const sCount = s.count || 1;
-      const dCount = s.defenseCount || 1;
+    teams.forEach(team => {
+      const state = teamStates.get(team)!;
+      const summary = subjectiveSummary.get(team)!;
+      const defenseCount = summary.defenseCount || 1;
+      const subjectiveCount = summary.count || 1;
 
-      metrics[t] = {
-        teamNumber: t,
-        opr: eventOPRs[i] || 0,
-        dpr: eventDPRs[i] || 0,
-        oprc: (oprcSum.get(t) || 0) / pCount,
-        autoOprc: (oprcSumAuto.get(t) || 0) / pCount,
-        teleopOprc: (oprcSumTeleop.get(t) || 0) / pCount,
-        endgameOprc: (oprcSumEndgame.get(t) || 0) / pCount,
-        oprcHistory: oprcHistory.get(t) || [],
-        avgAutoFluidity: s.auto / sCount,
-        avgTeleopFluidity: s.teleop / sCount,
-        avgDriverPressure: s.pressure / sCount,
-        avgDefenseEffectiveness: s.defense / dCount,
-        matchesPlayed: oprcCount.get(t) || 0
+      metrics[team] = {
+        teamNumber: team,
+        epa: state.epa,
+        epac: state.epac,
+        autoEpac: state.autoEpac,
+        teleopEpac: state.teleopEpac,
+        endgameEpac: state.endgameEpac,
+        epacHistory: state.epacHistory,
+        avgAutoFluidity: summary.auto / subjectiveCount,
+        avgTeleopFluidity: summary.teleop / subjectiveCount,
+        avgDriverPressure: summary.pressure / subjectiveCount,
+        avgDefenseEffectiveness: summary.defense / defenseCount,
+        matchesPlayed: state.matchesPlayed
       };
     });
 

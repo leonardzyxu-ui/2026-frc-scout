@@ -7,10 +7,11 @@ import { LocalFileProvider } from './context/LocalFileContext';
 
 // V2 Components
 import SetupView from './views/SetupView';
-import MatchScoutView from './views/MatchScoutView';
+import MatchDefenseScoutView from './views/MatchDefenseScoutView';
 import PitScoutView from './views/PitScoutView';
 import HistoryView from './views/HistoryView';
 import AdminMainframeView from './views/AdminMainframeView';
+import AdminMainframeV2View from './views/AdminMainframeV2View';
 import AdminGuard from './components/admin/AdminGuard';
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
           <Routes>
             {/* Admin Route - Protected */}
             <Route path="/admin" element={<AdminGuard><AdminMainframeView /></AdminGuard>} />
+            <Route path="/adminv2" element={<AdminGuard><AdminMainframeV2View /></AdminGuard>} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={
@@ -60,7 +62,7 @@ export default function App() {
                 <main className="flex-1 relative overflow-hidden">
                   <Routes>
                     <Route path="/" element={<SetupView />} />
-                    <Route path="/scout" element={<MatchScoutView />} />
+                    <Route path="/scout" element={<MatchDefenseScoutView />} />
                     <Route path="/pit" element={<PitScoutView />} />
                     <Route path="/history" element={<HistoryView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
@@ -74,6 +76,4 @@ export default function App() {
     </LocalFileProvider>
   );
 }
-
-
 

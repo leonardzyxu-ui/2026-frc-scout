@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
-
-const ADMIN_HASH = "f51017681489feaa432c4f86ceb66aae7bf383ed137b75ae9eeeea61e616af02";
-
-async function sha256(message: string) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
+import { verifyAdminPassword } from '../../utils/adminAuth';
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -25,8 +16,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const hash = await sha256(password);
-    if (hash === ADMIN_HASH) {
+    if (await verifyAdminPassword(password)) {
       localStorage.setItem('admin_unlocked', 'true');
       setIsUnlocked(true);
     } else {

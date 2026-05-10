@@ -1,26 +1,45 @@
 import React, { useState } from 'react';
-import { TeamMetrics } from '../../utils/mathEngine';
+import { TeamMetrics, TestTeamMetrics } from '../../utils/mathEngine';
 import { Share2, Download, CheckCircle2 } from 'lucide-react';
 
 interface DataExchangeProps {
+  eventKey: string;
   metrics: Record<string, TeamMetrics>;
+  testMetrics?: Record<string, TestTeamMetrics>;
 }
 
-export default function DataExchange({ metrics }: DataExchangeProps) {
+export default function DataExchange({ eventKey, metrics, testMetrics = {} }: DataExchangeProps) {
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'success'>('idle');
 
   const handleDownload = () => {
-    const headers = ["team", "oprc", "opr", "dpr", "auto", "teleop", "evasion", "defense"];
-    const rows = Object.values(metrics).map(m => [
-      m.teamNumber,
-      Number(m.oprc.toFixed(2)),
-      Number(m.opr.toFixed(2)),
-      Number(m.dpr.toFixed(2)),
-      Number(m.avgAutoFluidity.toFixed(1)),
-      Number(m.avgTeleopFluidity.toFixed(1)),
-      Number(m.avgDriverPressure.toFixed(1)),
-      Number(m.avgDefenseEffectiveness.toFixed(1))
-    ]);
+    const headers = eventKey === 'TEST'
+      ? ["team", "synthetic_score", "reliability", "climb_readiness", "auto_fluidity", "teleop_fluidity", "driver_pressure", "defense_effectiveness", "matches_logged"]
+      : ["team", "epac", "epa", "auto_epac", "teleop_epac", "endgame_epac", "auto_fluidity", "teleop_fluidity", "driver_pressure", "defense_effectiveness", "matches_played"];
+    const rows = eventKey === 'TEST'
+      ? Object.values(testMetrics).map(m => [
+          m.teamNumber,
+          Number(m.syntheticScore.toFixed(2)),
+          Number(m.reliabilityScore.toFixed(2)),
+          Number(m.climbReadiness.toFixed(2)),
+          Number(m.avgAutoFluidity.toFixed(1)),
+          Number(m.avgTeleopFluidity.toFixed(1)),
+          Number(m.avgDriverPressure.toFixed(1)),
+          Number(m.avgDefenseEffectiveness.toFixed(1)),
+          m.matchesLogged
+        ])
+      : Object.values(metrics).map(m => [
+          m.teamNumber,
+          Number(m.epac.toFixed(2)),
+          Number(m.epa.toFixed(2)),
+          Number(m.autoEpac.toFixed(2)),
+          Number(m.teleopEpac.toFixed(2)),
+          Number(m.endgameEpac.toFixed(2)),
+          Number(m.avgAutoFluidity.toFixed(1)),
+          Number(m.avgTeleopFluidity.toFixed(1)),
+          Number(m.avgDriverPressure.toFixed(1)),
+          Number(m.avgDefenseEffectiveness.toFixed(1)),
+          m.matchesPlayed
+        ]);
 
     const csvContent = [
       headers.join(','),
@@ -46,16 +65,17 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
       <div className="flex items-center justify-between mb-6 border-b border-slate-800 pb-4">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Share2 className="text-amber-400 w-6 h-6" />
-          Scout Exchange Bridge
+          Data Control Export
         </h2>
       </div>
 
       <div className="flex-1 flex flex-col justify-center items-center text-center space-y-6">
         <div className="space-y-2">
-          <h3 className="text-lg font-bold text-white">Data Export</h3>
+          <h3 className="text-lg font-bold text-white">Event Export</h3>
           <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-            Export all calculated metrics (OPRc, Subjective Averages, Defense Ratings) as a CSV file. 
-            Instantly share with alliance partners or import into Excel/Tableau.
+            {eventKey === 'TEST'
+              ? 'Export synthetic TEST-mode scout analytics as a CSV file from the Data Control workspace. Share sandbox data or inspect it offline.'
+              : 'Export all calculated EPA/EPAc metrics, breakdowns, and subjective averages as a CSV file from the Data Control workspace.'}
           </p>
         </div>
 
@@ -85,8 +105,14 @@ export default function DataExchange({ metrics }: DataExchangeProps) {
         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 w-full text-left">
           <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Payload Preview</div>
           <pre className="text-xs font-mono text-slate-400 overflow-hidden text-ellipsis whitespace-nowrap">
-            team,oprc,opr,dpr,auto,teleop,evasion,defense<br/>
-            254,45.2,40.1,12.5,9.5,9.8,8.5,2.1<br/>
+            {eventKey === 'TEST'
+              ? 'team,synthetic_score,reliability,climb_readiness,auto_fluidity,teleop_fluidity,driver_pressure,defense_effectiveness,matches_logged'
+              : 'team,epac,epa,auto_epac,teleop_epac,endgame_epac,auto_fluidity,teleop_fluidity,driver_pressure,defense_effectiveness,matches_played'}
+            <br/>
+            {eventKey === 'TEST'
+              ? '254,8.4,9.0,7.0,8.5,8.9,8.1,6.2,4'
+              : '254,31.8,28.4,9.2,14.1,8.5,8.7,8.9,7.8,6.1,7'}
+            <br/>
             ...
           </pre>
         </div>

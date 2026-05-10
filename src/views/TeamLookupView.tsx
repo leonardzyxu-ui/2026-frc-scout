@@ -1,114 +1,155 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-import { MathEngine, TeamMetrics } from '../utils/mathEngine';
-import { MatchScoutingV2 } from '../types';
-import { Search, Activity, Shield, Target, Camera, Database, Ruler, Scale, Car, MapPin, ArrowLeft } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React, { useState } from 'react';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import {
+  Activity,
+  ArrowLeft,
+  CheckCircle2,
+  Database,
+  Gauge,
+  Search,
+  Sparkles,
+  Target
+} from 'lucide-react';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useNavigate } from 'react-router-dom';
-
+import { db } from '../firebase';
+import { MatchScoutingV2, PitScoutingV2 } from '../types';
+import { MathEngine, TeamMetrics } from '../utils/mathEngine';
+import { formatPitChassisSpeed, getClimbCapabilityLabel, getShooterLabel, getTraversalLabel } from '../utils/pitScouting';
 import { TBA_API_KEY } from '../config';
+import { DEFAULT_EVENT_KEY, getStoredEventKey } from '../utils/sharedEventState';
 
-interface PitData {
-  teamNumber: string;
-  drivetrain: string;
-  weight: string;
-  dimensions: string;
-  autoStart: string;
-  photoBase64?: string;
+const calculateConsistency = (history: { match: number; epac: number }[]) => {
+  if (!history || history.length < 2) return 0;
+  const mean = history.reduce((sum, entry) => sum + entry.epac, 0) / history.length;
+  const variance =
+    history.reduce((sum, entry) => sum + Math.pow(entry.epac - mean, 2), 0) / history.length;
+  return Math.sqrt(variance);
+};
+
+function MetricBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm font-bold">
+        <span className="text-slate-400">{label}</span>
+        <span className="text-white">{value.toFixed(1)}</span>
+      </div>
+      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${(value / 10) * 100}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  );
 }
 
-export default function TeamLookupView({ isEmbedded = false, eventKey: propEventKey }: { isEmbedded?: boolean, eventKey?: string }) {
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-slate-400 text-sm">{label}</span>
+      <span className="font-bold text-white text-right">{value}</span>
+    </div>
+  );
+}
+
+const formatYesNo = (value: boolean) => (value ? 'Yes' : 'No');
+
+export default function TeamLookupView({
+  isEmbedded = false,
+  eventKey: propEventKey
+}: {
+  isEmbedded?: boolean;
+  eventKey?: string;
+}) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchedTeam, setSearchedTeam] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const [pitData, setPitData] = useState<PitData | null>(null);
+  const [pitData, setPitData] = useState<PitScoutingV2 | null>(null);
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null);
 
-  const eventKey = propEventKey || localStorage.getItem('globalEventKey') || '2026mnum';
+  const eventKey = propEventKey || getStoredEventKey() || DEFAULT_EVENT_KEY;
   const tbaApiKey = TBA_API_KEY;
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const teamNumber = searchQuery.trim();
+    if (!teamNumber) return;
 
     setLoading(true);
     setError('');
-    setSearchedTeam(searchQuery.trim());
+    setSearchedTeam(teamNumber);
     setPitData(null);
     setMetrics(null);
 
     try {
-      // 1. Fetch Pit Data
-      const pitDocRef = doc(db, `events/${eventKey}/pitScouting`, searchQuery.trim());
+      const pitDocRef = doc(db, `events/${eventKey}/pitScouting`, teamNumber);
       const pitDocSnap = await getDoc(pitDocRef);
       if (pitDocSnap.exists()) {
-        setPitData(pitDocSnap.data() as PitData);
+        setPitData(pitDocSnap.data() as PitScoutingV2);
       }
 
-      // 2. Fetch Analytics Data
-      // To get metrics for a single team, we currently need to fetch all event data
-      // and run the MathEngine. In a production app, this would be pre-calculated
-      // and stored in Firestore, but we'll run it client-side here.
+      if (eventKey === 'TEST') {
+        if (!pitDocSnap.exists()) {
+          setError(`No pit scouting data found for team ${teamNumber} in TEST mode.`);
+        }
+        return;
+      }
+
       const scoutingRef = collection(db, `events/${eventKey}/matchScouting`);
       const snapshot = await getDocs(scoutingRef);
-      const scoutingData: MatchScoutingV2[] = [];
-      snapshot.forEach(d => {
-        scoutingData.push(d.data() as MatchScoutingV2);
-      });
+      const scoutingData = snapshot.docs.map(docSnapshot => docSnapshot.data() as MatchScoutingV2);
 
       const engine = new MathEngine(tbaApiKey);
       const tbaMatches = await engine.fetchEventMatches(eventKey);
+      const calculatedMetrics = engine.calculateMetrics(tbaMatches, scoutingData);
 
-      if (tbaMatches.length > 0) {
-        const calculatedMetrics = engine.calculateMetrics(tbaMatches, scoutingData);
-        if (calculatedMetrics[searchQuery.trim()]) {
-          setMetrics(calculatedMetrics[searchQuery.trim()]);
+      if (calculatedMetrics[teamNumber]) {
+        setMetrics(calculatedMetrics[teamNumber]);
+      } else if (!pitDocSnap.exists()) {
+        setError(`No pit or match analytics found for team ${teamNumber}.`);
+      } else {
+        setError(`No match analytics found for team ${teamNumber} at ${eventKey}.`);
+      }
+    } catch (lookupError) {
+      console.error('Error fetching team data:', lookupError);
+      if (lookupError instanceof Error) {
+        if (
+          lookupError.message === 'ERROR: TBA API Key Missing' ||
+          lookupError.message.includes('ERROR: No Matches Found')
+        ) {
+          setError(lookupError.message);
         } else {
-          setError(`No match data found for team ${searchQuery.trim()}.`);
+          setError('An error occurred while fetching analytics.');
         }
       } else {
-        setError('Failed to fetch TBA matches for analytics.');
+        setError('An error occurred while fetching data.');
       }
-
-    } catch (err: any) {
-      console.error('Error fetching team data:', err);
-      setError('An error occurred while fetching data.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate Consistency Index (Standard Deviation of OPRc)
-  const calculateConsistency = (history: { match: number; oprc: number }[]) => {
-    if (!history || history.length < 2) return 0;
-    const mean = history.reduce((sum, h) => sum + h.oprc, 0) / history.length;
-    const variance = history.reduce((sum, h) => sum + Math.pow(h.oprc - mean, 2), 0) / history.length;
-    // Lower standard deviation = higher consistency. Let's invert it or just show std dev.
-    // We'll show standard deviation directly, but maybe label it "Volatility" or just "Consistency (Std Dev)"
-    return Math.sqrt(variance);
-  };
-
   return (
-    <div className={isEmbedded ? "pb-24" : "min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24"}>
-      <div className={isEmbedded ? "space-y-8" : "max-w-5xl mx-auto space-y-8"}>
-        
-        {/* Header & Search Bar */}
+    <div className={isEmbedded ? 'pb-24' : 'min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24'}>
+      <div className={isEmbedded ? 'space-y-8' : 'max-w-5xl mx-auto space-y-8'}>
         <div className="bg-slate-900/50 p-6 md:p-10 rounded-3xl border border-slate-800 shadow-2xl relative">
           {!isEmbedded && (
-            <button 
+            <button
               onClick={() => navigate('/')}
               className="absolute top-6 left-6 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
           )}
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-6 text-center">
+          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4 text-center">
             Team Lookup Hub
           </h1>
+          <p className="text-slate-400 text-center max-w-3xl mx-auto mb-6">
+            Fast operational lookup for pit questionnaire details and event analytics already modeled from scout data.
+          </p>
           <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
             <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
               <Search className="h-8 w-8 text-slate-500" />
@@ -130,206 +171,254 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
           </form>
         </div>
 
+        {eventKey === 'TEST' && (
+          <div className="bg-amber-900/20 border border-amber-500/50 text-amber-300 p-5 rounded-2xl text-center font-medium">
+            TEST mode loads pit scouting data only. Official analytics lookup is unavailable without a real TBA event feed.
+          </div>
+        )}
+
         {error && (
-          <div className="bg-red-900/20 border border-red-500/50 text-red-400 p-6 rounded-2xl text-center font-medium">
+          <div className="bg-red-900/20 border border-red-500/50 text-red-300 p-6 rounded-2xl text-center font-medium">
             {error}
           </div>
         )}
 
-        {/* Results Panel */}
         {!loading && searchedTeam && (pitData || metrics) && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
-            <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
-              <h2 className="text-4xl font-black text-white">Team {searchedTeam}</h2>
-              <div className="px-3 py-1 bg-blue-900/30 text-blue-400 border border-blue-800/50 rounded-full text-sm font-bold tracking-widest">
-                {metrics ? `${metrics.matchesPlayed} MATCHES` : 'NO MATCH DATA'}
+            <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <h2 className="text-4xl font-black text-white">Team {searchedTeam}</h2>
+                <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
+                  <span className="px-3 py-1 bg-blue-900/30 text-blue-300 border border-blue-800/50 rounded-full font-bold tracking-widest">
+                    {eventKey}
+                  </span>
+                  {pitData?.teamName && (
+                    <span className="px-3 py-1 bg-slate-800 text-slate-200 border border-slate-700 rounded-full font-bold tracking-widest">
+                      {pitData.teamName}
+                    </span>
+                  )}
+                  {metrics && (
+                    <span className="px-3 py-1 bg-emerald-900/30 text-emerald-300 border border-emerald-800/50 rounded-full font-bold tracking-widest">
+                      {metrics.matchesPlayed} MATCHES MODELED
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
-              {/* Left Column: Pit Data & Image */}
               <div className="space-y-8 lg:col-span-1">
-                
-                {/* Image */}
-                <div className="bg-slate-900/50 rounded-2xl border border-slate-800 overflow-hidden aspect-square flex items-center justify-center relative group">
-                  {pitData?.photoBase64 ? (
-                    <img 
-                      src={pitData.photoBase64} 
-                      alt={`Team ${searchedTeam} Robot`} 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="text-slate-600 flex flex-col items-center gap-3">
-                      <Camera className="w-12 h-12 opacity-50" />
-                      <span className="font-medium tracking-widest text-sm">NO IMAGE</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Pit Data */}
                 <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 space-y-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Database className="w-5 h-5 text-blue-400" />
-                    Hardware Specs
-                  </h3>
-                  
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Database className="w-5 h-5 text-emerald-400" />
+                    <h3 className="text-xl font-bold text-white">Pit Questionnaire</h3>
+                  </div>
                   {pitData ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Car className="w-4 h-4" />
-                          <span>Drivetrain</span>
-                        </div>
-                        <span className="font-bold text-white">{pitData.drivetrain || 'N/A'}</span>
+                    <div className="space-y-6">
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                          Build & Chassis
+                        </h4>
+                        <DetailRow label="Robot Base" value={pitData.robotBaseType || 'N/A'} />
+                        <DetailRow
+                          label="WCP / KitBot"
+                          value={`${formatYesNo(pitData.isWcpBot)} / ${formatYesNo(pitData.isKitBot)}`}
+                        />
+                        <DetailRow
+                          label="Traversal"
+                          value={getTraversalLabel(pitData) || 'Unknown'}
+                        />
+                        <DetailRow
+                          label="Chassis Speed"
+                          value={formatPitChassisSpeed(pitData)}
+                        />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Scale className="w-4 h-4" />
-                          <span>Weight</span>
-                        </div>
-                        <span className="font-bold text-white">{pitData.weight ? `${pitData.weight} kg` : 'N/A'}</span>
+
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                          Scoring & Shooting
+                        </h4>
+                        <DetailRow label="Shooter Count" value={getShooterLabel(pitData) || 'N/A'} />
+                        <DetailRow
+                          label="Hopper"
+                          value={
+                            pitData.canUseHopper
+                              ? `${pitData.hopperCapacity || 0} ball${pitData.hopperCapacity === 1 ? '' : 's'}`
+                              : 'No'
+                          }
+                        />
+                        <DetailRow
+                          label="Expected Balls"
+                          value={
+                            pitData.expectedHubBallsPerMatch
+                              ? `${pitData.expectedHubBallsPerMatch} total`
+                              : 'N/A'
+                          }
+                        />
+                        <DetailRow
+                          label="Auto / Teleop"
+                          value={`${pitData.expectedAutoBalls || 0} / ${pitData.expectedTeleopBalls || 0}`}
+                        />
+                        <DetailRow
+                          label="Balls / Second"
+                          value={pitData.ballsPerSecond || 'N/A'}
+                        />
+                        <DetailRow label="Shooting Style" value={pitData.shootingStyle || 'N/A'} />
+                        <DetailRow
+                          label="Number of flywheels per shooter"
+                          value={pitData.shootingFlywheelCount || 'N/A'}
+                        />
+                        <DetailRow
+                          label="Adjustable Hood (firing angle)"
+                          value={formatYesNo(pitData.hoodAdjustable)}
+                        />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <Ruler className="w-4 h-4" />
-                          <span>Dimensions</span>
-                        </div>
-                        <span className="font-bold text-white">{pitData.dimensions || 'N/A'}</span>
+
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                          Endgame
+                        </h4>
+                        <DetailRow
+                          label="Climb Levels"
+                          value={getClimbCapabilityLabel(pitData) || 'None Reported'}
+                        />
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <MapPin className="w-4 h-4" />
-                          <span>Auto Start</span>
-                        </div>
-                        <span className="font-bold text-white">{pitData.autoStart || 'N/A'}</span>
+
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                          Submission
+                        </h4>
+                        <DetailRow label="Submitted By" value={pitData.scoutName || 'Unknown'} />
                       </div>
+
+                      {pitData.notes && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
+                            Notes
+                          </h4>
+                          <p className="text-sm text-slate-300 leading-relaxed">{pitData.notes}</p>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <p className="text-slate-500 italic text-center py-4">No pit scouting data available.</p>
+                    <div className="py-8 text-center text-slate-500">
+                      <Gauge className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                      <p className="font-medium">No pit scouting questionnaire available.</p>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Right Column: Analytics */}
               <div className="lg:col-span-2 space-y-8">
-                
-                {/* Top Level Metrics */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">OPRc</span>
-                    <span className="text-4xl font-black text-emerald-400">{metrics?.oprc.toFixed(1) || '--'}</span>
+                <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Sparkles className="w-5 h-5 text-amber-400" />
+                    <h3 className="text-xl font-bold text-white">Scout + TBA Analytics</h3>
                   </div>
-                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">OPR</span>
-                    <span className="text-4xl font-black text-blue-400">{metrics?.opr.toFixed(1) || '--'}</span>
+                  <p className="text-sm text-slate-400 mt-4">
+                    These values combine official TBA match results with your team&apos;s subjective scouting data through the new EPAc learning model.
+                  </p>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                    <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">EPAc</span>
+                      <span className="text-4xl font-black text-emerald-400">
+                        {metrics?.epac.toFixed(1) || '--'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">EPA</span>
+                      <span className="text-4xl font-black text-blue-400">
+                        {metrics?.epa.toFixed(1) || '--'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">MATCHES</span>
+                      <span className="text-4xl font-black text-rose-400">
+                        {metrics?.matchesPlayed || '--'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/60 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">CONSISTENCY</span>
+                      <span className="text-3xl font-black text-purple-400">
+                        {metrics ? calculateConsistency(metrics.epacHistory).toFixed(2) : '--'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2">DPR</span>
-                    <span className="text-4xl font-black text-rose-400">{metrics?.dpr.toFixed(1) || '--'}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-sm font-bold tracking-widest mb-2 text-center leading-tight">CONSISTENCY<br/>(STD DEV)</span>
-                    <span className="text-3xl font-black text-purple-400">
-                      {metrics ? calculateConsistency(metrics.oprcHistory).toFixed(2) : '--'}
-                    </span>
+
+                  <div className="grid grid-cols-3 gap-4 mt-4">
+                    <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">AUTO EPAc</span>
+                      <span className="text-2xl font-black text-emerald-300">
+                        {metrics?.autoEpac?.toFixed(1) || '--'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">TELEOP EPAc</span>
+                      <span className="text-2xl font-black text-emerald-400">
+                        {metrics?.teleopEpac?.toFixed(1) || '--'}
+                      </span>
+                    </div>
+                    <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
+                      <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">ENDGAME EPAc</span>
+                      <span className="text-2xl font-black text-emerald-500">
+                        {metrics?.endgameEpac?.toFixed(1) || '--'}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* OPRc Breakdown */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">AUTO OPRc</span>
-                    <span className="text-2xl font-black text-emerald-300">{metrics?.autoOprc?.toFixed(1) || '--'}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">TELEOP OPRc</span>
-                    <span className="text-2xl font-black text-emerald-400">{metrics?.teleopOprc?.toFixed(1) || '--'}</span>
-                  </div>
-                  <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex flex-col items-center justify-center text-center">
-                    <span className="text-slate-400 text-xs font-bold tracking-widest mb-1">ENDGAME OPRc</span>
-                    <span className="text-2xl font-black text-emerald-500">{metrics?.endgameOprc?.toFixed(1) || '--'}</span>
-                  </div>
-                </div>
-
-                {/* Subjective Averages */}
                 <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 space-y-6">
-                  <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                     <Activity className="w-5 h-5 text-amber-400" />
-                    Subjective Averages (0-10)
-                  </h3>
-                  
+                    <h3 className="text-xl font-bold text-white">Subjective Averages (0-10)</h3>
+                  </div>
                   {metrics ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">Auto Fluidity</span>
-                          <span className="text-white">{metrics.avgAutoFluidity.toFixed(1)}</span>
-                        </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-amber-400 rounded-full" style={{ width: `${(metrics.avgAutoFluidity / 10) * 100}%` }} />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">Teleop Fluidity</span>
-                          <span className="text-white">{metrics.avgTeleopFluidity.toFixed(1)}</span>
-                        </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-amber-500 rounded-full" style={{ width: `${(metrics.avgTeleopFluidity / 10) * 100}%` }} />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">Driver Pressure</span>
-                          <span className="text-white">{metrics.avgDriverPressure.toFixed(1)}</span>
-                        </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${(metrics.avgDriverPressure / 10) * 100}%` }} />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-bold">
-                          <span className="text-slate-400">Defense Effectiveness</span>
-                          <span className="text-white">{metrics.avgDefenseEffectiveness.toFixed(1)}</span>
-                        </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-rose-400 rounded-full" style={{ width: `${(metrics.avgDefenseEffectiveness / 10) * 100}%` }} />
-                        </div>
-                      </div>
+                      <MetricBar label="Auto Fluidity" value={metrics.avgAutoFluidity} color="#fbbf24" />
+                      <MetricBar label="Teleop Fluidity" value={metrics.avgTeleopFluidity} color="#f59e0b" />
+                      <MetricBar label="Driver Pressure" value={metrics.avgDriverPressure} color="#22d3ee" />
+                      <MetricBar label="Defense Effectiveness" value={metrics.avgDefenseEffectiveness} color="#fb7185" />
                     </div>
                   ) : (
-                    <p className="text-slate-500 italic text-center py-4">No subjective data available.</p>
+                    <p className="text-slate-500 italic text-center py-4">
+                      No analytical scouting averages available yet.
+                    </p>
                   )}
                 </div>
 
-                {/* OPRc Trajectory */}
-                {metrics && metrics.oprcHistory.length > 0 && (
-                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col h-[300px]">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3 mb-4">
+                {metrics && metrics.epacHistory.length > 0 && (
+                  <div className="bg-slate-900/50 p-6 rounded-2xl border border-slate-800 flex flex-col h-[320px]">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                       <Target className="w-5 h-5 text-emerald-400" />
-                      OPRc Trajectory
-                    </h3>
-                    <div className="flex-1 w-full relative">
+                      <h3 className="text-xl font-bold text-white">EPAc Trajectory</h3>
+                    </div>
+                    <div className="flex-1 w-full relative mt-4">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={metrics.oprcHistory} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                        <LineChart data={metrics.epacHistory} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                          <XAxis dataKey="match" stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-                          <YAxis stroke="#64748b" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc', borderRadius: '0.5rem' }}
+                          <XAxis
+                            dataKey="match"
+                            stroke="#64748b"
+                            tick={{ fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#0f172a',
+                              borderColor: '#1e293b',
+                              color: '#f8fafc',
+                              borderRadius: '0.5rem'
+                            }}
                             itemStyle={{ color: '#34d399' }}
                           />
-                          <Line 
-                            type="monotone" 
-                            dataKey="oprc" 
-                            name="OPRc"
-                            stroke="#34d399" 
+                          <Line
+                            type="monotone"
+                            dataKey="epac"
+                            name="EPAc"
+                            stroke="#34d399"
                             strokeWidth={3}
                             dot={{ r: 4, fill: '#34d399', strokeWidth: 0 }}
                             activeDot={{ r: 6 }}
@@ -339,7 +428,6 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
                     </div>
                   </div>
                 )}
-
               </div>
             </div>
           </div>
@@ -347,11 +435,10 @@ export default function TeamLookupView({ isEmbedded = false, eventKey: propEvent
 
         {!loading && searchedTeam && !pitData && !metrics && !error && (
           <div className="bg-slate-900/50 border border-slate-800 text-slate-400 p-12 rounded-3xl text-center font-medium">
-            <Search className="w-12 h-12 mx-auto mb-4 opacity-20" />
+            <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-20" />
             No data found for Team {searchedTeam}.
           </div>
         )}
-
       </div>
     </div>
   );
