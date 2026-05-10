@@ -186,10 +186,63 @@ const formatFeatureTeamList = (teams: string[], featuresByTeam: Record<string, R
     return `${team}: PPC ${formatNumber(features.ppcBefore, 1)} (${formatNumber(features.scoutingRowsBefore, 0)} rows), OPR ${formatNumber(features.oprBefore, 1)} (${formatNumber(features.officialMatchesBefore, 0)} official)`;
   }).join(' · ');
 
+const getStrategyTeamBadgeClass = (teamNumber: string, ownTeamNumber: string, searchedTeamNumber: string) => {
+  const isOwnTeam = ownTeamNumber !== '' && ownTeamNumber === teamNumber;
+  const isSearchedTeam = searchedTeamNumber !== '' && searchedTeamNumber === teamNumber;
+
+  if (isOwnTeam && isSearchedTeam) {
+    return 'bg-orange-500 text-slate-950 ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-950';
+  }
+
+  if (isOwnTeam) return 'bg-orange-500 text-slate-950';
+  if (isSearchedTeam) return 'bg-sky-500 text-slate-950';
+  return 'border border-slate-700 bg-slate-950 text-slate-200';
+};
+
+function StrategyTeamBadge({
+  teamNumber,
+  ownTeamNumber,
+  searchedTeamNumber
+}: {
+  teamNumber: string;
+  ownTeamNumber: string;
+  searchedTeamNumber: string;
+}) {
+  return (
+    <span className={`inline-flex items-center rounded-xl px-3 py-1 font-mono text-sm font-black ${getStrategyTeamBadgeClass(teamNumber, ownTeamNumber, searchedTeamNumber)}`}>
+      {teamNumber}
+    </span>
+  );
+}
+
+function StrategyTeamBadgeList({
+  teams,
+  ownTeamNumber,
+  searchedTeamNumber
+}: {
+  teams: string[];
+  ownTeamNumber: string;
+  searchedTeamNumber: string;
+}) {
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {teams.map(teamNumber => (
+        <StrategyTeamBadge
+          key={teamNumber}
+          teamNumber={teamNumber}
+          ownTeamNumber={ownTeamNumber}
+          searchedTeamNumber={searchedTeamNumber}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function AdminV2StrategyBrainView({
   eventKey,
   selectedMetric,
   ownTeamNumber,
+  searchedTeamNumber,
   v4Records,
   v3Records,
   defenseRecords,
@@ -204,6 +257,7 @@ export default function AdminV2StrategyBrainView({
   eventKey: string;
   selectedMetric: AdminV2SelectedMetric;
   ownTeamNumber: string;
+  searchedTeamNumber: string;
   v4Records: MatchScoutingV4[];
   v3Records: MatchScoutingV3[];
   defenseRecords: MatchDefenseScoutingV1[];
@@ -509,7 +563,7 @@ export default function AdminV2StrategyBrainView({
         distinctTeams: exposureEntries.length,
         repeatFocus: exposureEntries.filter(([, count]) => count > 1).length,
         ourMatchAssignments: scoutAssignments.filter(assignment => assignment.priorityReason === 'Our match priority').length,
-        topTeams: exposureEntries.slice(0, 6).map(([team, count]) => `${team} x${count}`).join(', ')
+        topTeamExposures: exposureEntries.slice(0, 6).map(([teamNumber, count]) => ({ teamNumber, count }))
       };
     }).sort((left, right) => right.assignments - left.assignments || left.scoutName.localeCompare(right.scoutName));
   }, [scoutAssignmentPlan]);
@@ -1126,7 +1180,9 @@ export default function AdminV2StrategyBrainView({
                   <tbody className="divide-y divide-slate-800">
                     {defenseImpactRows.slice(0, 30).map(row => (
                       <tr key={row.teamNumber}>
-                        <td className="px-4 py-3 font-mono font-black text-white">{row.teamNumber}</td>
+                        <td className="px-4 py-3">
+                          <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                        </td>
                         <td className="px-4 py-3 text-slate-300">{teamNameLookup[row.teamNumber] || ''}</td>
                         <td className="px-4 py-3 font-black text-emerald-300">{formatNumber(row.weightedDenied)}</td>
                         <td className="px-4 py-3">{formatNumber(row.rawDenied)}</td>
@@ -1161,7 +1217,9 @@ export default function AdminV2StrategyBrainView({
                   <tbody className="divide-y divide-slate-800">
                     {targetSuppressionRows.slice(0, 30).map(row => (
                       <tr key={row.teamNumber}>
-                        <td className="px-4 py-3 font-mono font-black text-white">{row.teamNumber}</td>
+                        <td className="px-4 py-3">
+                          <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                        </td>
                         <td className="px-4 py-3 text-slate-300">{teamNameLookup[row.teamNumber] || ''}</td>
                         <td className="px-4 py-3 font-black text-amber-300">{formatNumber(row.deniedAgainst)}</td>
                         <td className="px-4 py-3">{formatNumber(row.avgExpected)}</td>
@@ -1191,7 +1249,9 @@ export default function AdminV2StrategyBrainView({
               <tbody className="divide-y divide-slate-800">
                 {teamProfiles.map(profile => (
                   <tr key={profile.teamNumber}>
-                    <td className="px-4 py-3 font-mono font-black text-white">{profile.teamNumber}</td>
+                    <td className="px-4 py-3">
+                      <StrategyTeamBadge teamNumber={profile.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                    </td>
                     <td className="px-4 py-3 text-slate-300">{teamNameLookup[profile.teamNumber] || ''}</td>
                     <td className="px-4 py-3"><MiniTrendChart profile={profile} /></td>
                     <td className="px-4 py-3"><MiniModelCurveChart profile={profile} /></td>
@@ -1246,13 +1306,13 @@ export default function AdminV2StrategyBrainView({
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="rounded-xl bg-red-500/10 p-3">
                     <div className="font-black text-red-100">Red {formatNumber(plan.optimizedRedScore)} <span className="text-xs text-red-100/50">base {formatNumber(plan.baselineRedScore)}</span></div>
-                    <div className="text-sm text-red-100/80">{plan.redTeams.join(', ')}</div>
+                    <StrategyTeamBadgeList teams={plan.redTeams} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
                     <div className="mt-2 text-xs text-red-100/70">{plan.bestRedPlan} · swing {formatSigned(plan.redDefenseSwing)}</div>
                     <RoleOptionList options={plan.redRoleOptions} accentClass="text-red-100" />
                   </div>
                   <div className="rounded-xl bg-blue-500/10 p-3">
                     <div className="font-black text-blue-100">Blue {formatNumber(plan.optimizedBlueScore)} <span className="text-xs text-blue-100/50">base {formatNumber(plan.baselineBlueScore)}</span></div>
-                    <div className="text-sm text-blue-100/80">{plan.blueTeams.join(', ')}</div>
+                    <StrategyTeamBadgeList teams={plan.blueTeams} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
                     <div className="mt-2 text-xs text-blue-100/70">{plan.bestBluePlan} · swing {formatSigned(plan.blueDefenseSwing)}</div>
                     <RoleOptionList options={plan.blueRoleOptions} accentClass="text-blue-100" />
                   </div>
@@ -1319,7 +1379,9 @@ export default function AdminV2StrategyBrainView({
                 <tbody className="divide-y divide-slate-800">
                   {allianceRecommendations.slice(0, 60).map(row => (
                     <tr key={row.teamNumber} className={row.status === 'available' ? '' : 'opacity-50'}>
-                      <td className="px-4 py-3 font-mono font-black text-white">{row.teamNumber}</td>
+                      <td className="px-4 py-3">
+                        <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                      </td>
                       <td className="px-4 py-3 text-slate-300">{teamNameLookup[row.teamNumber] || ''}</td>
                       <td className="px-4 py-3">{formatNumber(row.score)}</td>
                       <td className="px-4 py-3">{row.seedFit}</td>
@@ -1435,7 +1497,9 @@ export default function AdminV2StrategyBrainView({
                             <tr key={`${gap.matchKey}_${gap.station}_${index}`}>
                               <td className="px-4 py-3 font-mono font-black text-amber-50">{gap.matchKey.toUpperCase()}</td>
                               <td className="px-4 py-3 text-amber-100">{gap.station}</td>
-                              <td className="px-4 py-3 text-amber-100">{gap.teamNumber}</td>
+                              <td className="px-4 py-3 text-amber-100">
+                                <StrategyTeamBadge teamNumber={gap.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                              </td>
                               <td className="px-4 py-3 text-amber-100/80">{gap.reason}</td>
                             </tr>
                           ))}
@@ -1459,7 +1523,18 @@ export default function AdminV2StrategyBrainView({
                           <td className="px-4 py-3">{row.distinctTeams}</td>
                           <td className="px-4 py-3">{row.repeatFocus}</td>
                           <td className="px-4 py-3">{row.ourMatchAssignments}</td>
-                          <td className="px-4 py-3 text-slate-400">{row.topTeams || '—'}</td>
+                          <td className="px-4 py-3 text-slate-400">
+                            {row.topTeamExposures.length === 0 ? '—' : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {row.topTeamExposures.map(exposure => (
+                                  <span key={`${row.scoutName}_${exposure.teamNumber}`} className="inline-flex items-center gap-1 rounded-xl bg-slate-950 px-1.5 py-1">
+                                    <StrategyTeamBadge teamNumber={exposure.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                                    <span className="pr-1 text-xs font-black text-slate-400">x{exposure.count}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1477,7 +1552,9 @@ export default function AdminV2StrategyBrainView({
                         <tr key={`${assignment.matchKey}_${assignment.station}_${index}`}>
                           <td className="px-4 py-3 font-mono text-white">{assignment.matchKey.toUpperCase()}</td>
                           <td className="px-4 py-3">{assignment.station}</td>
-                          <td className="px-4 py-3">{assignment.teamNumber}</td>
+                          <td className="px-4 py-3">
+                            <StrategyTeamBadge teamNumber={assignment.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
+                          </td>
                           <td className="px-4 py-3 font-black text-cyan-200">{assignment.scoutName}</td>
                           <td className="px-4 py-3 text-slate-400">{assignment.priorityReason}</td>
                         </tr>

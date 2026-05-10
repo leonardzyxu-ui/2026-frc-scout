@@ -3921,6 +3921,7 @@ export default function AdminMainframeV2View() {
               eventKey={eventKey}
               selectedMetric={selectedMetric}
               ownTeamNumber={ownTeamNumber}
+              searchedTeamNumber={searchedTeamNumber}
               v4Records={v4Records}
               v3Records={records}
               defenseRecords={defenseRecords}
