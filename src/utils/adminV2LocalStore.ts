@@ -1,4 +1,4 @@
-import { PowerCoinBet, PowerCoinLedgerEntry, ScoutAssignmentPlan } from '../types';
+import { ModelFeatureSnapshot, ModelLabSnapshot, PowerCoinBet, PowerCoinLedgerEntry, ScoutAssignmentPlan } from '../types';
 
 export interface FirstEventsCredentials {
   username: string;
@@ -17,12 +17,14 @@ export interface AdminV2CacheEntry<T = unknown> {
 }
 
 const DB_NAME = 'rebuilt-2026-admin-v2-local';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const SETTINGS_STORE = 'settings';
 const CACHE_STORE = 'cache';
 const POWERCOIN_BETS_STORE = 'powerCoinBets';
 const POWERCOIN_LEDGER_STORE = 'powerCoinLedger';
 const SCOUT_PLANS_STORE = 'scoutAssignmentPlans';
+const MODEL_SNAPSHOTS_STORE = 'modelSnapshots';
+const MODEL_FEATURE_SNAPSHOTS_STORE = 'modelFeatureSnapshots';
 const FIRST_CREDENTIALS_KEY = 'first_events_credentials';
 const STARTING_POWERCOINS = 1000;
 
@@ -53,6 +55,15 @@ const openDb = async (): Promise<IDBDatabase | null> => {
       if (!db.objectStoreNames.contains(SCOUT_PLANS_STORE)) {
         const store = db.createObjectStore(SCOUT_PLANS_STORE, { keyPath: 'id' });
         store.createIndex('eventKey', 'eventKey', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(MODEL_SNAPSHOTS_STORE)) {
+        const store = db.createObjectStore(MODEL_SNAPSHOTS_STORE, { keyPath: 'id' });
+        store.createIndex('eventKey', 'eventKey', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(MODEL_FEATURE_SNAPSHOTS_STORE)) {
+        const store = db.createObjectStore(MODEL_FEATURE_SNAPSHOTS_STORE, { keyPath: 'id' });
+        store.createIndex('eventKey', 'eventKey', { unique: false });
+        store.createIndex('modelName', 'modelName', { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -122,6 +133,26 @@ export const putAdminV2CacheEntry = async <T>(entry: Omit<AdminV2CacheEntry<T>, 
   return cacheEntry;
 };
 
+export const restoreAdminV2CacheEntries = async (entries: AdminV2CacheEntry[]) => {
+  let restored = 0;
+  for (const entry of entries) {
+    if (!entry?.eventKey || !entry?.source || !entry?.key) continue;
+    const normalizedEntry: AdminV2CacheEntry = {
+      ...entry,
+      id: entry.id || `${eventKeyOf(entry.eventKey)}:${entry.year}:${entry.source}:${entry.key}`,
+      eventKey: eventKeyOf(entry.eventKey),
+      timestamp: entry.timestamp || Date.now()
+    };
+    await withStore<void>(CACHE_STORE, 'readwrite', (store, resolve, reject) => {
+      const request = store.put(normalizedEntry);
+      request.onerror = () => reject(request.error ?? new Error('Failed to restore Admin V2 cache entry.'));
+      request.onsuccess = () => resolve();
+    });
+    restored += 1;
+  }
+  return restored;
+};
+
 export const listAdminV2CacheEntries = async (eventKey?: string) => {
   const entries = await withStore<AdminV2CacheEntry[]>(CACHE_STORE, 'readonly', (store, resolve, reject) => {
     const request = store.getAll();
@@ -155,6 +186,14 @@ export const listPowerCoinLedger = async (eventKey: string) => {
     request.onsuccess = () => resolve((request.result as PowerCoinLedgerEntry[] | undefined) ?? []);
   });
   return entries.filter(entry => entry.eventKey === eventKeyOf(eventKey));
+};
+
+export const upsertPowerCoinLedgerEntry = async (entry: PowerCoinLedgerEntry) => {
+  await withStore<void>(POWERCOIN_LEDGER_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.put({ ...entry, eventKey: eventKeyOf(entry.eventKey) });
+    request.onerror = () => reject(request.error ?? new Error('Failed to save PowerCoin ledger entry.'));
+    request.onsuccess = () => resolve();
+  });
 };
 
 export const getPowerCoinBalance = async (eventKey: string, scoutName: string) => {
@@ -223,3 +262,47 @@ export const loadLatestScoutAssignmentPlan = async (eventKey: string) => {
     .filter(plan => plan.eventKey === eventKeyOf(eventKey))
     .sort((left, right) => right.createdAt - left.createdAt)[0] || null;
 };
+
+export const saveModelLabSnapshot = async (snapshot: ModelLabSnapshot) => {
+  await withStore<void>(MODEL_SNAPSHOTS_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.put({ ...snapshot, eventKey: eventKeyOf(snapshot.eventKey) });
+    request.onerror = () => reject(request.error ?? new Error('Failed to save model lab snapshot.'));
+    request.onsuccess = () => resolve();
+  });
+};
+
+export const listModelLabSnapshots = async (eventKey: string) => {
+  const snapshots = await withStore<ModelLabSnapshot[]>(MODEL_SNAPSHOTS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.getAll();
+    request.onerror = () => reject(request.error ?? new Error('Failed to list model lab snapshots.'));
+    request.onsuccess = () => resolve((request.result as ModelLabSnapshot[] | undefined) ?? []);
+  });
+  return snapshots
+    .filter(snapshot => snapshot.eventKey === eventKeyOf(eventKey))
+    .sort((left, right) => right.createdAt - left.createdAt);
+};
+
+export const loadLatestModelLabSnapshot = async (eventKey: string) =>
+  (await listModelLabSnapshots(eventKey))[0] || null;
+
+export const saveModelFeatureSnapshot = async (snapshot: ModelFeatureSnapshot) => {
+  await withStore<void>(MODEL_FEATURE_SNAPSHOTS_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.put({ ...snapshot, eventKey: eventKeyOf(snapshot.eventKey) });
+    request.onerror = () => reject(request.error ?? new Error('Failed to save model feature snapshot.'));
+    request.onsuccess = () => resolve();
+  });
+};
+
+export const listModelFeatureSnapshots = async (eventKey: string) => {
+  const snapshots = await withStore<ModelFeatureSnapshot[]>(MODEL_FEATURE_SNAPSHOTS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.getAll();
+    request.onerror = () => reject(request.error ?? new Error('Failed to list model feature snapshots.'));
+    request.onsuccess = () => resolve((request.result as ModelFeatureSnapshot[] | undefined) ?? []);
+  });
+  return snapshots
+    .filter(snapshot => snapshot.eventKey === eventKeyOf(eventKey))
+    .sort((left, right) => right.createdAt - left.createdAt);
+};
+
+export const loadLatestModelFeatureSnapshot = async (eventKey: string) =>
+  (await listModelFeatureSnapshots(eventKey))[0] || null;

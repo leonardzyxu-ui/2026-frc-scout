@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock3, Download, Edit3, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock3, Download, Edit3, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
 import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
 import { DEFAULT_EVENT_KEY } from '../utils/sharedEventState';
 import {
@@ -9,12 +9,11 @@ import {
   listScoutArchiveRecords,
   ScoutArchiveRecord,
   setScoutArchiveUsername,
-  tombstoneScoutArchiveRecord,
-  updateScoutArchiveRecordSyncState
+  tombstoneScoutArchiveRecord
 } from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
-import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writeMatchScoutingV4Record, writePitScoutingRecord } from '../utils/scoutingWrites';
+import { syncScoutArchiveRecordToFirebase } from '../utils/scoutArchiveSync';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 
 const MATCH_DEFENSE_EDIT_STORAGE_KEY = 'edit_match_defense_data_v1';
@@ -50,6 +49,8 @@ export default function HistoryView() {
   const [archiveUsername, setArchiveUsernameState] = useState('');
   const [pendingArchiveUsername, setPendingArchiveUsername] = useState('');
   const [isArchiveUsernameResolved, setIsArchiveUsernameResolved] = useState(false);
+  const [isBulkSyncing, setIsBulkSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const eventKey = localStorage.getItem('match_scout_v3_event_key') || DEFAULT_EVENT_KEY;
 
@@ -73,6 +74,11 @@ export default function HistoryView() {
         return b.updatedAt - a.updatedAt;
       });
   }, [records]);
+
+  const unsyncedRecords = useMemo(
+    () => recentRecords.filter(record => record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced'),
+    [recentRecords]
+  );
 
   const loadHistory = async () => {
     setIsLoading(true);
@@ -194,87 +200,47 @@ export default function HistoryView() {
   };
 
   const handleRetrySync = async (record: HistoryRow) => {
-    try {
-      await updateScoutArchiveRecordSyncState(record.recordId, {
-        syncStatus: 'pending_sync',
-        lastFirebaseAttemptAt: Date.now(),
-        lastFirebaseError: ''
-      });
-
-      if (record.recordType === 'matchV4') {
-        const payload = record.payload as MatchScoutingV4;
-        const writeResult = await writeMatchScoutingV4Record(payload, { mode: 'strict' });
-
-        if (writeResult.outcome === 'conflict') {
-          await updateScoutArchiveRecordSyncState(record.recordId, {
-            syncStatus: 'unsynced',
-            lastFirebaseAttemptAt: Date.now(),
-            lastFirebaseError: 'Conflicting V4 match record already exists in Firebase.'
-          });
-          setError('This V4 match record still conflicts with Firebase and remains unsynced.');
-          await loadHistory();
-          return;
-        }
-      } else if (record.recordType === 'match') {
-        const payload = toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3);
-        const writeResult = await writeMatchScoutingV3Record(payload, { mode: 'strict' });
-
-        if (writeResult.outcome === 'conflict') {
-          await updateScoutArchiveRecordSyncState(record.recordId, {
-            syncStatus: 'unsynced',
-            lastFirebaseAttemptAt: Date.now(),
-            lastFirebaseError: 'Conflicting V3 match record already exists in Firebase.'
-          });
-          setError('This record still conflicts with Firebase and remains unsynced.');
-          await loadHistory();
-          return;
-        }
-      } else if (record.recordType === 'matchDefense') {
-        const payload = record.payload as MatchDefenseScoutingV1;
-        const writeResult = await writeMatchDefenseScoutingRecord(payload, { mode: 'strict' });
-
-        if (writeResult.outcome === 'conflict') {
-          await updateScoutArchiveRecordSyncState(record.recordId, {
-            syncStatus: 'unsynced',
-            lastFirebaseAttemptAt: Date.now(),
-            lastFirebaseError: 'Conflicting defense record already exists in Firebase.'
-          });
-          setError('This defense record still conflicts with Firebase and remains unsynced.');
-          await loadHistory();
-          return;
-        }
-      } else {
-        const payload = record.payload as PitScoutingV2;
-        const writeResult = await writePitScoutingRecord(record.eventKey, payload, { mode: 'strict' });
-
-        if (writeResult.outcome === 'conflict') {
-          await updateScoutArchiveRecordSyncState(record.recordId, {
-            syncStatus: 'unsynced',
-            lastFirebaseAttemptAt: Date.now(),
-            lastFirebaseError: 'Conflicting pit record already exists in Firebase.'
-          });
-          setError('This pit record still conflicts with Firebase and remains unsynced.');
-          await loadHistory();
-          return;
-        }
-      }
-
-      await updateScoutArchiveRecordSyncState(record.recordId, {
-        syncStatus: 'synced',
-        lastFirebaseAttemptAt: Date.now(),
-        lastFirebaseError: ''
-      });
-      setError('');
-      await loadHistory();
-    } catch (syncError) {
-      console.error('Failed to retry sync for archive record', syncError);
-      await updateScoutArchiveRecordSyncState(record.recordId, {
-        syncStatus: 'unsynced',
-        lastFirebaseAttemptAt: Date.now(),
-        lastFirebaseError: syncError instanceof Error ? syncError.message : 'Firebase sync failed.'
-      });
+    const result = await syncScoutArchiveRecordToFirebase(record);
+    if (result.outcome === 'conflict') {
+      setError('This local record conflicts with Firebase and remains unsynced for manual resolution.');
+      setSyncMessage('');
+    } else if (result.outcome === 'failed') {
       setError('Unable to sync this local record to Firebase right now.');
-      await loadHistory();
+      setSyncMessage('');
+    } else {
+      setError('');
+      setSyncMessage('Record synced to Firebase.');
+    }
+    await loadHistory();
+  };
+
+  const handleRetryAllUnsynced = async () => {
+    if (unsyncedRecords.length === 0 || isBulkSyncing) {
+      return;
+    }
+
+    setIsBulkSyncing(true);
+    setError('');
+    setSyncMessage(`Syncing ${unsyncedRecords.length} local record${unsyncedRecords.length === 1 ? '' : 's'} to Firebase...`);
+
+    const counts = {
+      synced: 0,
+      conflict: 0,
+      failed: 0
+    };
+
+    for (const record of unsyncedRecords) {
+      const result = await syncScoutArchiveRecordToFirebase(record);
+      counts[result.outcome] += 1;
+    }
+
+    await loadHistory();
+    setIsBulkSyncing(false);
+    setSyncMessage(
+      `Sync complete: ${counts.synced} synced, ${counts.conflict} conflict${counts.conflict === 1 ? '' : 's'}, ${counts.failed} failed.`
+    );
+    if (counts.conflict > 0 || counts.failed > 0) {
+      setError('Some local records could not be uploaded. Conflicts and failures stay in My History and remain exportable in JSON.');
     }
   };
 
@@ -298,6 +264,14 @@ export default function HistoryView() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => void handleRetryAllUnsynced()}
+            disabled={isBulkSyncing || unsyncedRecords.length === 0}
+            className="bg-amber-600 px-4 py-2 rounded-lg font-bold text-sm text-white hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <UploadCloud className={`w-4 h-4 ${isBulkSyncing ? 'animate-bounce' : ''}`} />
+            Sync Unsynced ({unsyncedRecords.length})
+          </button>
           <button
             onClick={() => void handleDownloadArchive()}
             className="bg-cyan-600 px-4 py-2 rounded-lg font-bold text-sm text-white hover:bg-cyan-500 flex items-center gap-2"
@@ -326,6 +300,12 @@ export default function HistoryView() {
       {error && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
           {error}
+        </div>
+      )}
+
+      {syncMessage && (
+        <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">
+          {syncMessage}
         </div>
       )}
 

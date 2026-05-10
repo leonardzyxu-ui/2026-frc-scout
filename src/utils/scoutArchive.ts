@@ -1,4 +1,5 @@
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, PowerCoinBet, PowerCoinLedgerEntry } from '../types';
+import { listPowerCoinBets, listPowerCoinLedger, upsertPowerCoinBet, upsertPowerCoinLedgerEntry } from './adminV2LocalStore';
 import { getMatchDefenseDocId, getMatchDocId, getMatchV3DocId, getMatchV4DocId, getPitDocId } from './scoutingWrites';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from './matchScoutingV3';
 import { isMatchScoutingV4 } from './matchScoutingV4';
@@ -52,11 +53,13 @@ export type ScoutArchiveRecord = MatchArchiveRecord | MatchV4ArchiveRecord | Mat
 
 export interface ScoutArchiveBundle {
   format: 'rebuilt-2026-scout-archive';
-  version: 1 | 2 | 3 | 4;
+  version: 1 | 2 | 3 | 4 | 5;
   username: string;
   exportedAt: number;
   deviceId: string;
   records: ScoutArchiveRecord[];
+  powerCoinBets?: PowerCoinBet[];
+  powerCoinLedger?: PowerCoinLedgerEntry[];
 }
 
 const normalizeArchiveRecord = (record: ScoutArchiveRecord): ScoutArchiveRecord => ({
@@ -377,6 +380,7 @@ export const updateScoutArchiveRecordSyncState = async (
 
 export const buildScoutArchiveBundle = async (username: string): Promise<ScoutArchiveBundle> => {
   const records = await listScoutArchiveRecords({ includeDeleted: true });
+  const normalizedUsername = normalizeUsername(username);
   const normalizedRecords = records.map(record => {
     if (record.recordType !== 'match') {
       return record;
@@ -393,13 +397,24 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
       payload: nextPayload
     } satisfies MatchArchiveRecord;
   });
+  const eventKeys = Array.from(new Set(normalizedRecords.map(record => record.eventKey))).filter(Boolean);
+  const normalizedScoutName = normalizedUsername.trim().toLowerCase();
+  const powerCoinBets = (await Promise.all(eventKeys.map(eventKey => listPowerCoinBets(eventKey).catch(() => []))))
+    .flat()
+    .filter(bet => bet.scoutName.trim().toLowerCase() === normalizedScoutName);
+  const powerCoinLedger = (await Promise.all(eventKeys.map(eventKey => listPowerCoinLedger(eventKey).catch(() => []))))
+    .flat()
+    .filter(entry => entry.scoutName.trim().toLowerCase() === normalizedScoutName);
+
   return {
     format: 'rebuilt-2026-scout-archive',
-    version: 4,
-    username: normalizeUsername(username),
+    version: 5,
+    username: normalizedUsername,
     exportedAt: Date.now(),
     deviceId: normalizedRecords[0]?.deviceId || '',
-    records: normalizedRecords
+    records: normalizedRecords,
+    powerCoinBets,
+    powerCoinLedger
   };
 };
 
@@ -408,9 +423,40 @@ export const isScoutArchiveBundle = (value: unknown): value is ScoutArchiveBundl
   const maybeBundle = value as Partial<ScoutArchiveBundle>;
   return (
     maybeBundle.format === 'rebuilt-2026-scout-archive' &&
-    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4) &&
+    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5) &&
     Array.isArray(maybeBundle.records)
   );
+};
+
+export const importScoutArchiveBundleLocally = async (bundle: ScoutArchiveBundle) => {
+  if (!isScoutArchiveBundle(bundle)) {
+    throw new Error('Invalid scout archive bundle.');
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  for (const record of bundle.records) {
+    if (!record?.recordId || !record?.payload) {
+      skipped += 1;
+      continue;
+    }
+    await putArchiveRecord(normalizeArchiveRecord(record));
+    imported += 1;
+  }
+  let powerCoinBetsImported = 0;
+  let powerCoinLedgerImported = 0;
+  for (const bet of bundle.powerCoinBets || []) {
+    if (!bet?.id || !bet.eventKey || !bet.scoutName) continue;
+    await upsertPowerCoinBet(bet);
+    powerCoinBetsImported += 1;
+  }
+  for (const ledgerEntry of bundle.powerCoinLedger || []) {
+    if (!ledgerEntry?.id || !ledgerEntry.eventKey || !ledgerEntry.scoutName) continue;
+    await upsertPowerCoinLedgerEntry(ledgerEntry);
+    powerCoinLedgerImported += 1;
+  }
+
+  return { imported, skipped, powerCoinBetsImported, powerCoinLedgerImported };
 };
 
 export const isArchivedMatchV4Record = (record: ScoutArchiveRecord): record is MatchV4ArchiveRecord =>

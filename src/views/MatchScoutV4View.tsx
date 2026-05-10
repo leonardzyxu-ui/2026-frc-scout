@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Coins, Download, QrCode, Save, Shield, Target, Trophy } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Coins, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
 import { MatchScoutingV4, MatchScoutingV4Role, initialMatchScoutingV4 } from '../types';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { SCOUT_ASSIGNMENTS, getScoutAssignmentByName } from '../utils/scoutAssignments';
@@ -15,11 +15,16 @@ import {
 } from '../utils/scoutArchive';
 import { writeMatchScoutingV4Record } from '../utils/scoutingWrites';
 import { compressMatchDataV4 } from '../utils/qrCompression';
-import { getPowerCoinBalance, upsertPowerCoinBet } from '../utils/adminV2LocalStore';
+import { getPowerCoinBalance, listPowerCoinBets, upsertPowerCoinBet } from '../utils/adminV2LocalStore';
+import { MathEngine, TBAMatch } from '../utils/mathEngine';
+import { TBA_API_KEY } from '../config';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const SUBSTITUTES = ['Charlotte', 'Scarlett'] as const;
 const ROLE_OPTIONS: MatchScoutingV4Role[] = ['Offense', 'Defense', 'Mixed', 'Support', 'Disabled'];
+const sanitizeScheduleEventKey = (value: string) => value.toUpperCase().replace(/\s+/g, '');
+const getShortMatchKey = (match: TBAMatch) => match.key.split('_')[1]?.toLowerCase() || '';
+const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
 
 const getDefaultData = (deviceId: string, scoutName = '') =>
   normalizeMatchScoutingV4({
@@ -39,45 +44,65 @@ const NumberCounter = ({
   value: number;
   onChange: (value: number) => void;
   steps?: number[];
-}) => (
-  <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-    <div className="mb-4 flex items-center justify-between">
-      <div>
-        <h3 className="text-lg font-black text-white">{label}</h3>
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Counted robot output</p>
+}) => {
+  const [lastValue, setLastValue] = useState<number | null>(null);
+  const commitChange = (nextValue: number) => {
+    setLastValue(value);
+    onChange(nextValue);
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-black text-white">{label}</h3>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Counted robot output</p>
+        </div>
+        <div className="rounded-2xl bg-slate-950 px-5 py-3 text-3xl font-black text-cyan-200">{value}</div>
       </div>
-      <div className="rounded-2xl bg-slate-950 px-5 py-3 text-3xl font-black text-cyan-200">{value}</div>
-    </div>
-    <div className="grid grid-cols-4 gap-2">
-      {steps.map(step => (
+      <div className="grid grid-cols-4 gap-2">
+        {steps.map(step => (
+          <button
+            key={step}
+            type="button"
+            onClick={() => commitChange(value + step)}
+            className="rounded-2xl bg-cyan-600 px-3 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-500 active:scale-95"
+          >
+            +{step}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
         <button
-          key={step}
           type="button"
-          onClick={() => onChange(value + step)}
-          className="rounded-2xl bg-cyan-600 px-3 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-500 active:scale-95"
+          onClick={() => commitChange(Math.max(0, value - 1))}
+          className="rounded-xl bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700"
         >
-          +{step}
+          -1
         </button>
-      ))}
+        <button
+          type="button"
+          onClick={() => commitChange(0)}
+          className="rounded-xl bg-rose-950 px-3 py-2 text-sm font-bold text-rose-200 hover:bg-rose-900"
+        >
+          Reset
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (lastValue == null) return;
+            onChange(lastValue);
+            setLastValue(null);
+          }}
+          disabled={lastValue == null}
+          className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-600"
+        >
+          Revert Last
+        </button>
+      </div>
     </div>
-    <div className="mt-3 flex gap-2">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(0, value - 1))}
-        className="flex-1 rounded-xl bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700"
-      >
-        -1
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange(0)}
-        className="flex-1 rounded-xl bg-rose-950 px-3 py-2 text-sm font-bold text-rose-200 hover:bg-rose-900"
-      >
-        Reset
-      </button>
-    </div>
-  </div>
-);
+  );
+};
 
 export default function MatchScoutV4View() {
   const navigate = useNavigate();
@@ -90,13 +115,27 @@ export default function MatchScoutV4View() {
   const [showQr, setShowQr] = useState(false);
   const [betGateOpen, setBetGateOpen] = useState(false);
   const [betSkipped, setBetSkipped] = useState(false);
+  const [betLockedMatchKey, setBetLockedMatchKey] = useState('');
   const [betSide, setBetSide] = useState<'Red' | 'Blue'>('Red');
   const [betAmount, setBetAmount] = useState(50);
   const [powerCoinBalance, setPowerCoinBalance] = useState(1000);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [eventMatches, setEventMatches] = useState<TBAMatch[]>([]);
+  const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
+  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
+  const [assignmentWarning, setAssignmentWarning] = useState('');
+  const [teamWarning, setTeamWarning] = useState('');
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
   const totalPoints = normalizedData.totalMatchPoints;
+  const currentMatchKey = useMemo(
+    () => buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber),
+    [normalizedData.matchNumber, normalizedData.matchType]
+  );
+  const selectedAssignment = useMemo(
+    () => getScoutAssignmentByName(normalizedData.assignedScoutName),
+    [normalizedData.assignedScoutName]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +188,165 @@ export default function MatchScoutV4View() {
     };
   }, [archiveUsername, normalizedData.eventKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const hydrateExistingBet = async () => {
+      if (!archiveUsername || !currentMatchKey) return;
+      try {
+        const bets = await listPowerCoinBets(normalizedData.eventKey);
+        const existingBet = bets.find(
+          bet =>
+            bet.matchKey === currentMatchKey &&
+            bet.scoutName.trim().toLowerCase() === archiveUsername.trim().toLowerCase()
+        );
+        if (!cancelled && existingBet) {
+          setBetGateOpen(true);
+          setBetSkipped(false);
+          setBetLockedMatchKey(currentMatchKey);
+          setBetSide(existingBet.side);
+          setBetAmount(existingBet.amount);
+        }
+      } catch (error) {
+        console.warn('Unable to check existing PowerCoin bet', error);
+      }
+    };
+    void hydrateExistingBet();
+    return () => {
+      cancelled = true;
+    };
+  }, [archiveUsername, currentMatchKey, normalizedData.eventKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMatches = async () => {
+      if (normalizedData.eventKey === 'TEST') {
+        setEventMatches([]);
+        setScheduledTeams([]);
+        setAssignmentWarning('');
+        setTeamWarning('');
+        return;
+      }
+
+      const cacheKey = `match_schedule_${sanitizeScheduleEventKey(normalizedData.eventKey)}`;
+      const cachedMatches = localStorage.getItem(cacheKey);
+      if (cachedMatches) {
+        try {
+          const parsed = JSON.parse(cachedMatches) as TBAMatch[];
+          if (!cancelled) {
+            setEventMatches(parsed);
+            const teams = new Set<string>();
+            parsed.forEach(match => {
+              match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+              match.alliances.blue.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+            });
+            setScheduledTeams(Array.from(teams));
+          }
+        } catch (error) {
+          console.error('Failed to parse cached V4 schedule', error);
+        }
+      }
+
+      if (!TBA_API_KEY) {
+        setAssignmentWarning('TBA API key missing. Schedule auto-fill is unavailable; team and alliance remain manual.');
+        return;
+      }
+
+      setIsLoadingSchedule(true);
+      try {
+        const engine = new MathEngine(TBA_API_KEY);
+        const matches = await engine.fetchEventMatches(normalizedData.eventKey, { includeUnplayed: true });
+        if (cancelled) return;
+        setEventMatches(matches);
+        localStorage.setItem(cacheKey, JSON.stringify(matches));
+
+        const teams = new Set<string>();
+        matches.forEach(match => {
+          match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+          match.alliances.blue.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+        });
+        setScheduledTeams(Array.from(teams));
+      } catch (error) {
+        console.error('Failed to fetch V4 scout schedule', error);
+        if (!cancelled && !cachedMatches) {
+          setAssignmentWarning('Unable to load the live schedule. Team number and alliance can still be entered manually.');
+        }
+      } finally {
+        if (!cancelled) setIsLoadingSchedule(false);
+      }
+    };
+
+    void fetchMatches();
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedData.eventKey]);
+
+  useEffect(() => {
+    const generatedMatchKey = buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber);
+    const assignment = selectedAssignment;
+
+    if (!assignment) {
+      updateData({ matchKey: generatedMatchKey });
+      setAssignmentWarning('');
+      return;
+    }
+
+    const scheduledMatch = eventMatches.find(match => getShortMatchKey(match) === generatedMatchKey.toLowerCase());
+    const allianceTeamKeys =
+      assignment.alliance === 'Red'
+        ? scheduledMatch?.alliances.red.team_keys || []
+        : scheduledMatch?.alliances.blue.team_keys || [];
+    const assignedTeamNumber = normalizeTeamKey(allianceTeamKeys[assignment.positionIndex] || '');
+
+    updateData({
+      matchKey: generatedMatchKey,
+      assignedSlot: assignment.slotLabel,
+      alliance: assignment.alliance,
+      teamNumber: assignedTeamNumber || normalizedData.teamNumber
+    });
+
+    if (normalizedData.eventKey === 'TEST') {
+      setAssignmentWarning('');
+      return;
+    }
+
+    if (!scheduledMatch) {
+      if (!isLoadingSchedule) {
+        setAssignmentWarning(`No scheduled ${generatedMatchKey.toUpperCase()} was found for ${normalizedData.eventKey}. Team number remains editable.`);
+      }
+      return;
+    }
+
+    if (!assignedTeamNumber) {
+      setAssignmentWarning(`No team is published yet for ${assignment.slotLabel} in ${generatedMatchKey.toUpperCase()}. Team number remains editable.`);
+      return;
+    }
+
+    setAssignmentWarning('');
+  }, [
+    eventMatches,
+    isLoadingSchedule,
+    normalizedData.eventKey,
+    normalizedData.matchNumber,
+    normalizedData.matchType,
+    normalizedData.teamNumber,
+    selectedAssignment
+  ]);
+
+  useEffect(() => {
+    if (normalizedData.eventKey === 'TEST' || scheduledTeams.length === 0 || !normalizedData.teamNumber) {
+      setTeamWarning('');
+      return;
+    }
+
+    if (!scheduledTeams.includes(normalizedData.teamNumber)) {
+      setTeamWarning(`Warning: Team ${normalizedData.teamNumber} is not currently listed in the ${normalizedData.eventKey} schedule.`);
+      return;
+    }
+
+    setTeamWarning('');
+  }, [normalizedData.eventKey, normalizedData.teamNumber, scheduledTeams]);
+
   const updateData = (patch: Partial<MatchScoutingV4>) => {
     setData(previous => normalizeMatchScoutingV4({ ...previous, ...patch }));
   };
@@ -184,19 +382,39 @@ export default function MatchScoutV4View() {
       return;
     }
 
-    const matchKey = buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber);
+    const matchKey = currentMatchKey;
+    const scoutName = archiveUsername || normalizedData.scoutName;
+    const existingBets = await listPowerCoinBets(normalizedData.eventKey).catch(() => []);
+    const existingBet = existingBets.find(
+      bet =>
+        bet.matchKey === matchKey &&
+        bet.scoutName.trim().toLowerCase() === scoutName.trim().toLowerCase()
+    );
+
+    if (existingBet) {
+      setBetGateOpen(true);
+      setBetSkipped(false);
+      setBetLockedMatchKey(matchKey);
+      setBetSide(existingBet.side);
+      setBetAmount(existingBet.amount);
+      setStatusMessage(`Existing PowerCoin bet is already locked: ${existingBet.amount} on ${existingBet.side}.`);
+      return;
+    }
+
     await upsertPowerCoinBet({
-      id: `${normalizedData.eventKey}_${matchKey}_${archiveUsername}_${Date.now()}`,
+      id: `${normalizedData.eventKey}_${matchKey}_${scoutName}`,
       eventKey: normalizedData.eventKey,
       matchKey,
       matchNumber: normalizedData.matchNumber,
       matchType: normalizedData.matchType,
-      scoutName: archiveUsername || normalizedData.scoutName,
+      scoutName,
       side: betSide,
       amount,
       placedAt: Date.now()
     });
     setBetGateOpen(true);
+    setBetSkipped(false);
+    setBetLockedMatchKey(matchKey);
     setPowerCoinBalance(balance => Math.max(0, balance - amount));
     setStatusMessage(`PowerCoins locked: ${amount} on ${betSide}.`);
   };
@@ -222,7 +440,7 @@ export default function MatchScoutV4View() {
     const payload = normalizeMatchScoutingV4({
       ...normalizedData,
       scoutName: archiveUsername,
-      matchKey: buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber),
+      matchKey: currentMatchKey,
       timestamp: Date.now(),
       deviceId
     });
@@ -255,6 +473,7 @@ export default function MatchScoutV4View() {
         setData(getDefaultData(deviceId, archiveUsername));
         setBetGateOpen(false);
         setBetSkipped(false);
+        setBetLockedMatchKey('');
         setStatusMessage(`Saved locally and synced to Firebase. ${writeResult.message}`);
       } catch (firebaseError) {
         await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
@@ -272,7 +491,7 @@ export default function MatchScoutV4View() {
     }
   };
 
-  const canOpenForm = betGateOpen || betSkipped;
+  const canOpenForm = (betGateOpen || betSkipped) && betLockedMatchKey === currentMatchKey;
 
   return (
     <div className="h-full overflow-y-auto bg-slate-950 px-4 py-6 text-white md:px-8">
@@ -423,6 +642,33 @@ export default function MatchScoutV4View() {
               </button>
             ))}
           </div>
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+            Assigned slot: <span className="font-black text-white">{normalizedData.assignedSlot || 'Select scout'}</span>
+            {' • '}
+            Actual scout: <span className="font-black text-white">{normalizedData.substituteScoutName || archiveUsername || normalizedData.scoutName || 'Unassigned'}</span>
+            {isLoadingSchedule && (
+              <span className="ml-3 inline-flex items-center gap-2 font-black text-cyan-300">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Loading schedule...
+              </span>
+            )}
+          </div>
+          {(assignmentWarning || teamWarning) && (
+            <div className="mt-4 space-y-2">
+              {assignmentWarning && (
+                <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {assignmentWarning}
+                </div>
+              )}
+              {teamWarning && (
+                <div className="flex items-start gap-2 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {teamWarning}
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {!canOpenForm && (
@@ -469,6 +715,8 @@ export default function MatchScoutV4View() {
               type="button"
               onClick={() => {
                 setBetSkipped(true);
+                setBetGateOpen(false);
+                setBetLockedMatchKey(currentMatchKey);
                 setStatusMessage('PowerCoins skipped for this form.');
               }}
               className="mt-3 rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700"

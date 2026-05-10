@@ -1,4 +1,4 @@
-import { MatchScoutingV3 } from '../types';
+import { MatchScoutingV3, MatchScoutingV3Alliance, MatchScoutingV3MatchType } from '../types';
 import { TBAMatch } from './mathEngine';
 import { getScoutAssignmentByName, getScoutAssignmentBySlot, SCOUT_ASSIGNMENTS } from './scoutAssignments';
 
@@ -8,13 +8,25 @@ export type MatchRowAnomaly =
   | 'unexpected_team'
   | 'duplicate_record';
 
+export interface MatchValidationLike {
+  id: string;
+  eventKey: string;
+  matchType: MatchScoutingV3MatchType;
+  matchKey: string;
+  matchNumber?: number;
+  teamNumber: string;
+  scoutName: string;
+  assignedScoutName: string;
+  assignedSlot: string;
+  substituteScoutName?: string;
+  alliance: MatchScoutingV3Alliance;
+}
+
 export interface MatchValidationRecordBase extends MatchScoutingV3 {
   id: string;
 }
 
-export interface MatchEditorRecord extends MatchValidationRecordBase {
-  id: string;
-}
+export interface MatchEditorRecord extends MatchValidationRecordBase {}
 
 export interface ExpectedMatchSlot {
   key: string;
@@ -25,21 +37,21 @@ export interface ExpectedMatchSlot {
   assignedScoutName: string;
 }
 
-export interface ValidatedMatchRow {
-  record: MatchEditorRecord;
+export interface ValidatedMatchRow<TRecord extends MatchValidationLike = MatchEditorRecord> {
+  record: TRecord;
   anomalies: MatchRowAnomaly[];
   expectedSlotLabel: string;
   expectedTeamNumber: string;
 }
 
-export interface MatchValidationGroup {
+export interface MatchValidationGroup<TRecord extends MatchValidationLike = MatchEditorRecord> {
   matchKey: string;
   displayMatchKey: string;
   scheduleKnown: boolean;
   warnings: string[];
   expectedSlots: ExpectedMatchSlot[];
   missingSlots: ExpectedMatchSlot[];
-  rows: ValidatedMatchRow[];
+  rows: ValidatedMatchRow<TRecord>[];
   sortIndex: number;
 }
 
@@ -106,7 +118,7 @@ const buildExpectedSlots = (match: TBAMatch): ExpectedMatchSlot[] => {
   return slots;
 };
 
-const rowMatchesSearch = (row: MatchEditorRecord, query: string) =>
+const rowMatchesSearch = (row: MatchValidationLike, query: string) =>
   row.matchKey.toLowerCase().includes(query) ||
   row.teamNumber.toLowerCase().includes(query) ||
   row.scoutName.toLowerCase().includes(query) ||
@@ -128,11 +140,11 @@ export const getRowAnomalyLabel = (anomaly: MatchRowAnomaly) => {
   }
 };
 
-export const buildMatchValidationGroups = (
-  records: MatchEditorRecord[],
+export const buildMatchValidationGroups = <TRecord extends MatchValidationLike = MatchEditorRecord>(
+  records: TRecord[],
   scheduleMatches: TBAMatch[]
-): MatchValidationGroup[] => {
-  const groups = new Map<string, MatchValidationGroup>();
+): MatchValidationGroup<TRecord>[] => {
+  const groups = new Map<string, MatchValidationGroup<TRecord>>();
 
   scheduleMatches.forEach(match => {
     const normalizedKey = normalizeMatchKey(match.key);
@@ -164,7 +176,7 @@ export const buildMatchValidationGroups = (
     }
   });
 
-  const rowsByMatch = new Map<string, MatchEditorRecord[]>();
+  const rowsByMatch = new Map<string, TRecord[]>();
   records.forEach(record => {
     const normalizedKey = normalizeMatchKey(record.matchKey);
     const bucket = rowsByMatch.get(normalizedKey) || [];
@@ -190,7 +202,7 @@ export const buildMatchValidationGroups = (
       }
     });
 
-    const validatedRows = rows.map<ValidatedMatchRow>(row => {
+    const validatedRows = rows.map<ValidatedMatchRow<TRecord>>(row => {
       const anomalies: MatchRowAnomaly[] = [];
       const assignmentByName = row.assignedScoutName ? getScoutAssignmentByName(row.assignedScoutName) : null;
       const assignmentBySlot = row.assignedSlot ? getScoutAssignmentBySlot(row.assignedSlot) : null;
@@ -286,7 +298,10 @@ export const buildMatchValidationGroups = (
   return Array.from(groups.values()).sort((left, right) => left.sortIndex - right.sortIndex);
 };
 
-export const filterMatchValidationGroups = (groups: MatchValidationGroup[], rawQuery: string) => {
+export const filterMatchValidationGroups = <TRecord extends MatchValidationLike = MatchEditorRecord>(
+  groups: MatchValidationGroup<TRecord>[],
+  rawQuery: string
+) => {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return groups;
 

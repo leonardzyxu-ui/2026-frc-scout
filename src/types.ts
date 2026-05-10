@@ -263,6 +263,14 @@ export interface ScoutAssignmentPlan {
     scoutName: string;
     priorityReason: string;
   }>;
+  coverageGaps?: Array<{
+    matchKey: string;
+    matchNumber: number;
+    matchType: MatchScoutingV3MatchType;
+    station: string;
+    teamNumber: string;
+    reason: string;
+  }>;
   exposureCounts: Record<string, Record<string, number>>;
 }
 
@@ -273,17 +281,52 @@ export interface ModelFeatureSnapshot {
   beforeMatchKey: string;
   createdAt: number;
   featuresByTeam: Record<string, Record<string, number>>;
+  matchSnapshots?: Array<{
+    matchKey: string;
+    matchNumber: number;
+    redTeams: string[];
+    blueTeams: string[];
+    featuresByTeam: Record<string, Record<string, number>>;
+  }>;
 }
 
 export interface ModelBacktestResult {
   modelName: string;
   sourceLabel: string;
+  eligibleForPromotion: boolean;
+  supportsTeamRatings: boolean;
+  leakageRisk: 'none' | 'medium' | 'high';
   matchesTested: number;
   winnerAccuracy: number;
+  averageConfidence: number;
+  brierScore: number;
   scoreMae: number;
   marginMae: number;
   calibrationError: number;
   lowConfidenceRate: number;
+  uncertaintyNote: string;
+  calibrationBins: ModelCalibrationBin[];
+}
+
+export interface ModelCalibrationBin {
+  modelName: string;
+  binLabel: string;
+  minConfidence: number;
+  maxConfidence: number;
+  matches: number;
+  predictedWinRate: number;
+  actualWinRate: number;
+  calibrationGap: number;
+}
+
+export interface ModelLabSnapshot {
+  id: string;
+  eventKey: string;
+  createdAt: number;
+  selectedPromotedModel: string;
+  selectedForecastModel: string;
+  ppaTeamCount: number;
+  modelResults: ModelBacktestResult[];
 }
 
 export interface TeamPerformanceProfile {
@@ -294,7 +337,13 @@ export interface TeamPerformanceProfile {
   lowestNonZeroScore: number | null;
   averageScore: number;
   standardDeviation: number;
+  floorScore: number;
+  ceilingScore: number;
+  projectedNextScore: number;
   volatility: number;
+  consistencyIndex: number;
+  upsetPotential: number;
+  zeroRate: number;
   reliability: number;
   recentTrend: number;
   ppc: number | null;
@@ -303,7 +352,39 @@ export interface TeamPerformanceProfile {
   epa: number | null;
   ppa: number | null;
   defenseImpact: number | null;
-  curve: Array<{ matchKey: string; matchNumber: number; score: number; rollingAverage: number; fittedScore: number }>;
+  normalLowScore: number;
+  normalHighScore: number;
+  curve: Array<{
+    matchKey: string;
+    matchNumber: number;
+    score: number;
+    rollingAverage: number;
+    fittedScore: number;
+    lowerBand: number;
+    upperBand: number;
+  }>;
+  modelCurve: Array<{
+    matchKey: string;
+    matchNumber: number;
+    ppcBefore: number;
+    rollingPpcBefore: number;
+    oprBefore: number;
+    rollingOprBefore: number;
+    epa: number | null;
+    ppa: number | null;
+  }>;
+}
+
+export interface ScoutCalibrationRow {
+  scoutName: string;
+  assignedScoutName: string;
+  rows: number;
+  matches: number;
+  totalScoutedPoints: number;
+  officialSharePoints: number;
+  averageOfficialMinusScout: number;
+  averageAbsoluteError: number;
+  biasLabel: 'over-counting' | 'under-counting' | 'balanced';
 }
 
 export interface DefenseAttributionRecord {
@@ -319,18 +400,58 @@ export interface DefenseAttributionRecord {
   source: 'scouted' | 'calibrated';
 }
 
+export interface StrategyRoleOption {
+  alliance: 'Red' | 'Blue';
+  label: string;
+  defenderTeamNumber: string;
+  ownScore: number;
+  opponentScore: number;
+  netMargin: number;
+  offenseCost: number;
+  defenseValue: number;
+  recommended: boolean;
+  rationale: string;
+}
+
+export interface StrategyAllianceRpPath {
+  alliance: 'Red' | 'Blue';
+  projectedRp: number;
+  winRp: number;
+  towerRp: number;
+  energizedRp: number;
+  superchargedRp: number;
+  towerMetric: number;
+  fuelMetric: number;
+  missingComponentTeams: string[];
+  note: string;
+}
+
 export interface StrategyMatchPlan {
   matchKey: string;
   matchNumber: number;
   matchType: MatchScoutingV3MatchType;
+  compLevel: string;
+  modelName: string;
+  modelSource: string;
+  modelLowConfidence: boolean;
   redTeams: string[];
   blueTeams: string[];
   baselineRedScore: number;
   baselineBlueScore: number;
+  optimizedRedScore: number;
+  optimizedBlueScore: number;
+  redDefenseSwing: number;
+  blueDefenseSwing: number;
   bestRedPlan: string;
   bestBluePlan: string;
+  redRoleOptions: StrategyRoleOption[];
+  blueRoleOptions: StrategyRoleOption[];
   predictedWinner: 'Red' | 'Blue' | 'Tie';
+  predictedMargin: number;
   confidence: number;
+  redRpPath: StrategyAllianceRpPath;
+  blueRpPath: StrategyAllianceRpPath;
+  opponentCounterStrategy: string;
   riskFlags: string[];
   winCondition: string;
 }

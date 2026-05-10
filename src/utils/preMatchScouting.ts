@@ -326,7 +326,8 @@ export async function fetchEventTeamNumbers(eventKey: string, tbaApiKey: string)
     throw new Error('ERROR: TBA API Key Missing');
   }
 
-  const teams = await fetchTbaJson<TBATeamSimple[]>(`/event/${eventKey}/teams/simple`, tbaApiKey);
+  const normalizedEventKey = eventKey.trim().toLowerCase();
+  const teams = await fetchTbaJson<TBATeamSimple[]>(`/event/${normalizedEventKey}/teams/simple`, tbaApiKey);
   if (!teams || teams.length === 0) {
     throw new Error('No event teams were found in TBA for this event.');
   }
@@ -341,7 +342,8 @@ export async function fetchEventTeamsSimple(eventKey: string, tbaApiKey: string)
     throw new Error('ERROR: TBA API Key Missing');
   }
 
-  const teams = await fetchTbaJson<TBATeamSimple[]>(`/event/${eventKey}/teams/simple`, tbaApiKey);
+  const normalizedEventKey = eventKey.trim().toLowerCase();
+  const teams = await fetchTbaJson<TBATeamSimple[]>(`/event/${normalizedEventKey}/teams/simple`, tbaApiKey);
   if (!teams || teams.length === 0) {
     throw new Error('No event teams were found in TBA for this event.');
   }

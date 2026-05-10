@@ -4,7 +4,17 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { decompressScoutingData, ScoutingImportRecord } from '../utils/qrCompression';
 import { ArrowLeft, AlertTriangle, Database, ScanLine, Trash2, Upload, X } from 'lucide-react';
 import { writeMatchDefenseScoutingRecord, writeMatchScoutingV3Record, writeMatchScoutingV4Record, writePitScoutingRecord } from '../utils/scoutingWrites';
-import { isScoutArchiveBundle, ScoutArchiveRecord } from '../utils/scoutArchive';
+import {
+  importScoutArchiveBundleLocally,
+  isScoutArchiveBundle,
+  ScoutArchiveRecord,
+  ScoutArchiveSource,
+  updateScoutArchiveRecordSyncState,
+  upsertMatchArchiveRecordV3,
+  upsertMatchArchiveRecordV4,
+  upsertMatchDefenseArchiveRecord,
+  upsertPitArchiveRecord
+} from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
 import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
@@ -17,6 +27,7 @@ interface StagedImportItem {
   logicalKey: string;
   versionTimestamp: number;
   record: ScoutingImportRecord;
+  source: ScoutArchiveSource;
   status: ImportStatus;
   message: string;
 }
@@ -74,6 +85,11 @@ const getRecordTimestamp = (record: ScoutingImportRecord) =>
     ? record.data.timestamp || 0
     : record.data.timestamp || 0;
 
+const getRecordScoutName = (record: ScoutingImportRecord) =>
+  record.recordType === 'pit'
+    ? record.data.scoutName || 'Imported Scout'
+    : record.data.scoutName || record.data.substituteScoutName || record.data.assignedScoutName || 'Imported Scout';
+
 const hashRecord = (record: ScoutingImportRecord) => {
   if (record.recordType === 'match') {
     const match = record.data;
@@ -95,6 +111,28 @@ const hashRecord = (record: ScoutingImportRecord) => {
 };
 
 const makeStageId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+const upsertImportArchiveRecord = async (
+  record: ScoutingImportRecord,
+  source: ScoutArchiveSource,
+  syncState: Parameters<typeof upsertMatchArchiveRecordV3>[3]
+) => {
+  const username = getRecordScoutName(record);
+
+  if (record.recordType === 'match') {
+    return await upsertMatchArchiveRecordV3(record.data, username, source, syncState);
+  }
+
+  if (record.recordType === 'matchV4') {
+    return await upsertMatchArchiveRecordV4(record.data, username, source, syncState);
+  }
+
+  if (record.recordType === 'matchDefense') {
+    return await upsertMatchDefenseArchiveRecord(record.data, username, source, syncState);
+  }
+
+  return await upsertPitArchiveRecord(record.eventKey, record.data, username, source, syncState);
+};
 
 export default function QRScannerView({
   isEmbedded = false,
@@ -141,7 +179,7 @@ export default function QRScannerView({
     }
   };
 
-  const addStagedRecord = (record: ScoutingImportRecord) => {
+  const addStagedRecord = (record: ScoutingImportRecord, source: ScoutArchiveSource = 'qr_import') => {
     const currentStagedData = stagedDataRef.current;
     const nextHash = hashRecord(record);
     const nextLogicalKey = getLogicalKey(record);
@@ -164,6 +202,7 @@ export default function QRScannerView({
                 logicalKey: nextLogicalKey,
                 versionTimestamp: nextTimestamp,
                 record,
+                source,
                 status: 'pending' as const,
                 message: `Replaced older staged version for ${getTargetCollection(record)}`
               }
@@ -182,6 +221,7 @@ export default function QRScannerView({
       logicalKey: nextLogicalKey,
       versionTimestamp: nextTimestamp,
       record,
+      source,
       status: 'pending' as const,
       message: `Ready for ${getTargetCollection(record)}`
     };
@@ -195,10 +235,10 @@ export default function QRScannerView({
     return 'added';
   };
 
-  const processDecodedText = (decodedText: string) => {
+  const processDecodedText = (decodedText: string, source: ScoutArchiveSource = 'qr_import') => {
     const parsed = decompressScoutingData(decodedText);
     if (!parsed) return false;
-    return addStagedRecord(parsed);
+    return addStagedRecord(parsed, source);
   };
 
   const handleScanSuccess = async (decodedText: string) => {
@@ -274,25 +314,26 @@ export default function QRScannerView({
           if (Array.isArray(parsed)) {
             for (const item of parsed) {
               if (typeof item === 'string' && decompressScoutingData(item)) {
-                const added = processDecodedText(item);
+                const added = processDecodedText(item, 'json_import');
                 if (added === 'added' || added === 'replaced') successCount += 1;
                 else duplicateCount += 1;
               } else if (isMatchScoutingV4(item)) {
-                const outcome = addStagedRecord(toMatchV4ImportRecord(item));
+                const outcome = addStagedRecord(toMatchV4ImportRecord(item), 'json_import');
                 if (outcome === 'added' || outcome === 'replaced') successCount += 1;
                 else duplicateCount += 1;
               } else if (isMatchScoutingV3(item)) {
-                const outcome = addStagedRecord(toMatchImportRecord(item));
+                const outcome = addStagedRecord(toMatchImportRecord(item), 'json_import');
                 if (outcome === 'added' || outcome === 'replaced') successCount += 1;
                 else duplicateCount += 1;
               } else if (item && typeof item === 'object' && (item as MatchDefenseScoutingV1).schemaVersion === 'defense-v1') {
-                const outcome = addStagedRecord(toMatchDefenseImportRecord(item as MatchDefenseScoutingV1));
+                const outcome = addStagedRecord(toMatchDefenseImportRecord(item as MatchDefenseScoutingV1), 'json_import');
                 if (outcome === 'added' || outcome === 'replaced') successCount += 1;
                 else duplicateCount += 1;
               }
             }
           } else if (isScoutArchiveBundle(parsed)) {
             let deletedCount = 0;
+            const restoreResult = await importScoutArchiveBundleLocally(parsed);
             parsed.records.forEach((archiveRecord: ScoutArchiveRecord) => {
               if (archiveRecord.deleted) {
                 deletedCount += 1;
@@ -313,23 +354,26 @@ export default function QRScannerView({
                 duplicateCount += 1;
                 return;
               }
-              const outcome = addStagedRecord(importRecord);
+              const outcome = addStagedRecord(importRecord, 'json_import');
               if (outcome === 'added' || outcome === 'replaced') successCount += 1;
               else duplicateCount += 1;
             });
-            if (deletedCount > 0) {
-              setLogMsg(`Skipped ${deletedCount} deleted record${deletedCount === 1 ? '' : 's'} from the JSON archive.`);
+            const restoredPowerCoinItems = restoreResult.powerCoinBetsImported + restoreResult.powerCoinLedgerImported;
+            if (deletedCount > 0 || restoredPowerCoinItems > 0) {
+              setLogMsg(
+                `Restored ${restoreResult.imported} local archive record${restoreResult.imported === 1 ? '' : 's'} and ${restoredPowerCoinItems} PowerCoin item${restoredPowerCoinItems === 1 ? '' : 's'}. Skipped ${deletedCount} deleted record${deletedCount === 1 ? '' : 's'} from staging.`
+              );
             }
           } else if (isMatchScoutingV4(parsed)) {
-            const outcome = addStagedRecord(toMatchV4ImportRecord(parsed));
+            const outcome = addStagedRecord(toMatchV4ImportRecord(parsed), 'json_import');
             if (outcome === 'added' || outcome === 'replaced') successCount += 1;
             else duplicateCount += 1;
           } else if (isMatchScoutingV3(parsed)) {
-            const outcome = addStagedRecord(toMatchImportRecord(parsed));
+            const outcome = addStagedRecord(toMatchImportRecord(parsed), 'json_import');
             if (outcome === 'added' || outcome === 'replaced') successCount += 1;
             else duplicateCount += 1;
           } else if (parsed && typeof parsed === 'object' && (parsed as MatchDefenseScoutingV1).schemaVersion === 'defense-v1') {
-            const outcome = addStagedRecord(toMatchDefenseImportRecord(parsed as MatchDefenseScoutingV1));
+            const outcome = addStagedRecord(toMatchDefenseImportRecord(parsed as MatchDefenseScoutingV1), 'json_import');
             if (outcome === 'added' || outcome === 'replaced') successCount += 1;
             else duplicateCount += 1;
           }
@@ -374,6 +418,13 @@ export default function QRScannerView({
       }
 
       try {
+        const attemptAt = Date.now();
+        const archiveRecord = await upsertImportArchiveRecord(item.record, item.source, {
+          syncStatus: 'pending_sync',
+          lastFirebaseAttemptAt: attemptAt,
+          lastFirebaseError: ''
+        });
+
         const writeResult =
           item.record.recordType === 'match'
             ? await writeMatchScoutingV3Record(item.record.data, { mode: 'strict' })
@@ -384,21 +435,50 @@ export default function QRScannerView({
                 : await writePitScoutingRecord(item.record.eventKey, item.record.data, { mode: 'strict' });
 
         if (writeResult.outcome === 'duplicate') {
+          await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+            syncStatus: 'synced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: ''
+          });
           duplicateCount += 1;
           updatedItems.push({ ...item, status: 'duplicate', message: writeResult.message });
           continue;
         }
 
         if (writeResult.outcome === 'conflict') {
+          await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+            syncStatus: 'unsynced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: writeResult.message
+          });
           conflictCount += 1;
           updatedItems.push({ ...item, status: 'conflict', message: writeResult.message });
           continue;
         }
 
+        await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+          syncStatus: 'synced',
+          lastFirebaseAttemptAt: Date.now(),
+          lastFirebaseError: ''
+        });
         uploadedCount += 1;
         updatedItems.push({ ...item, status: 'uploaded', message: writeResult.message });
       } catch (error) {
         console.error('Error uploading staged scouting data', error);
+        try {
+          const archiveRecord = await upsertImportArchiveRecord(item.record, item.source, {
+            syncStatus: 'unsynced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: error instanceof Error ? error.message : 'Upload failed.'
+          });
+          await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+            syncStatus: 'unsynced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: error instanceof Error ? error.message : 'Upload failed.'
+          });
+        } catch (archiveError) {
+          console.error('Error preserving staged import in local archive', archiveError);
+        }
         failCount += 1;
         updatedItems.push({
           ...item,

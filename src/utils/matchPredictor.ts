@@ -1,4 +1,5 @@
 import { TBAMatch, TBAScoreBreakdownAlliance } from './mathEngine';
+import { rebuilt2026GameAdapter } from './seasonGameAdapter';
 
 export interface TBAEventSummary {
   key: string;
@@ -615,45 +616,13 @@ const getActualRankingPoints = (
     };
   }
 
-  const towerMetric =
-    getNumericBreakdownValue(breakdown, [
-      'tower_epa',
-      'tower_points',
-      'towerPoints',
-      'tower_progress',
-      'towerProgress'
-    ]) ??
-    getNumericBreakdownValue(breakdown, ['endgame_points', 'endGamePoints']) ??
-    getNumericBreakdownValue(breakdown, ['total_tower', 'tower']) ??
-    0;
-
-  const fuelMetric =
-    getNumericBreakdownValue(breakdown, [
-      'fuel_epa',
-      'fuel_points',
-      'fuelPoints',
-      'fuel_progress',
-      'fuelProgress',
-      'total_fuel',
-      'fuel'
-    ]) ?? 0;
-
-  if (towerMetric > 50) {
-    towerRp = 1;
-  }
-  if (fuelMetric > 100) {
-    energizedRp = 1;
-  }
-  if (fuelMetric > 360) {
-    superchargedRp = 1;
-  }
-
+  const adaptedRp = rebuilt2026GameAdapter.calculateRankingPoints(
+    winRp > 0,
+    rebuilt2026GameAdapter.getBonusMetricsFromBreakdown(breakdown)
+  );
   return {
-    totalRp: winRp + towerRp + energizedRp + superchargedRp,
-    winRp,
-    towerRp,
-    energizedRp,
-    superchargedRp
+    ...adaptedRp,
+    winRp
   };
 };
 
@@ -678,26 +647,25 @@ const applyFutureQualificationRp = (
   bonusMetrics: QualificationBonusMetrics | null,
   isWinner: boolean
 ) => {
+  const projectedRp = rebuilt2026GameAdapter.calculateRankingPoints(
+    isWinner,
+    bonusMetrics
+      ? {
+          towerMetric: bonusMetrics.towerEPA,
+          fuelMetric: bonusMetrics.fuelEPA
+        }
+      : null
+  );
+
   if (isWinner) {
-    accumulator.projectedWinRp += 3;
-    accumulator.projectedTotalRp += 3;
     accumulator.wins += 1;
   }
 
-  if (bonusMetrics) {
-    if (bonusMetrics.towerEPA > 50) {
-      accumulator.projectedTowerRp += 1;
-      accumulator.projectedTotalRp += 1;
-    }
-    if (bonusMetrics.fuelEPA > 100) {
-      accumulator.projectedEnergizedRp += 1;
-      accumulator.projectedTotalRp += 1;
-    }
-    if (bonusMetrics.fuelEPA > 360) {
-      accumulator.projectedSuperchargedRp += 1;
-      accumulator.projectedTotalRp += 1;
-    }
-  }
+  accumulator.projectedWinRp += projectedRp.winRp;
+  accumulator.projectedTowerRp += projectedRp.towerRp;
+  accumulator.projectedEnergizedRp += projectedRp.energizedRp;
+  accumulator.projectedSuperchargedRp += projectedRp.superchargedRp;
+  accumulator.projectedTotalRp += projectedRp.totalRp;
 };
 
 const getQualificationTeamNumbers = (matches: TBAMatch[]) =>
