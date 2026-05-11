@@ -20,6 +20,7 @@ import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
+const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
 const SUBSTITUTES = ['Charlotte', 'Scarlett'] as const;
 const ROLE_OPTIONS: MatchScoutingV4Role[] = ['Offense', 'Defense', 'Mixed', 'Support', 'Disabled'];
 const sanitizeScheduleEventKey = (value: string) => value.toUpperCase().replace(/\s+/g, '');
@@ -125,6 +126,8 @@ export default function MatchScoutV4View() {
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [assignmentWarning, setAssignmentWarning] = useState('');
   const [teamWarning, setTeamWarning] = useState('');
+  const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
+  const [teamManuallyEdited, setTeamManuallyEdited] = useState(false);
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
   const totalPoints = normalizedData.totalMatchPoints;
@@ -143,10 +146,16 @@ export default function MatchScoutV4View() {
       try {
         const username = await getScoutArchiveUsername();
         const draftText = localStorage.getItem(DRAFT_KEY);
+        const editMode = !!draftText && localStorage.getItem(EDIT_MODE_KEY) === 'true';
+        if (!draftText) {
+          localStorage.removeItem(EDIT_MODE_KEY);
+        }
         const draft = draftText ? JSON.parse(draftText) as Partial<MatchScoutingV4> : null;
         if (cancelled) return;
         setArchiveUsername(username || '');
         setPendingUsername(username || '');
+        setIsEditingExistingRecord(editMode);
+        setTeamManuallyEdited(Boolean(draft?.teamNumber));
         setData(normalizeMatchScoutingV4({
           ...getDefaultData(deviceId, username || ''),
           ...(draft || {}),
@@ -302,7 +311,7 @@ export default function MatchScoutV4View() {
       matchKey: generatedMatchKey,
       assignedSlot: assignment.slotLabel,
       alliance: assignment.alliance,
-      teamNumber: assignedTeamNumber || normalizedData.teamNumber
+      teamNumber: !teamManuallyEdited && assignedTeamNumber ? assignedTeamNumber : normalizedData.teamNumber
     });
 
     if (normalizedData.eventKey === 'TEST') {
@@ -330,7 +339,8 @@ export default function MatchScoutV4View() {
     normalizedData.matchNumber,
     normalizedData.matchType,
     normalizedData.teamNumber,
-    selectedAssignment
+    selectedAssignment,
+    teamManuallyEdited
   ]);
 
   useEffect(() => {
@@ -373,17 +383,25 @@ export default function MatchScoutV4View() {
       alliance: assignment.alliance,
       substituteScoutName: ''
     });
+    setTeamManuallyEdited(false);
   };
 
   const handleBetSubmit = async () => {
-    const amount = Math.max(1, Math.min(powerCoinBalance, Math.round(betAmount)));
-    if (amount <= 0) {
+    if (powerCoinBalance < 1) {
+      setStatusMessage('No PowerCoins available for betting. Skip betting to open the form.');
+      return;
+    }
+
+    const requestedAmount = Number.isFinite(betAmount) ? Math.round(betAmount) : 0;
+    if (requestedAmount < 1) {
       setStatusMessage('PowerCoin bet must be at least 1 coin.');
       return;
     }
 
+    const amount = Math.min(powerCoinBalance, requestedAmount);
+
     const matchKey = currentMatchKey;
-    const scoutName = archiveUsername || normalizedData.scoutName;
+    const scoutName = (archiveUsername || normalizedData.scoutName).trim();
     const existingBets = await listPowerCoinBets(normalizedData.eventKey).catch(() => []);
     const existingBet = existingBets.find(
       bet =>
@@ -427,6 +445,26 @@ export default function MatchScoutV4View() {
     return '';
   };
 
+  const buildCurrentPayload = (scoutNameOverride = archiveUsername) =>
+    normalizeMatchScoutingV4({
+      ...normalizedData,
+      scoutName: scoutNameOverride.trim(),
+      matchKey: currentMatchKey,
+      timestamp: Date.now(),
+      deviceId
+    });
+
+  const resetFormAfterLocalSave = (scoutName = archiveUsername) => {
+    localStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(EDIT_MODE_KEY);
+    setIsEditingExistingRecord(false);
+    setData(getDefaultData(deviceId, scoutName));
+    setTeamManuallyEdited(false);
+    setBetGateOpen(false);
+    setBetSkipped(false);
+    setBetLockedMatchKey('');
+  };
+
   const handleSubmit = async () => {
     const validationError = validate();
     if (validationError) {
@@ -437,29 +475,30 @@ export default function MatchScoutV4View() {
     setIsSubmitting(true);
     setStatusMessage('Saving locally first...');
 
-    const payload = normalizeMatchScoutingV4({
-      ...normalizedData,
-      scoutName: archiveUsername,
-      matchKey: currentMatchKey,
-      timestamp: Date.now(),
-      deviceId
-    });
+    const scoutName = archiveUsername.trim();
 
     try {
-      const archiveRecord = await upsertMatchArchiveRecordV4(payload, archiveUsername, 'local_submit', {
+      await setScoutArchiveUsername(scoutName);
+      setArchiveUsername(scoutName);
+      setPendingUsername(scoutName);
+
+      const payload = buildCurrentPayload(scoutName);
+      const archiveRecord = await upsertMatchArchiveRecordV4(payload, scoutName, 'local_submit', {
         syncStatus: 'pending_sync',
+        syncMode: isEditingExistingRecord ? 'replace' : 'strict',
         lastFirebaseAttemptAt: Date.now(),
         lastFirebaseError: ''
       });
 
       try {
-        const writeResult = await writeMatchScoutingV4Record(payload, { mode: 'strict' });
+        const writeResult = await writeMatchScoutingV4Record(payload, { mode: isEditingExistingRecord ? 'replace' : 'strict' });
         if (writeResult.outcome === 'conflict') {
           await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
             syncStatus: 'unsynced',
             lastFirebaseAttemptAt: Date.now(),
             lastFirebaseError: writeResult.message
           });
+          resetFormAfterLocalSave(scoutName);
           setStatusMessage(`Saved locally. Firebase conflict blocked: ${writeResult.message}`);
           return;
         }
@@ -469,11 +508,7 @@ export default function MatchScoutV4View() {
           lastFirebaseAttemptAt: Date.now(),
           lastFirebaseError: ''
         });
-        localStorage.removeItem(DRAFT_KEY);
-        setData(getDefaultData(deviceId, archiveUsername));
-        setBetGateOpen(false);
-        setBetSkipped(false);
-        setBetLockedMatchKey('');
+        resetFormAfterLocalSave(scoutName);
         setStatusMessage(`Saved locally and synced to Firebase. ${writeResult.message}`);
       } catch (firebaseError) {
         await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
@@ -481,6 +516,7 @@ export default function MatchScoutV4View() {
           lastFirebaseAttemptAt: Date.now(),
           lastFirebaseError: firebaseError instanceof Error ? firebaseError.message : 'Firebase sync failed.'
         });
+        resetFormAfterLocalSave(scoutName);
         setStatusMessage('Saved locally in My History. Firebase failed, so this record is marked unsynced and remains exportable.');
       }
     } catch (localError) {
@@ -492,10 +528,11 @@ export default function MatchScoutV4View() {
   };
 
   const canOpenForm = (betGateOpen || betSkipped) && betLockedMatchKey === currentMatchKey;
+  const showUsernameGate = isUsernameResolved && !archiveUsername;
 
   return (
     <div className="h-full overflow-y-auto bg-slate-950 px-4 py-6 text-white md:px-8">
-      {isUsernameResolved && !archiveUsername && (
+      {showUsernameGate && (
         <ScoutUsernameGate
           pendingUsername={pendingUsername}
           setPendingUsername={setPendingUsername}
@@ -503,7 +540,10 @@ export default function MatchScoutV4View() {
         />
       )}
 
-      <div className="mx-auto max-w-6xl space-y-6 pb-24">
+      <div
+        aria-hidden={showUsernameGate}
+        className={`mx-auto max-w-6xl space-y-6 pb-24 ${showUsernameGate ? 'pointer-events-none select-none blur-sm' : ''}`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div>
             <button
@@ -518,6 +558,11 @@ export default function MatchScoutV4View() {
             <p className="mt-1 text-sm font-semibold text-slate-400">
               Full offense, defense, reliability, and strategy notes. Local-first before Firebase.
             </p>
+            {isEditingExistingRecord && (
+              <div className="mt-3 inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-100">
+                Editing existing V4 dataset
+              </div>
+            )}
           </div>
           <div className="rounded-3xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-4 text-right">
             <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Total Match Points</div>
@@ -536,32 +581,41 @@ export default function MatchScoutV4View() {
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">Event</span>
             <input
               value={normalizedData.eventKey}
-              onChange={event => updateData({ eventKey: event.target.value })}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-cyan-400"
+              readOnly
+              className="w-full rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
             />
+            <span className="block text-[11px] font-semibold text-slate-500">
+              Scout event is locked locally; Admin V2 settings do not change scout submissions.
+            </span>
           </label>
-          <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Match Type</span>
+          <div className="space-y-2">
+            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Match Type</div>
             <div className="grid grid-cols-2 gap-2">
               {(['Practice', 'Qualification'] as const).map(matchType => (
                 <button
                   key={matchType}
                   type="button"
-                  onClick={() => updateData({ matchType, matchKey: buildMatchKeyV4(matchType, normalizedData.matchNumber) })}
+                  onClick={() => {
+                    setTeamManuallyEdited(false);
+                    updateData({ matchType, matchKey: buildMatchKeyV4(matchType, normalizedData.matchNumber) });
+                  }}
                   className={`rounded-2xl px-4 py-3 font-black ${normalizedData.matchType === matchType ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {matchType}
                 </button>
               ))}
             </div>
-          </label>
+          </div>
           <label className="space-y-2">
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">Match Number</span>
             <input
               type="number"
               min={1}
               value={normalizedData.matchNumber}
-              onChange={event => updateData({ matchNumber: Number(event.target.value), matchKey: buildMatchKeyV4(normalizedData.matchType, Number(event.target.value)) })}
+              onChange={event => {
+                setTeamManuallyEdited(false);
+                updateData({ matchNumber: Number(event.target.value), matchKey: buildMatchKeyV4(normalizedData.matchType, Number(event.target.value)) });
+              }}
               className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-cyan-400"
             />
           </label>
@@ -582,12 +636,15 @@ export default function MatchScoutV4View() {
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">Team Number</span>
             <input
               value={normalizedData.teamNumber}
-              onChange={event => updateData({ teamNumber: event.target.value.replace(/[^\d]/g, '') })}
+              onChange={event => {
+                setTeamManuallyEdited(true);
+                updateData({ teamNumber: event.target.value.replace(/[^\d]/g, '') });
+              }}
               className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-xl font-black text-white outline-none focus:border-cyan-400"
             />
           </label>
-          <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Alliance</span>
+          <div className="space-y-2">
+            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Alliance</div>
             <div className="grid grid-cols-2 gap-2">
               {(['Red', 'Blue'] as const).map(alliance => (
                 <button
@@ -600,7 +657,7 @@ export default function MatchScoutV4View() {
                 </button>
               ))}
             </div>
-          </label>
+          </div>
         </section>
 
         <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5">
@@ -876,7 +933,7 @@ export default function MatchScoutV4View() {
             {showQr && (
               <div className="rounded-3xl border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
                 <div className="mx-auto inline-block rounded-3xl bg-white p-4">
-                  <QRCodeSVG value={compressMatchDataV4(normalizedData)} size={260} level="M" />
+                  <QRCodeSVG value={compressMatchDataV4(buildCurrentPayload())} size={260} level="M" />
                 </div>
                 <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
                   <Download className="h-4 w-4" />

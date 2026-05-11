@@ -6,14 +6,17 @@ export interface TeamHistoricalAverageRow {
   matchesPlayed: number;
   avgTotalMatchPoints: number;
   avgAutoPoints: number;
+  avgAutoCycles: number;
   avgTeleopPoints: number;
   avgTeleopCycles: number;
+  avgEndgamePoints: number;
   avgContributionScore: number;
   avgCloseAccuracy: number;
   avgMiddleAccuracy: number;
   avgFarAccuracy: number;
   avgDriverSkill: number;
   avgTeamwork: number;
+  avgReliabilityScore: number;
 }
 
 export interface PredictedAllianceScore {
@@ -70,14 +73,17 @@ export const buildTeamHistoricalAverages = (records: MatchScoutingV3[]): TeamHis
         matchesPlayed,
         avgTotalMatchPoints: divide(teamRecords.reduce((sum, record) => sum + record.totalMatchPoints, 0)),
         avgAutoPoints: divide(teamRecords.reduce((sum, record) => sum + record.autoPoints, 0)),
+        avgAutoCycles: 0,
         avgTeleopPoints: divide(teamRecords.reduce((sum, record) => sum + record.teleopPoints, 0)),
         avgTeleopCycles: divide(teamRecords.reduce((sum, record) => sum + record.teleopCycles, 0)),
+        avgEndgamePoints: 0,
         avgContributionScore: divide(teamRecords.reduce((sum, record) => sum + record.contributionScore, 0)),
         avgCloseAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.closeAccuracy, 0)),
         avgMiddleAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.middleAccuracy, 0)),
         avgFarAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.farAccuracy, 0)),
         avgDriverSkill: divide(teamRecords.reduce((sum, record) => sum + record.driverSkill, 0)),
-        avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0))
+        avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0)),
+        avgReliabilityScore: 0
       };
     })
     .sort((left, right) => {
@@ -91,21 +97,52 @@ export const buildTeamHistoricalAveragesV4Aware = (
   v3Records: MatchScoutingV3[],
   v4Records: MatchScoutingV4[]
 ): TeamHistoricalAverageRow[] => {
-  const buckets = new Map<string, Array<{ total: number; auto: number; teleop: number; cycles: number; contribution: number; close: number; middle: number; far: number; driver: number; teamwork: number }>>();
+  const buckets = new Map<string, Array<{
+    total: number;
+    auto: number;
+    autoCycles: number;
+    teleop: number;
+    teleopCycles: number;
+    endgame: number;
+    contribution: number;
+    close: number;
+    middle: number;
+    far: number;
+    driver: number;
+    teamwork: number;
+    reliability: number;
+  }>>();
 
-  const addRecord = (teamNumber: string, values: { total: number; auto: number; teleop: number; cycles: number; contribution?: number; close?: number; middle?: number; far?: number; driver?: number; teamwork?: number }) => {
+  const addRecord = (teamNumber: string, values: {
+    total: number;
+    auto: number;
+    autoCycles?: number;
+    teleop: number;
+    teleopCycles: number;
+    endgame?: number;
+    contribution?: number;
+    close?: number;
+    middle?: number;
+    far?: number;
+    driver?: number;
+    teamwork?: number;
+    reliability?: number;
+  }) => {
     const bucket = buckets.get(teamNumber) || [];
     bucket.push({
       total: values.total,
       auto: values.auto,
+      autoCycles: values.autoCycles ?? 0,
       teleop: values.teleop,
-      cycles: values.cycles,
+      teleopCycles: values.teleopCycles,
+      endgame: values.endgame ?? 0,
       contribution: values.contribution ?? 0,
       close: values.close ?? 0,
       middle: values.middle ?? 0,
       far: values.far ?? 0,
       driver: values.driver ?? 0,
-      teamwork: values.teamwork ?? 0
+      teamwork: values.teamwork ?? 0,
+      reliability: values.reliability ?? 0
     });
     buckets.set(teamNumber, bucket);
   };
@@ -113,8 +150,10 @@ export const buildTeamHistoricalAveragesV4Aware = (
   v3Records.forEach(record => addRecord(record.teamNumber, {
     total: record.totalMatchPoints,
     auto: record.autoPoints,
+    autoCycles: 0,
     teleop: record.teleopPoints,
-    cycles: record.teleopCycles,
+    teleopCycles: record.teleopCycles,
+    endgame: 0,
     contribution: record.contributionScore,
     close: record.closeAccuracy,
     middle: record.middleAccuracy,
@@ -126,11 +165,14 @@ export const buildTeamHistoricalAveragesV4Aware = (
   v4Records.forEach(record => addRecord(record.teamNumber, {
     total: record.totalMatchPoints,
     auto: record.autoPoints,
-    teleop: record.teleopPoints + record.endgamePoints,
-    cycles: record.teleopCycles + record.autoCycles,
+    autoCycles: record.autoCycles,
+    teleop: record.teleopPoints,
+    teleopCycles: record.teleopCycles,
+    endgame: record.endgamePoints,
     contribution: record.reliabilityScore * 10,
     driver: record.reliabilityScore * 10,
-    teamwork: record.rolePlayed === 'Support' || record.rolePlayed === 'Mixed' ? 8 : 0
+    teamwork: record.rolePlayed === 'Support' || record.rolePlayed === 'Mixed' ? 8 : 0,
+    reliability: record.reliabilityScore
   }));
 
   return Array.from(buckets.entries())
@@ -143,14 +185,17 @@ export const buildTeamHistoricalAveragesV4Aware = (
         matchesPlayed,
         avgTotalMatchPoints: divide(teamRecords.reduce((sum, record) => sum + record.total, 0)),
         avgAutoPoints: divide(teamRecords.reduce((sum, record) => sum + record.auto, 0)),
+        avgAutoCycles: divide(teamRecords.reduce((sum, record) => sum + record.autoCycles, 0)),
         avgTeleopPoints: divide(teamRecords.reduce((sum, record) => sum + record.teleop, 0)),
-        avgTeleopCycles: divide(teamRecords.reduce((sum, record) => sum + record.cycles, 0)),
+        avgTeleopCycles: divide(teamRecords.reduce((sum, record) => sum + record.teleopCycles, 0)),
+        avgEndgamePoints: divide(teamRecords.reduce((sum, record) => sum + record.endgame, 0)),
         avgContributionScore: divide(teamRecords.reduce((sum, record) => sum + record.contribution, 0)),
         avgCloseAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.close, 0)),
         avgMiddleAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.middle, 0)),
         avgFarAccuracy: divide(teamRecords.reduce((sum, record) => sum + record.far, 0)),
         avgDriverSkill: divide(teamRecords.reduce((sum, record) => sum + record.driver, 0)),
-        avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0))
+        avgTeamwork: divide(teamRecords.reduce((sum, record) => sum + record.teamwork, 0)),
+        avgReliabilityScore: divide(teamRecords.reduce((sum, record) => sum + record.reliability, 0))
       };
     })
     .sort((left, right) => {

@@ -24,6 +24,12 @@ export default function ScoutUsernameGate({
             type="text"
             value={pendingUsername}
             onChange={(event) => setPendingUsername(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                onSave();
+              }
+            }}
             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
             placeholder="Required"
             autoFocus

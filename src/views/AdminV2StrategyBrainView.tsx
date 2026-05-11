@@ -34,6 +34,7 @@ import {
   optimizeScoutAssignments
 } from '../utils/strategyBrain';
 import {
+  AdminV2CacheEntry,
   FirstEventsCredentials,
   clearFirstEventsCredentials,
   getPowerCoinBalance,
@@ -54,6 +55,7 @@ import {
   upsertPowerCoinLedgerEntry
 } from '../utils/adminV2LocalStore';
 import { fetchAndCacheFirstEventBundle, getYearFromEventKey } from '../utils/firstEventsApi';
+import PredictionActualTrendPanel from '../components/admin/PredictionActualTrendPanel';
 
 type StrategyBrainTab = 'foundation' | 'models' | 'profiles' | 'strategy' | 'alliance' | 'scoutOps';
 
@@ -272,6 +274,7 @@ export default function AdminV2StrategyBrainView({
   const [activeTab, setActiveTab] = useState<StrategyBrainTab>('foundation');
   const [firstCredentials, setFirstCredentials] = useState<FirstEventsCredentials | null>(null);
   const [cacheCount, setCacheCount] = useState(0);
+  const [cacheEntries, setCacheEntries] = useState<AdminV2CacheEntry[]>([]);
   const [firstStatus, setFirstStatus] = useState('');
   const [firstError, setFirstError] = useState('');
   const [scoutRosterText, setScoutRosterText] = useState(DEFAULT_SCOUTS.join('\n'));
@@ -305,6 +308,7 @@ export default function AdminV2StrategyBrainView({
         if (cancelled) return;
         setFirstCredentials(credentials);
         setCacheCount(cacheEntries.length);
+        setCacheEntries(cacheEntries);
         setScoutAssignmentPlan(plan);
         if (plan?.scoutNames?.length) {
           setScoutRosterText(plan.scoutNames.join('\n'));
@@ -322,6 +326,23 @@ export default function AdminV2StrategyBrainView({
       cancelled = true;
     };
   }, [eventKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'foundation') return;
+    let cancelled = false;
+    const refreshCacheEntries = async () => {
+      const entries = await listAdminV2CacheEntries(eventKey).catch(() => []);
+      if (cancelled) return;
+      setCacheEntries(entries);
+      setCacheCount(entries.length);
+    };
+    void refreshCacheEntries();
+    const timeoutId = window.setTimeout(() => void refreshCacheEntries(), 750);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeTab, defenseRecords.length, eventKey, matches.length, v3Records.length, v4Records.length]);
 
   useEffect(() => {
     const storedState = loadAllianceSelectionState(eventKey);
@@ -634,6 +655,7 @@ export default function AdminV2StrategyBrainView({
       const failures = results.filter(result => !result.ok);
       const cacheEntries = await listAdminV2CacheEntries(eventKey);
       setCacheCount(cacheEntries.length);
+      setCacheEntries(cacheEntries);
       setFirstStatus(`FIRST cache refresh complete: ${results.length - failures.length}/${results.length} endpoints saved for ${getYearFromEventKey(eventKey)}.`);
       if (failures.length > 0) {
         setFirstError(failures.map(result => `${result.key}: ${result.error}`).join('\n'));
@@ -709,6 +731,7 @@ export default function AdminV2StrategyBrainView({
         listPowerCoinLedger(eventKey).catch(() => [])
       ]);
       setCacheCount(cacheEntries.length);
+      setCacheEntries(cacheEntries);
       setPowerCoinBets(bets);
       setPowerCoinLedger(ledger);
       setFirstStatus(
@@ -971,6 +994,39 @@ export default function AdminV2StrategyBrainView({
               SSH/LAN transfer is intentionally not the primary path. The reliable backbone is IndexedDB, Firebase,
               QR, JSON archives, local uploaded files, and cached API snapshots.
             </p>
+            <div className="mt-4 max-h-72 overflow-y-auto rounded-2xl border border-slate-800">
+              <table className="admin-sticky-table min-w-full text-sm">
+                <thead className="sticky top-0 bg-slate-950 text-xs uppercase tracking-wider text-slate-400">
+                  <tr>
+                    {['Source', 'Key', 'Year', 'Saved', 'Payload'].map(header => (
+                      <th key={header} className="px-4 py-3 text-left">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {[...cacheEntries]
+                    .sort((left, right) => right.timestamp - left.timestamp)
+                    .map(entry => (
+                      <tr key={entry.id}>
+                        <td className="px-4 py-3 font-black text-cyan-100">{entry.source}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-300">{entry.key}</td>
+                        <td className="px-4 py-3">{entry.year}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{new Date(entry.timestamp).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {Array.isArray(entry.payload)
+                            ? `${entry.payload.length} rows`
+                            : entry.payload && typeof entry.payload === 'object'
+                              ? `${Object.keys(entry.payload as Record<string, unknown>).length} fields`
+                              : typeof entry.payload}
+                        </td>
+                      </tr>
+                    ))}
+                  {cacheEntries.length === 0 && (
+                    <tr><td className="px-4 py-6 text-center text-slate-500" colSpan={5}>No cached source entries for this event yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       )}
@@ -1007,6 +1063,13 @@ export default function AdminV2StrategyBrainView({
                 Latest saved snapshot: {new Date(latestModelSnapshot.createdAt).toLocaleString()} · forecast model {latestModelSnapshot.selectedForecastModel}.
               </p>
             )}
+          </div>
+          <div className="mt-5">
+            <PredictionActualTrendPanel
+              modelName={bestModel?.modelName || 'Best available model'}
+              sourceLabel={bestModel?.sourceLabel}
+              rows={bestModel?.comparisonRows || []}
+            />
           </div>
           <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1178,7 +1241,7 @@ export default function AdminV2StrategyBrainView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {defenseImpactRows.slice(0, 30).map(row => (
+                    {defenseImpactRows.map(row => (
                       <tr key={row.teamNumber}>
                         <td className="px-4 py-3">
                           <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
@@ -1215,7 +1278,7 @@ export default function AdminV2StrategyBrainView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {targetSuppressionRows.slice(0, 30).map(row => (
+                    {targetSuppressionRows.map(row => (
                       <tr key={row.teamNumber}>
                         <td className="px-4 py-3">
                           <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
@@ -1288,7 +1351,7 @@ export default function AdminV2StrategyBrainView({
             fallback team ratings and defense attribution context. Source: {bestModelForecastLayer.modelSource}.
           </p>
           <div className="mt-4 grid gap-3">
-            {strategyPlans.slice(0, 18).map(plan => (
+            {strategyPlans.map(plan => (
               <div key={plan.matchKey} className="rounded-2xl border border-slate-800 bg-slate-950 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -1377,7 +1440,7 @@ export default function AdminV2StrategyBrainView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {allianceRecommendations.slice(0, 60).map(row => (
+                  {allianceRecommendations.map(row => (
                     <tr key={row.teamNumber} className={row.status === 'available' ? '' : 'opacity-50'}>
                       <td className="px-4 py-3">
                         <StrategyTeamBadge teamNumber={row.teamNumber} ownTeamNumber={ownTeamNumber} searchedTeamNumber={searchedTeamNumber} />
@@ -1493,7 +1556,7 @@ export default function AdminV2StrategyBrainView({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-amber-300/10">
-                          {scoutAssignmentPlan.coverageGaps?.slice(0, 80).map((gap, index) => (
+                          {scoutAssignmentPlan.coverageGaps?.map((gap, index) => (
                             <tr key={`${gap.matchKey}_${gap.station}_${index}`}>
                               <td className="px-4 py-3 font-mono font-black text-amber-50">{gap.matchKey.toUpperCase()}</td>
                               <td className="px-4 py-3 text-amber-100">{gap.station}</td>
@@ -1548,7 +1611,7 @@ export default function AdminV2StrategyBrainView({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800">
-                      {scoutAssignmentPlan.assignments.slice(0, 120).map((assignment, index) => (
+                      {scoutAssignmentPlan.assignments.map((assignment, index) => (
                         <tr key={`${assignment.matchKey}_${assignment.station}_${index}`}>
                           <td className="px-4 py-3 font-mono text-white">{assignment.matchKey.toUpperCase()}</td>
                           <td className="px-4 py-3">{assignment.station}</td>

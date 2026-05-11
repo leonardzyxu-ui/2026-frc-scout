@@ -21,6 +21,7 @@ import {
 import { db } from '../firebase';
 import {
   MatchDefenseScoutingV1,
+  MatchScoutingV2,
   MatchScoutingV3,
   MatchScoutingV4,
   ModelFeatureSnapshot,
@@ -28,7 +29,8 @@ import {
   PowerCoinBet,
   PowerCoinLedgerEntry,
   PreMatchTeamProfile,
-  ScoutAssignmentPlan
+  ScoutAssignmentPlan,
+  TeamPerformanceProfile
 } from '../types';
 import { TBA_API_KEY } from '../config';
 import { calculateLegacyDprRatings, calculateLegacyOprRatings, MathEngine, TBAMatch } from '../utils/mathEngine';
@@ -96,11 +98,19 @@ import {
   ScoutArchiveBundle
 } from '../utils/scoutArchive';
 import { syncScoutArchiveRecordToFirebase } from '../utils/scoutArchiveSync';
-import { getYearFromEventKey } from '../utils/firstEventsApi';
+import {
+  convertFirstEventsPayloadsToTbaMatches,
+  convertFirstRankingsPayloadToTbaRankings,
+  convertFirstTeamsPayloadToTeamNames,
+  fetchAndCacheFirstEventBundle,
+  getYearFromEventKey
+} from '../utils/firstEventsApi';
 import { fetchPreMatchTeamProfile } from '../utils/preMatchScouting';
 import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
+import { mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
 import AdminV2StrategyBrainView from './AdminV2StrategyBrainView';
+import PredictionActualTrendPanel from '../components/admin/PredictionActualTrendPanel';
 import {
   backtestTimeAwareModels,
   buildAverageBlendLookup,
@@ -139,6 +149,56 @@ interface TbaEventSearchResult {
   name: string;
   short_name: string;
 }
+
+const getLatestAdminV2CachePayload = <T,>(
+  entries: AdminV2CacheEntry[],
+  source: AdminV2CacheEntry['source'],
+  key: string
+): T | null => {
+  const entry = entries
+    .filter(candidate => candidate.source === source && candidate.key === key)
+    .sort((left, right) => right.timestamp - left.timestamp)[0];
+  return entry ? entry.payload as T : null;
+};
+
+const isCachedTbaMatches = (value: unknown): value is TBAMatch[] =>
+  Array.isArray(value) && value.every(match => !!match && typeof match === 'object' && 'alliances' in match && 'key' in match);
+
+const isCachedTbaRankings = (value: unknown): value is TbaRankingsResponse =>
+  !!value && typeof value === 'object' && Array.isArray((value as TbaRankingsResponse).rankings);
+
+const isCachedTbaAlliances = (value: unknown): value is TBAEliminationAlliance[] =>
+  Array.isArray(value);
+
+const isCachedStatboticsEpaPayload = (
+  value: unknown
+): value is { epaByTeam: Record<string, StatboticsNormalizedTeamEpa>; missingTeams?: string[] } =>
+  !!value &&
+  typeof value === 'object' &&
+  !!(value as { epaByTeam?: unknown }).epaByTeam &&
+  typeof (value as { epaByTeam?: unknown }).epaByTeam === 'object';
+
+const isCachedPreMatchTeamProfile = (value: unknown): value is PreMatchTeamProfile =>
+  !!value &&
+  typeof value === 'object' &&
+  typeof (value as Partial<PreMatchTeamProfile>).teamNumber === 'string' &&
+  typeof (value as Partial<PreMatchTeamProfile>).teamKey === 'string' &&
+  typeof (value as Partial<PreMatchTeamProfile>).nickname === 'string';
+
+const loadLatestCachedPayload = async <T,>(
+  eventKey: string,
+  source: AdminV2CacheEntry['source'],
+  key: string,
+  guard: (value: unknown) => value is T
+): Promise<{ payload: T; timestamp: number } | null> => {
+  const entries = await listAdminV2CacheEntries(eventKey);
+  const entry = entries
+    .filter(item => item.source === source && item.key === key)
+    .sort((left, right) => right.timestamp - left.timestamp)
+    .find(item => guard(item.payload));
+  if (!entry || !guard(entry.payload)) return null;
+  return { payload: entry.payload, timestamp: entry.timestamp };
+};
 
 interface TeamMetricSummary {
   currentMetricLabel: string;
@@ -189,6 +249,14 @@ interface AdminV2FullLocalBackup {
   };
 }
 
+interface AdminV2SourceStatusRow {
+  id: string;
+  source: string;
+  key: string;
+  detail: string;
+  timestamp: number;
+}
+
 const QUICK_EVENTS: Array<[string, string]> = [
   ['2026MNUM', '2026MNUM (MN North Star)'],
   ['2026cnsh', '2026cnsh (Shanghai)'],
@@ -212,6 +280,35 @@ const sanitizeTeamNumber = (value: string) => value.replace(/[^\d]/g, '');
 
 const isPlayedMatch = (match: TBAMatch) =>
   match.alliances.red.score !== -1 && match.alliances.blue.score !== -1;
+
+const sortScoutRowsByMatchThenTeam = <
+  T extends { matchNumber: number; teamNumber: string; timestamp?: number }
+>(rows: T[]) =>
+  [...rows].sort((left, right) => {
+    const matchDelta = left.matchNumber - right.matchNumber;
+    if (matchDelta !== 0) return matchDelta;
+    const teamDelta = Number(left.teamNumber) - Number(right.teamNumber);
+    if (teamDelta !== 0) return teamDelta;
+    return (left.timestamp || 0) - (right.timestamp || 0);
+  });
+
+const getV3LogicalId = (record: Pick<MatchScoutingV3, 'matchKey' | 'teamNumber'>) =>
+  `${record.matchKey}_${record.teamNumber}`;
+
+const mergeV3WithLegacyRows = (legacyRows: MatchScoutingV3[], v3Rows: MatchScoutingV3[]) => {
+  const merged = new Map<string, MatchScoutingV3>();
+  legacyRows.forEach(row => merged.set(getV3LogicalId(row), row));
+  v3Rows.forEach(row => merged.set(getV3LogicalId(row), row));
+  return sortScoutRowsByMatchThenTeam([...merged.values()]);
+};
+
+const isLegacyMatchScoutingV2 = (value: unknown): value is MatchScoutingV2 =>
+  !!value &&
+  typeof value === 'object' &&
+  (value as { schemaVersion?: unknown }).schemaVersion !== 'v3' &&
+  typeof (value as Partial<MatchScoutingV2>).matchKey === 'string' &&
+  typeof (value as Partial<MatchScoutingV2>).teamNumber === 'string' &&
+  typeof (value as Partial<MatchScoutingV2>).eventKey === 'string';
 
 const getCompLevelLabel = (compLevel: string) => {
   switch (compLevel) {
@@ -262,6 +359,35 @@ const formatWorksheetDate = (timestampSeconds: number | null | undefined) => {
   return new Date(timestampSeconds * 1000).toISOString();
 };
 
+const formatLocalTimestamp = (timestamp: number | null | undefined) =>
+  timestamp
+    ? new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(new Date(timestamp))
+    : '—';
+
+const formatFreshnessAge = (timestamp: number | null | undefined) => {
+  if (!timestamp) return 'Unknown';
+  const ageMs = Math.max(0, Date.now() - timestamp);
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (ageMs < minute) return 'Just now';
+  if (ageMs < hour) return `${Math.floor(ageMs / minute)} min ago`;
+  if (ageMs < day) return `${Math.floor(ageMs / hour)} hr ago`;
+  return `${Math.floor(ageMs / day)} day${Math.floor(ageMs / day) === 1 ? '' : 's'} ago`;
+};
+
+const describeCachedPayload = (payload: unknown) => {
+  if (Array.isArray(payload)) return `${payload.length} rows`;
+  if (payload && typeof payload === 'object') return `${Object.keys(payload as Record<string, unknown>).length} keys`;
+  if (payload == null) return 'Empty payload';
+  return typeof payload;
+};
+
 const downloadJsonFile = (filename: string, payload: unknown) => {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -284,19 +410,18 @@ const parseManualTeamNumbers = (value: string) =>
   value
     .split(/[\s,]+/)
     .map(team => sanitizeTeamNumber(team))
-    .filter(Boolean)
-    .slice(0, 3);
+    .filter(Boolean);
 
 const parseQuickTeamEntry = (value: string) => {
   const teams = value
     .split(/[\s,]+/)
     .map(team => sanitizeTeamNumber(team))
-    .filter(Boolean)
-    .slice(0, 6);
+    .filter(Boolean);
+  const redCount = teams.length <= 6 ? Math.min(3, teams.length) : Math.ceil(teams.length / 2);
 
   return {
-    redTeams: teams.slice(0, 3),
-    blueTeams: teams.slice(3, 6)
+    redTeams: teams.slice(0, redCount),
+    blueTeams: teams.slice(redCount)
   };
 };
 
@@ -376,6 +501,7 @@ export default function AdminMainframeV2View() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [liveScheduleUnavailable, setLiveScheduleUnavailable] = useState('');
+  const [matchSourceLabel, setMatchSourceLabel] = useState('');
   const [currentTbaRanks, setCurrentTbaRanks] = useState<Record<string, number>>({});
   const [currentTbaRankOrder, setCurrentTbaRankOrder] = useState<string[]>([]);
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
@@ -400,6 +526,7 @@ export default function AdminMainframeV2View() {
   const [firstCredentials, setFirstCredentials] = useState<FirstEventsCredentials | null>(null);
   const [firstCredentialStatus, setFirstCredentialStatus] = useState('');
   const [firstCredentialError, setFirstCredentialError] = useState('');
+  const [cachedFirstTeamNames, setCachedFirstTeamNames] = useState<Record<string, string>>({});
   const [localBackupStatus, setLocalBackupStatus] = useState('');
   const [localBackupError, setLocalBackupError] = useState('');
   const [localArchiveRecords, setLocalArchiveRecords] = useState<ScoutArchiveRecord[]>([]);
@@ -407,6 +534,8 @@ export default function AdminMainframeV2View() {
   const [isLocalArchiveSyncing, setIsLocalArchiveSyncing] = useState(false);
   const [localArchiveSyncStatus, setLocalArchiveSyncStatus] = useState('');
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [adminV2CacheEntries, setAdminV2CacheEntries] = useState<AdminV2CacheEntry[]>([]);
+  const [adminV2CacheError, setAdminV2CacheError] = useState('');
   const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
 
   const eventKey = settings.eventKey;
@@ -419,12 +548,34 @@ export default function AdminMainframeV2View() {
       const archiveRecords = await listScoutArchiveRecords({ eventKey, includeDeleted: true });
       setLocalArchiveRecords(archiveRecords);
       setLocalArchiveError('');
+      if (isLocalMode) {
+        const activeArchiveRecords = archiveRecords.filter(record => !record.deleted);
+        const archivedMatchRows = activeArchiveRecords
+          .filter(record => record.recordType === 'match')
+          .map(record => record.payload)
+          .flatMap(payload => {
+            if (isMatchScoutingV3(payload)) return [payload];
+            if (isLegacyMatchScoutingV2(payload)) return [mapLegacyMatchScoutingToV3(payload)];
+            return [];
+          });
+        setRecords(sortScoutRowsByMatchThenTeam(archivedMatchRows));
+        setV4Records(sortScoutRowsByMatchThenTeam(
+          activeArchiveRecords
+            .filter(record => record.recordType === 'matchV4' && isMatchScoutingV4(record.payload))
+            .map(record => record.payload as MatchScoutingV4)
+        ));
+        setDefenseRecords(sortScoutRowsByMatchThenTeam(
+          activeArchiveRecords
+            .filter(record => record.recordType === 'matchDefense' && isMatchDefenseScoutingV1(record.payload))
+            .map(record => record.payload as MatchDefenseScoutingV1)
+        ));
+      }
     } catch (archiveError) {
       console.error('Failed to load local scout archive records in Admin V2', archiveError);
       setLocalArchiveRecords([]);
       setLocalArchiveError('Unable to read the local scout archive on this admin device.');
     }
-  }, [eventKey]);
+  }, [eventKey, isLocalMode]);
 
   const localArchiveSummary = useMemo(() => {
     const activeRecords = localArchiveRecords.filter(record => !record.deleted);
@@ -438,6 +589,97 @@ export default function AdminMainframeV2View() {
       conflictRecords
     };
   }, [localArchiveRecords]);
+
+  const refreshAdminV2CacheEntries = useCallback(async () => {
+    try {
+      const entries = await listAdminV2CacheEntries(eventKey);
+      setAdminV2CacheEntries(entries);
+      setAdminV2CacheError('');
+    } catch (cacheError) {
+      console.error('Failed to read Admin V2 cache entries', cacheError);
+      setAdminV2CacheEntries([]);
+      setAdminV2CacheError('Unable to read Admin V2 source cache from this device.');
+    }
+  }, [eventKey]);
+
+  const sourceStatusRows = useMemo<AdminV2SourceStatusRow[]>(() => {
+    const cacheRows = adminV2CacheEntries.map(entry => ({
+      id: entry.id,
+      source: entry.source,
+      key: entry.key,
+      detail: describeCachedPayload(entry.payload),
+      timestamp: entry.timestamp
+    }));
+
+    const uploadedRows: AdminV2SourceStatusRow[] = [];
+    if (uploadedCsvPack?.coprs) {
+      uploadedRows.push({
+        id: `upload:${uploadedCsvPack.coprs.fileName}`,
+        source: 'Upload',
+        key: 'coprs',
+        detail: `${Object.keys(uploadedCsvPack.coprs.ratings).length} OPR ratings`,
+        timestamp: uploadedCsvPack.coprs.loadedAt
+      });
+    }
+    const uploadedSchedule = uploadedCsvPack?.schedule || uploadedCsvPack?.flatSchedule;
+    if (uploadedSchedule) {
+      uploadedRows.push({
+        id: `upload:${uploadedSchedule.fileName}`,
+        source: 'Upload',
+        key: uploadedCsvPack?.schedule ? 'schedule' : 'flat-schedule',
+        detail: `${uploadedSchedule.matches.length} matches`,
+        timestamp: uploadedSchedule.loadedAt
+      });
+    }
+    if (uploadedCsvPack?.teamList) {
+      uploadedRows.push({
+        id: `upload:${uploadedCsvPack.teamList.fileName}`,
+        source: 'Upload',
+        key: 'team-list',
+        detail: `${Object.keys(uploadedCsvPack.teamList.teamNames).length} teams`,
+        timestamp: uploadedCsvPack.teamList.loadedAt
+      });
+    }
+    if (uploadedCsvPack?.rankings) {
+      uploadedRows.push({
+        id: `upload:${uploadedCsvPack.rankings.fileName}`,
+        source: 'Upload',
+        key: 'rankings',
+        detail: `${uploadedCsvPack.rankings.rankOrder.length} teams`,
+        timestamp: uploadedCsvPack.rankings.loadedAt
+      });
+    }
+    if (uploadedCsvPack?.alliances) {
+      uploadedRows.push({
+        id: `upload:${uploadedCsvPack.alliances.fileName}`,
+        source: 'Upload',
+        key: 'alliances',
+        detail: `${uploadedCsvPack.alliances.alliances.length} alliances`,
+        timestamp: uploadedCsvPack.alliances.loadedAt
+      });
+    }
+    if (uploadedCsvPack?.eventSummary) {
+      uploadedRows.push({
+        id: `upload:${uploadedCsvPack.eventSummary.fileName}`,
+        source: 'Upload',
+        key: 'event-summary',
+        detail: uploadedCsvPack.eventSummary.eventSummary.name || 'Event metadata',
+        timestamp: uploadedCsvPack.eventSummary.loadedAt
+      });
+    }
+
+    return [...cacheRows, ...uploadedRows].sort((left, right) => right.timestamp - left.timestamp);
+  }, [adminV2CacheEntries, uploadedCsvPack]);
+
+  const sourceStatusSummary = useMemo(() => {
+    const latestTimestamp = sourceStatusRows.reduce((latest, row) => Math.max(latest, row.timestamp || 0), 0);
+    const uniqueSources = new Set(sourceStatusRows.map(row => row.source)).size;
+    return {
+      latestTimestamp,
+      uniqueSources,
+      rowCount: sourceStatusRows.length
+    };
+  }, [sourceStatusRows]);
 
   const updateSettings = (patch: Partial<AdminV2Settings>) => {
     setSettings(previous => ({
@@ -453,6 +695,10 @@ export default function AdminMainframeV2View() {
   useEffect(() => {
     void refreshLocalArchiveRecords();
   }, [refreshLocalArchiveRecords]);
+
+  useEffect(() => {
+    void refreshAdminV2CacheEntries();
+  }, [refreshAdminV2CacheEntries]);
 
   useEffect(() => {
     setUploadedCsvPack(loadUploadedTbaCsvPack(eventKey));
@@ -484,28 +730,73 @@ export default function AdminMainframeV2View() {
     setLoading(true);
     setError('');
     setLiveScheduleUnavailable('');
+    setMatchSourceLabel('');
     const cacheYear = getYearFromEventKey(eventKey);
 
     try {
+      const cachedEntries = await listAdminV2CacheEntries(eventKey).catch(() => []);
+      setAdminV2CacheEntries(cachedEntries);
+      setAdminV2CacheError('');
+      const cachedMatchesPayload = getLatestAdminV2CachePayload<unknown>(cachedEntries, 'TBA', 'matches');
+      const cachedRankingsPayload = getLatestAdminV2CachePayload<unknown>(cachedEntries, 'TBA', 'rankings');
+      const cachedAlliancesPayload = getLatestAdminV2CachePayload<unknown>(cachedEntries, 'TBA', 'alliances');
+      const cachedEventSummaryPayload = getLatestAdminV2CachePayload<unknown>(cachedEntries, 'TBA', 'event-summary');
+      const cachedFirstTeamNamesFromPayload = convertFirstTeamsPayloadToTeamNames(
+        getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'teams')
+      );
+      const cachedFirstRankings = convertFirstRankingsPayloadToTbaRankings(
+        getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'rankings')
+      );
+      setCachedFirstTeamNames(cachedFirstTeamNamesFromPayload);
+      const cachedFirstMatches = convertFirstEventsPayloadsToTbaMatches(eventKey, [
+        { payload: getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'practice-schedule'), fallbackCompLevel: 'pm' },
+        { payload: getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'qual-schedule'), fallbackCompLevel: 'qm' },
+        { payload: getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'qual-matches'), fallbackCompLevel: 'qm' },
+        { payload: getLatestAdminV2CachePayload<unknown>(cachedEntries, 'FIRST', 'playoff-matches'), fallbackCompLevel: 'sf' }
+      ]);
+      const cachedMatches = isCachedTbaMatches(cachedMatchesPayload) && cachedMatchesPayload.length > 0 ? cachedMatchesPayload : cachedFirstMatches;
+      const cachedRankings = isCachedTbaRankings(cachedRankingsPayload) ? cachedRankingsPayload : cachedFirstRankings;
+      const cachedAlliances = isCachedTbaAlliances(cachedAlliancesPayload) ? cachedAlliancesPayload : null;
+      const cachedEventSummary =
+        cachedEventSummaryPayload && typeof cachedEventSummaryPayload === 'object'
+          ? cachedEventSummaryPayload as TBAEventSummary
+          : null;
+      const applyRankings = (rankings: TbaRankingsResponse | null) => {
+        if (!rankings?.rankings) {
+          setCurrentTbaRanks({});
+          setCurrentTbaRankOrder([]);
+          return;
+        }
+
+        const nextRanks: Record<string, number> = {};
+        const nextOrder: string[] = [];
+        rankings.rankings.forEach(ranking => {
+          const teamNumber = normalizeTeamKey(ranking.team_key);
+          nextRanks[teamNumber] = ranking.rank;
+          nextOrder.push(teamNumber);
+        });
+        setCurrentTbaRanks(nextRanks);
+        setCurrentTbaRankOrder(nextOrder);
+      };
+
       if (isLocalMode) {
-        setRecords([]);
-        setV4Records([]);
-        setDefenseRecords([]);
+        await refreshLocalArchiveRecords();
       } else {
-        const [v3Snapshot, v4Snapshot, defenseSnapshot] = await Promise.all([
+        const [legacySnapshot, v3Snapshot, v4Snapshot, defenseSnapshot] = await Promise.all([
+          getDocs(collection(db, 'events', eventKey, 'matchScouting')),
           getDocs(collection(db, 'events', eventKey, 'matchScoutingV3')),
           getDocs(collection(db, 'events', eventKey, 'matchScoutingV4')),
           getDocs(collection(db, 'events', eventKey, 'matchScoutingDefense'))
         ]);
 
-        const nextRecords = v3Snapshot.docs
+        const legacyRecords = legacySnapshot.docs
           .map(docSnap => docSnap.data())
-          .filter(isMatchScoutingV3)
-          .sort((left, right) => {
-            const matchDelta = left.matchNumber - right.matchNumber;
-            if (matchDelta !== 0) return matchDelta;
-            return Number(left.teamNumber) - Number(right.teamNumber);
-          });
+          .filter(isLegacyMatchScoutingV2)
+          .map(mapLegacyMatchScoutingToV3);
+        const v3Records = v3Snapshot.docs
+          .map(docSnap => docSnap.data())
+          .filter(isMatchScoutingV3);
+        const nextRecords = mergeV3WithLegacyRows(legacyRecords, v3Records);
         const nextDefenseRecords = defenseSnapshot.docs
           .map(docSnap => docSnap.data())
           .filter(isMatchDefenseScoutingV1)
@@ -526,6 +817,13 @@ export default function AdminMainframeV2View() {
         setV4Records(nextV4Records);
         setDefenseRecords(nextDefenseRecords);
         void Promise.allSettled([
+          putAdminV2CacheEntry({
+            eventKey,
+            year: cacheYear,
+            source: 'Firebase',
+            key: 'matchScoutingLegacyMapped',
+            payload: legacyRecords
+          }),
           putAdminV2CacheEntry({
             eventKey,
             year: cacheYear,
@@ -551,11 +849,14 @@ export default function AdminMainframeV2View() {
       }
 
       if (!TBA_API_KEY || eventKey === 'TEST') {
-        setLiveEventMatches([]);
-        setAlliances(null);
-        setEventSummary(null);
-        setCurrentTbaRanks({});
-        setCurrentTbaRankOrder([]);
+        setLiveEventMatches(cachedMatches);
+        setAlliances(cachedAlliances);
+        setEventSummary(cachedEventSummary);
+        applyRankings(cachedRankings);
+        if (cachedMatches.length > 0) {
+          setMatchSourceLabel('Cached TBA/FIRST match data');
+          setLiveScheduleUnavailable('Live TBA is unavailable, so Admin V2 is using the latest cached TBA/FIRST match data from IndexedDB.');
+        }
         return;
       }
 
@@ -577,6 +878,7 @@ export default function AdminMainframeV2View() {
 
       if (matchesResult.status === 'fulfilled') {
         setLiveEventMatches(matchesResult.value);
+        setMatchSourceLabel('Live TBA schedule');
         void putAdminV2CacheEntry({
           eventKey,
           year: cacheYear,
@@ -586,27 +888,22 @@ export default function AdminMainframeV2View() {
         }).catch(() => {});
       } else {
         console.error('Failed to load live TBA schedule for Admin V2', matchesResult.reason);
-        setLiveEventMatches([]);
+        setLiveEventMatches(cachedMatches);
+        if (cachedMatches.length > 0) {
+          setMatchSourceLabel('Cached TBA/FIRST match data');
+        }
         setLiveScheduleUnavailable(
-          matchesResult.reason instanceof Error
-            ? matchesResult.reason.message
-            : 'Live TBA schedule is unavailable right now.'
+          cachedMatches.length > 0
+            ? `Live TBA schedule is unavailable, using ${cachedMatches.length} cached TBA/FIRST match rows from IndexedDB.`
+            : matchesResult.reason instanceof Error
+              ? matchesResult.reason.message
+              : 'Live TBA schedule is unavailable right now.'
         );
       }
 
       if (rankingsResult.status === 'fulfilled' && rankingsResult.value.ok) {
         const rankings = (await rankingsResult.value.json()) as TbaRankingsResponse;
-        const nextRanks: Record<string, number> = {};
-        const nextOrder: string[] = [];
-
-        rankings.rankings?.forEach(ranking => {
-          const teamNumber = normalizeTeamKey(ranking.team_key);
-          nextRanks[teamNumber] = ranking.rank;
-          nextOrder.push(teamNumber);
-        });
-
-        setCurrentTbaRanks(nextRanks);
-        setCurrentTbaRankOrder(nextOrder);
+        applyRankings(rankings);
         void putAdminV2CacheEntry({
           eventKey,
           year: cacheYear,
@@ -615,8 +912,7 @@ export default function AdminMainframeV2View() {
           payload: rankings
         }).catch(() => {});
       } else {
-        setCurrentTbaRanks({});
-        setCurrentTbaRankOrder([]);
+        applyRankings(cachedRankings);
       }
 
       if (alliancesResult.status === 'fulfilled' && alliancesResult.value.ok) {
@@ -630,7 +926,7 @@ export default function AdminMainframeV2View() {
           payload: nextAlliances
         }).catch(() => {});
       } else {
-        setAlliances(null);
+        setAlliances(cachedAlliances);
       }
 
       if (summaryResult.status === 'fulfilled' && summaryResult.value.ok) {
@@ -644,7 +940,7 @@ export default function AdminMainframeV2View() {
           payload: nextEventSummary
         }).catch(() => {});
       } else {
-        setEventSummary(null);
+        setEventSummary(cachedEventSummary);
       }
     } catch (loadError) {
       console.error('Failed to load adminv2 data', loadError);
@@ -653,6 +949,8 @@ export default function AdminMainframeV2View() {
       setV4Records([]);
       setDefenseRecords([]);
       setLiveEventMatches([]);
+      setMatchSourceLabel('');
+      setCachedFirstTeamNames({});
       setAlliances(null);
       setEventSummary(null);
       setCurrentTbaRanks({});
@@ -742,11 +1040,12 @@ export default function AdminMainframeV2View() {
           ...v4Records.map(record => record.teamNumber),
           ...defenseRecords.map(record => record.teamNumber),
           ...predictorTeams,
+          ...Object.keys(cachedFirstTeamNames),
           ...Object.keys(uploadedTeamNames),
           ...(searchedTeamNumber ? [searchedTeamNumber] : [])
         ])
       ).sort((left, right) => Number(left) - Number(right)),
-    [defenseRecords, predictorTeams, records, searchedTeamNumber, uploadedTeamNames, v4Records]
+    [cachedFirstTeamNames, defenseRecords, predictorTeams, records, searchedTeamNumber, uploadedTeamNames, v4Records]
   );
 
   useEffect(() => {
@@ -763,6 +1062,23 @@ export default function AdminMainframeV2View() {
         return;
       }
 
+      const cachedEpa = await loadLatestCachedPayload(
+        eventKey,
+        'Statbotics',
+        'event-epa',
+        isCachedStatboticsEpaPayload
+      ).catch(() => null);
+      const applyCachedEpa = (message?: string) => {
+        if (!cachedEpa || cancelled) return false;
+        const cachedByTeam = cachedEpa.payload.epaByTeam || {};
+        setEpaByTeam(cachedByTeam);
+        setMissingEpaTeams(
+          predictorTeams.filter(teamNumber => !(teamNumber in cachedByTeam))
+        );
+        setEpaUnavailable(message || '');
+        return true;
+      };
+
       if (eventKey === 'TEST') {
         if (!cancelled) {
           setEpaByTeam({});
@@ -777,6 +1093,7 @@ export default function AdminMainframeV2View() {
       setEpaUnavailable('');
 
       try {
+        applyCachedEpa();
         const result = await fetchEventStatboticsEpa(eventKey, predictorTeams);
         if (cancelled) return;
         setEpaByTeam(result.epaByTeam);
@@ -787,13 +1104,22 @@ export default function AdminMainframeV2View() {
           source: 'Statbotics',
           key: 'event-epa',
           payload: result
-        }).catch(() => {});
+        })
+          .then(() => refreshAdminV2CacheEntries())
+          .catch(() => {});
       } catch (fetchError) {
         console.error('Failed to load Admin V2 Statbotics EPA predictor data', fetchError);
         if (cancelled) return;
-        setEpaByTeam({});
-        setMissingEpaTeams([]);
-        setEpaUnavailable('Statbotics EPA is unavailable for this event right now. EPA predictions cannot be shown.');
+        const usedCache = applyCachedEpa(
+          cachedEpa
+            ? `Live Statbotics EPA failed. Using cached EPA from ${formatLocalTimestamp(cachedEpa.timestamp)}.`
+            : undefined
+        );
+        if (!usedCache) {
+          setEpaByTeam({});
+          setMissingEpaTeams([]);
+          setEpaUnavailable('Statbotics EPA is unavailable for this event right now. EPA predictions cannot be shown.');
+        }
       } finally {
         if (!cancelled) {
           setIsEpaLoading(false);
@@ -806,7 +1132,7 @@ export default function AdminMainframeV2View() {
     return () => {
       cancelled = true;
     };
-  }, [eventKey, predictorTeams]);
+  }, [eventKey, predictorTeams, refreshAdminV2CacheEntries]);
 
   useEffect(() => {
     let cancelled = false;
@@ -821,10 +1147,23 @@ export default function AdminMainframeV2View() {
         return;
       }
 
+      const teamProfileCacheKey = `team-profile:${searchedTeamNumber}`;
+      const cachedProfile = await loadLatestCachedPayload(
+        eventKey,
+        'TBA',
+        teamProfileCacheKey,
+        isCachedPreMatchTeamProfile
+      ).catch(() => null);
+
       if (!TBA_API_KEY || eventKey === 'TEST') {
         if (!cancelled) {
-          setTeamProfile(null);
-          setTeamProfileError('TBA team profile is unavailable for this event on this device.');
+          if (cachedProfile) {
+            setTeamProfile(cachedProfile.payload);
+            setTeamProfileError(`Live TBA profile is unavailable. Showing cached profile from ${formatLocalTimestamp(cachedProfile.timestamp)}.`);
+          } else {
+            setTeamProfile(null);
+            setTeamProfileError('TBA team profile is unavailable for this event on this device.');
+          }
           setIsTeamProfileLoading(false);
         }
         return;
@@ -834,14 +1173,31 @@ export default function AdminMainframeV2View() {
       setTeamProfileError('');
 
       try {
+        if (cachedProfile && !cancelled) {
+          setTeamProfile(cachedProfile.payload);
+        }
         const profile = await fetchPreMatchTeamProfile(searchedTeamNumber, eventKey, TBA_API_KEY);
         if (cancelled) return;
         setTeamProfile(profile);
+        void putAdminV2CacheEntry({
+          eventKey,
+          year: getYearFromEventKey(eventKey),
+          source: 'TBA',
+          key: teamProfileCacheKey,
+          payload: profile
+        })
+          .then(() => refreshAdminV2CacheEntries())
+          .catch(() => {});
       } catch (profileError) {
         console.error('Failed to load Admin V2 team profile', profileError);
         if (cancelled) return;
-        setTeamProfile(null);
-        setTeamProfileError(profileError instanceof Error ? profileError.message : 'Failed to load team profile.');
+        if (cachedProfile) {
+          setTeamProfile(cachedProfile.payload);
+          setTeamProfileError(`Live TBA profile failed. Showing cached profile from ${formatLocalTimestamp(cachedProfile.timestamp)}.`);
+        } else {
+          setTeamProfile(null);
+          setTeamProfileError(profileError instanceof Error ? profileError.message : 'Failed to load team profile.');
+        }
       } finally {
         if (!cancelled) {
           setIsTeamProfileLoading(false);
@@ -854,7 +1210,7 @@ export default function AdminMainframeV2View() {
     return () => {
       cancelled = true;
     };
-  }, [eventKey, searchedTeamNumber]);
+  }, [eventKey, refreshAdminV2CacheEntries, searchedTeamNumber]);
 
   const epaRatings = useMemo(
     () => Object.fromEntries(Object.entries(epaByTeam).map(([teamNumber, metrics]) => [teamNumber, metrics.overallEPA])),
@@ -950,11 +1306,24 @@ export default function AdminMainframeV2View() {
       : selectedMetric === 'epa'
         ? epaQualificationProjection
         : oprQualificationProjection;
+
+  const resolvedTeamNameLookup = useMemo(
+    () => ({
+      ...cachedFirstTeamNames,
+      ...uploadedTeamNames,
+      ...(teamProfile ? { [teamProfile.teamNumber]: teamProfile.nickname } : {})
+    }),
+    [cachedFirstTeamNames, teamProfile, uploadedTeamNames]
+  );
+
   const filteredQualificationRows = useMemo(() => {
     const normalizedSearch = rankingSearch.trim().toLowerCase();
     if (!normalizedSearch) return activeQualificationProjection.rows;
-    return activeQualificationProjection.rows.filter(row => row.teamNumber.toLowerCase().includes(normalizedSearch));
-  }, [activeQualificationProjection.rows, rankingSearch]);
+    return activeQualificationProjection.rows.filter(row => {
+      const teamName = resolvedTeamNameLookup[row.teamNumber] || '';
+      return row.teamNumber.toLowerCase().includes(normalizedSearch) || teamName.toLowerCase().includes(normalizedSearch);
+    });
+  }, [activeQualificationProjection.rows, rankingSearch, resolvedTeamNameLookup]);
 
   const activeMetricRatings =
     selectedMetric === 'ppc' ? averageLookup : selectedMetric === 'epa' ? epaRatings : activeOprRatings;
@@ -984,6 +1353,13 @@ export default function AdminMainframeV2View() {
       'Recency EPA': epaRatings
     }
   }), [activeOprRatings, activePredictorMatches, adminV2ModelBacktests, adminV2NoFutureBlendLookup, averageLookup, epaRatings, records, v4Records]);
+  const adminV2BestComparisonModel = useMemo(
+    () =>
+      adminV2ModelBacktests.find(result => result.modelName === adminV2BestForecastLayer.modelName) ||
+      adminV2ModelBacktests.find(result => result.matchesTested > 0) ||
+      null,
+    [adminV2BestForecastLayer.modelName, adminV2ModelBacktests]
+  );
   const adminV2PpaRatings = useMemo(() => buildPpaRatings(adminV2ModelBacktests, {
     PPC: averageLookup,
     'Rolling PPC': averageLookup,
@@ -993,6 +1369,55 @@ export default function AdminMainframeV2View() {
     EPA: epaRatings,
     'Recency EPA': epaRatings
   }), [activeOprRatings, adminV2ModelBacktests, adminV2NoFutureBlendLookup, averageLookup, epaRatings]);
+  const adminV2FeatureMatchSnapshots = useMemo(
+    () => buildNoFutureFeatureMatchSnapshots({
+      matches: activePredictorMatches,
+      v3Records: records,
+      v4Records
+    }),
+    [activePredictorMatches, records, v4Records]
+  );
+  const adminV2DefenseImpactLookup = useMemo(
+    () =>
+      buildDefenseImpactLookup(
+        buildDefenseAttributions(
+          v4Records,
+          Object.keys(adminV2PpaRatings).length > 0 ? adminV2PpaRatings : activeMetricRatings
+        )
+      ),
+    [activeMetricRatings, adminV2PpaRatings, v4Records]
+  );
+  const teamPerformanceProfiles = useMemo(
+    () =>
+      buildTeamPerformanceProfiles({
+        v4Records,
+        v3Records: records,
+        defenseRecords,
+        ppcRows: teamAverages,
+        oprRatings: activeOprRatings,
+        dprRatings: calculatedDprRatings,
+        epaRatings,
+        ppaRatings: adminV2PpaRatings,
+        defenseImpactLookup: adminV2DefenseImpactLookup,
+        featureMatchSnapshots: adminV2FeatureMatchSnapshots
+      }),
+    [
+      activeOprRatings,
+      adminV2DefenseImpactLookup,
+      adminV2FeatureMatchSnapshots,
+      adminV2PpaRatings,
+      calculatedDprRatings,
+      defenseRecords,
+      epaRatings,
+      records,
+      teamAverages,
+      v4Records
+    ]
+  );
+  const selectedTeamPerformanceProfile = useMemo(
+    () => (searchedTeamNumber ? teamPerformanceProfiles.find(profile => profile.teamNumber === searchedTeamNumber) || null : null),
+    [searchedTeamNumber, teamPerformanceProfiles]
+  );
   const validatedQualForecastRows = useMemo(() =>
     activePredictorMatches
       .filter(match => match.comp_level === 'qm' && !isPlayedMatch(match))
@@ -1035,20 +1460,12 @@ export default function AdminMainframeV2View() {
   const predictorIsLoading = selectedMetric === 'epa' && isEpaLoading;
   const predictorMatchSourceLabel =
     liveEventMatches.length > 0
-      ? 'Live TBA schedule'
+      ? matchSourceLabel || 'Live TBA schedule'
       : uploadedScheduleFallback
         ? `${uploadedScheduleFallback.fileName} (${uploadedScheduleFallback.source === 'schedule' ? 'schedule fallback' : 'flat schedule fallback'})`
         : 'No live or uploaded schedule';
   const hasUsableCsvOpr = !!uploadedCsvPack?.coprs && Object.keys(csvOprRatings).length > 0;
   const hasOprBonusMetrics = !!csvOprBonusMetrics && Object.keys(csvOprBonusMetrics).length > 0;
-
-  const resolvedTeamNameLookup = useMemo(
-    () => ({
-      ...uploadedTeamNames,
-      ...(teamProfile ? { [teamProfile.teamNumber]: teamProfile.nickname } : {})
-    }),
-    [teamProfile, uploadedTeamNames]
-  );
 
   const activeTeamAverage = searchedTeamNumber ? teamAverageLookupByTeam[searchedTeamNumber] : undefined;
   const activeDefenseMetric = searchedTeamNumber ? defenseMetricLookupByTeam[searchedTeamNumber] : undefined;
@@ -1078,7 +1495,9 @@ export default function AdminMainframeV2View() {
         sourceLabel: 'Scouting averages',
         extras: [
           { label: 'Matches Logged', value: String(activeTeamAverage.matchesPlayed) },
+          { label: 'Avg Endgame', value: activeTeamAverage.avgEndgamePoints.toFixed(2) },
           { label: 'Avg Cycles', value: activeTeamAverage.avgTeleopCycles.toFixed(2) },
+          { label: 'Avg Reliability', value: formatPercentMetric(activeTeamAverage.avgReliabilityScore) },
           { label: 'Avg Contribution', value: activeTeamAverage.avgContributionScore.toFixed(2) }
         ]
       };
@@ -1164,6 +1583,31 @@ export default function AdminMainframeV2View() {
     );
     return filterMatchValidationGroups(groups, rawEditorSearch);
   }, [activePredictorMatches, rawEditorRecords, rawEditorSearch, rawEditorViewTab]);
+  const rawEditorSummary = useMemo(() => {
+    const scheduledGroups = rawEditorGroups.filter(group => group.scheduleKnown);
+    const completeScheduledGroups = scheduledGroups.filter(
+      group =>
+        group.expectedSlots.length > 0 &&
+        group.missingSlots.length === 0 &&
+        group.rows.length >= group.expectedSlots.length &&
+        group.rows.every(row => row.anomalies.length === 0)
+    );
+    const missingSlotCount = rawEditorGroups.reduce((sum, group) => sum + group.missingSlots.length, 0);
+    const anomalyRowCount = rawEditorGroups.reduce(
+      (sum, group) => sum + group.rows.filter(row => row.anomalies.length > 0).length,
+      0
+    );
+    const submittedRowCount = rawEditorGroups.reduce((sum, group) => sum + group.rows.length, 0);
+    return {
+      visibleMatches: rawEditorGroups.length,
+      scheduledMatches: scheduledGroups.length,
+      completeScheduledMatches: completeScheduledGroups.length,
+      missingSlotCount,
+      anomalyRowCount,
+      submittedRowCount,
+      scheduleUnknownMatches: rawEditorGroups.length - scheduledGroups.length
+    };
+  }, [rawEditorGroups]);
 
   const sorterRows = useMemo<AdminV2SorterRow[]>(() => {
     return allKnownTeams.map(teamNumber => {
@@ -1352,6 +1796,7 @@ export default function AdminMainframeV2View() {
 
   const handleEditV4Record = (record: MatchScoutingV4) => {
     localStorage.setItem('match_scout_v4_draft', JSON.stringify(record));
+    localStorage.setItem('match_scout_v4_edit_mode', 'true');
     navigate('/scout');
   };
 
@@ -1381,6 +1826,33 @@ export default function AdminMainframeV2View() {
     setFirstCredentials(null);
     setFirstCredentialStatus('FIRST Events credentials cleared from this admin device.');
     setFirstCredentialError('');
+  };
+
+  const handleRefreshFirstEventCache = async () => {
+    if (!firstCredentials) {
+      setFirstCredentialError('Upload FIRST Events credentials before refreshing the FIRST cache.');
+      setFirstCredentialStatus('');
+      return;
+    }
+
+    setFirstCredentialError('');
+    setFirstCredentialStatus('Fetching FIRST Events data and caching it locally...');
+    try {
+      const results = await fetchAndCacheFirstEventBundle(firstCredentials, eventKey);
+      const successCount = results.filter(result => result.ok).length;
+      const failedResults = results.filter(result => !result.ok);
+      setFirstCredentialStatus(`FIRST cache refreshed: ${successCount}/${results.length} endpoints saved locally.`);
+      setFirstCredentialError(
+        failedResults.length > 0
+          ? `Some FIRST endpoints failed: ${failedResults.map(result => result.key).join(', ')}. Cached successes are still usable.`
+          : ''
+      );
+      await refreshAdminV2CacheEntries();
+      await loadV3Data();
+    } catch (cacheError) {
+      setFirstCredentialStatus('');
+      setFirstCredentialError(cacheError instanceof Error ? cacheError.message : 'Failed to refresh FIRST Events cache.');
+    }
   };
 
   const handleSyncLocalArchiveToFirebase = async () => {
@@ -1446,7 +1918,7 @@ export default function AdminMainframeV2View() {
         : null;
       const payload = {
         format: 'rebuilt-2026-admin-v2-full-local-backup',
-        version: 1,
+        version: 2,
         eventKey,
         exportedAt: Date.now(),
         settings,
@@ -1468,7 +1940,7 @@ export default function AdminMainframeV2View() {
         payload
       );
       setLocalBackupStatus(
-        `Exported local backup with ${scoutArchive.records.length} scout archive records, ${cacheEntries.length} cache entries, ${powerCoinBets.length} PowerCoin bets, ${modelSnapshots.length} model snapshots, and ${modelFeatureSnapshots.length} feature snapshots. FIRST token was not included.`
+        `Exported local backup with ${scoutArchive.records.length} scout archive records, ${cacheEntries.length} cache entries, ${powerCoinBets.length} PowerCoin bets, ${modelSnapshots.length} model snapshots, and ${modelFeatureSnapshots.length} feature snapshots. Scout sync states/modes were preserved; FIRST token was not included.`
       );
     } catch (backupError) {
       console.error('Failed to export full local Admin V2 backup', backupError);
@@ -1498,6 +1970,7 @@ export default function AdminMainframeV2View() {
 
       let scoutArchiveImported = 0;
       let scoutArchiveSkipped = 0;
+      let scoutArchiveConflictsPreserved = 0;
       let scoutArchivePowerCoinItems = 0;
       if (parsed.scoutArchive) {
         if (!isScoutArchiveBundle(parsed.scoutArchive)) {
@@ -1506,6 +1979,7 @@ export default function AdminMainframeV2View() {
         const scoutArchiveResult = await importScoutArchiveBundleLocally(parsed.scoutArchive);
         scoutArchiveImported = scoutArchiveResult.imported;
         scoutArchiveSkipped = scoutArchiveResult.skipped;
+        scoutArchiveConflictsPreserved = scoutArchiveResult.conflictsPreserved;
         scoutArchivePowerCoinItems = scoutArchiveResult.powerCoinBetsImported + scoutArchiveResult.powerCoinLedgerImported;
       }
 
@@ -1538,7 +2012,7 @@ export default function AdminMainframeV2View() {
       }
 
       setLocalBackupStatus(
-        `Restored backup: ${scoutArchiveImported} scout archive records (${scoutArchiveSkipped} skipped), ${scoutArchivePowerCoinItems} scout-archive PowerCoin items, ${restoredCacheEntries} cache entries, ${(parsed.adminV2?.powerCoinBets || []).length} PowerCoin bets, ${(parsed.adminV2?.powerCoinLedger || []).length} ledger entries, ${(parsed.adminV2?.modelSnapshots || []).length} model snapshots, and ${(parsed.adminV2?.modelFeatureSnapshots || []).length} feature snapshots. FIRST token was not imported.`
+        `Restored backup: ${scoutArchiveImported} scout archive records (${scoutArchiveSkipped} skipped, ${scoutArchiveConflictsPreserved} conflict version${scoutArchiveConflictsPreserved === 1 ? '' : 's'} preserved separately), ${scoutArchivePowerCoinItems} scout-archive PowerCoin items, ${restoredCacheEntries} cache entries, ${(parsed.adminV2?.powerCoinBets || []).length} PowerCoin bets, ${(parsed.adminV2?.powerCoinLedger || []).length} ledger entries, ${(parsed.adminV2?.modelSnapshots || []).length} model snapshots, and ${(parsed.adminV2?.modelFeatureSnapshots || []).length} feature snapshots. Scout sync states/modes were restored; FIRST token was not imported.`
       );
       await refreshLocalArchiveRecords();
     } catch (backupError) {
@@ -1764,6 +2238,153 @@ export default function AdminMainframeV2View() {
         ...buildCoverageAuditRows('Qualification', 'qm'),
         ...buildCoverageAuditRows('Practice', 'pm')
       ];
+      const getMetricExportFields = (teamNumber: string) => {
+        const ppcRow = teamAverageLookupByTeam[teamNumber];
+        const defenseMetric = defenseMetricLookupByTeam[teamNumber];
+        const oprComponents = csvOprComponents[teamNumber];
+        const epaMetrics = epaByTeam[teamNumber];
+
+        return {
+          ppc: ppcRow?.avgTotalMatchPoints ?? '',
+          cPpcAuto: ppcRow?.avgAutoPoints ?? '',
+          cPpcTeleop: ppcRow?.avgTeleopPoints ?? '',
+          cPpcEndgame: ppcRow?.avgEndgamePoints ?? '',
+          defenseMetricAverage: defenseMetric ? Number((defenseMetric.avgDefenseMetric * 100).toFixed(2)) : '',
+          defenseMetricRecords: defenseMetric?.recordsLogged ?? '',
+          opr: activeOprRatings[teamNumber] ?? '',
+          cOprAuto: oprComponents?.autoPoints ?? '',
+          cOprTeleop: oprComponents?.teleopPoints ?? '',
+          cOprTower: oprComponents?.towerPoints ?? '',
+          cOprFuel: oprComponents?.fuelPoints ?? '',
+          cOprTotal: oprComponents?.totalPoints ?? '',
+          dpr: calculatedDprRatings[teamNumber] ?? '',
+          epa: epaMetrics?.overallEPA ?? '',
+          cEpaAuto: epaMetrics?.autoEPA ?? '',
+          cEpaTeleop: epaMetrics?.teleopEPA ?? '',
+          cEpaTower: epaMetrics?.towerEPA ?? '',
+          cEpaFuel: epaMetrics?.fuelEPA ?? '',
+          ppa: exportPpaRatings[teamNumber] ?? '',
+          defenseImpact: defenseImpactLookup[teamNumber] ?? '',
+          tbaRank: effectiveCurrentTbaRanks[teamNumber] ?? ''
+        };
+      };
+      const allRawDataRows = [
+        ...v4Records.map(record => ({
+          recordType: 'V4 Match',
+          schemaVersion: record.schemaVersion,
+          eventKey: record.eventKey,
+          matchType: record.matchType,
+          matchNumber: record.matchNumber,
+          matchKey: record.matchKey,
+          teamNumber: record.teamNumber,
+          teamName: resolvedTeamNameLookup[record.teamNumber] || '',
+          scoutName: record.scoutName,
+          assignedScoutName: record.assignedScoutName,
+          assignedSlot: record.assignedSlot,
+          substituteScoutName: record.substituteScoutName || '',
+          alliance: record.alliance,
+          sourceCollection: 'matchScoutingV4',
+          timestamp: formatWorksheetDate(record.timestamp),
+          autoPoints: record.autoPoints,
+          autoCycles: record.autoCycles,
+          teleopPoints: record.teleopPoints,
+          teleopCycles: record.teleopCycles,
+          endgamePoints: record.endgamePoints,
+          totalMatchPoints: record.totalMatchPoints,
+          rolePlayed: record.rolePlayed,
+          defendedTeamNumber: record.defendedTeamNumber,
+          defenderFacedTeamNumber: record.defenderFacedTeamNumber,
+          defenseIntensity: record.defenseIntensity,
+          defenseDurationSeconds: record.defenseDurationSeconds,
+          reliabilityScore: record.reliabilityScore,
+          defenseMetricPercent: '',
+          defenseComments: '',
+          generalComments: '',
+          notes: record.notes,
+          strategyNotes: record.strategyNotes,
+          ...getMetricExportFields(record.teamNumber),
+          rawPayloadJson: stringifyForWorkbookCell(record)
+        })),
+        ...records.map(record => ({
+          recordType: 'Legacy V3 Match',
+          schemaVersion: record.schemaVersion,
+          eventKey: record.eventKey,
+          matchType: record.matchType,
+          matchNumber: record.matchNumber,
+          matchKey: record.matchKey,
+          teamNumber: record.teamNumber,
+          teamName: resolvedTeamNameLookup[record.teamNumber] || '',
+          scoutName: record.scoutName,
+          assignedScoutName: record.assignedScoutName,
+          assignedSlot: record.assignedSlot,
+          substituteScoutName: record.substituteScoutName || '',
+          alliance: record.alliance,
+          sourceCollection: 'matchScoutingV3',
+          timestamp: formatWorksheetDate(record.timestamp),
+          autoPoints: record.autoPoints,
+          autoCycles: '',
+          teleopPoints: record.teleopPoints,
+          teleopCycles: record.teleopCycles,
+          endgamePoints: '',
+          totalMatchPoints: record.totalMatchPoints,
+          rolePlayed: '',
+          defendedTeamNumber: '',
+          defenderFacedTeamNumber: '',
+          defenseIntensity: '',
+          defenseDurationSeconds: '',
+          reliabilityScore: '',
+          defenseMetricPercent: '',
+          defenseComments: record.defenseDescription,
+          generalComments: record.generalEvaluation,
+          notes: [record.defenseDescription, record.generalEvaluation].filter(Boolean).join(' | '),
+          strategyNotes: '',
+          ...getMetricExportFields(record.teamNumber),
+          rawPayloadJson: stringifyForWorkbookCell(record)
+        })),
+        ...defenseRecords.map(record => ({
+          recordType: 'Defense V1',
+          schemaVersion: record.schemaVersion,
+          eventKey: record.eventKey,
+          matchType: record.matchType,
+          matchNumber: record.matchNumber,
+          matchKey: record.matchKey,
+          teamNumber: record.teamNumber,
+          teamName: resolvedTeamNameLookup[record.teamNumber] || '',
+          scoutName: record.scoutName,
+          assignedScoutName: record.assignedScoutName,
+          assignedSlot: record.assignedSlot,
+          substituteScoutName: record.substituteScoutName || '',
+          alliance: record.alliance,
+          sourceCollection: 'matchScoutingDefense',
+          timestamp: formatWorksheetDate(record.timestamp),
+          autoPoints: '',
+          autoCycles: '',
+          teleopPoints: '',
+          teleopCycles: '',
+          endgamePoints: '',
+          totalMatchPoints: '',
+          rolePlayed: '',
+          defendedTeamNumber: '',
+          defenderFacedTeamNumber: '',
+          defenseIntensity: '',
+          defenseDurationSeconds: '',
+          reliabilityScore: '',
+          defenseMetricPercent: Number((record.defenseMetric * 100).toFixed(2)),
+          defenseComments: record.defenseComments,
+          generalComments: record.generalComments,
+          notes: record.defenseComments,
+          strategyNotes: record.generalComments,
+          ...getMetricExportFields(record.teamNumber),
+          rawPayloadJson: stringifyForWorkbookCell(record)
+        }))
+      ].sort((left, right) => {
+        const typeDelta =
+          (left.matchType === 'Qualification' ? 0 : 1) - (right.matchType === 'Qualification' ? 0 : 1);
+        if (typeDelta !== 0) return typeDelta;
+        const matchDelta = Number(left.matchNumber) - Number(right.matchNumber);
+        if (matchDelta !== 0) return matchDelta;
+        return Number(left.teamNumber) - Number(right.teamNumber);
+      });
 
       addWorkbookSheet(workbook, 'Overview', [
         { header: 'Field', key: 'field', width: 28 },
@@ -1783,6 +2404,8 @@ export default function AdminMainframeV2View() {
           value: exportedLocalArchiveRecords.filter(record => !record.deleted && record.syncStatus !== 'synced').length
         },
         { field: 'Cached Source Entries', value: exportedCacheEntries.length },
+        { field: 'Source Freshness Rows', value: sourceStatusRows.length },
+        { field: 'Latest Source Freshness', value: sourceStatusSummary.latestTimestamp ? new Date(sourceStatusSummary.latestTimestamp).toISOString() : '' },
         { field: 'Latest Scout Assignment Plan', value: exportedScoutPlan ? new Date(exportedScoutPlan.createdAt).toISOString() : '' },
         { field: 'Latest Model Snapshot', value: exportedModelSnapshot ? new Date(exportedModelSnapshot.createdAt).toISOString() : '' },
         { field: 'Model Feature Snapshots', value: exportedFeatureSnapshots.length },
@@ -1808,6 +2431,63 @@ export default function AdminMainframeV2View() {
           ].filter(Boolean).join(' | ')
         }
       ]);
+
+      addWorkbookSheet(workbook, 'All Raw Data', [
+        { header: 'Record Type', key: 'recordType', width: 18 },
+        { header: 'Schema Version', key: 'schemaVersion', width: 14 },
+        { header: 'Event Key', key: 'eventKey', width: 14 },
+        { header: 'Match Type', key: 'matchType', width: 14 },
+        { header: 'Match Number', key: 'matchNumber', width: 12 },
+        { header: 'Match Key', key: 'matchKey', width: 18 },
+        { header: 'Team Number', key: 'teamNumber', width: 12 },
+        { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Scout Name', key: 'scoutName', width: 18 },
+        { header: 'Assigned Scout', key: 'assignedScoutName', width: 18 },
+        { header: 'Assigned Slot', key: 'assignedSlot', width: 12 },
+        { header: 'Substitute', key: 'substituteScoutName', width: 14 },
+        { header: 'Alliance', key: 'alliance', width: 10 },
+        { header: 'Source Collection', key: 'sourceCollection', width: 20 },
+        { header: 'Timestamp', key: 'timestamp', width: 24 },
+        { header: 'Auto Points', key: 'autoPoints', width: 12 },
+        { header: 'Auto Cycles', key: 'autoCycles', width: 12 },
+        { header: 'Teleop Points', key: 'teleopPoints', width: 14 },
+        { header: 'Teleop Cycles', key: 'teleopCycles', width: 14 },
+        { header: 'Endgame Points', key: 'endgamePoints', width: 14 },
+        { header: 'Total Match Points', key: 'totalMatchPoints', width: 18 },
+        { header: 'Role Played', key: 'rolePlayed', width: 14 },
+        { header: 'Defended Team', key: 'defendedTeamNumber', width: 14 },
+        { header: 'Defender Faced', key: 'defenderFacedTeamNumber', width: 14 },
+        { header: 'Defense Intensity', key: 'defenseIntensity', width: 16 },
+        { header: 'Defense Duration Sec', key: 'defenseDurationSeconds', width: 20 },
+        { header: 'Reliability', key: 'reliabilityScore', width: 12 },
+        { header: 'Defense Metric %', key: 'defenseMetricPercent', width: 16 },
+        { header: 'Defense Comments', key: 'defenseComments', width: 36 },
+        { header: 'General Comments', key: 'generalComments', width: 36 },
+        { header: 'Notes', key: 'notes', width: 36 },
+        { header: 'Strategy Notes', key: 'strategyNotes', width: 36 },
+        { header: 'PPC', key: 'ppc', width: 12 },
+        { header: 'cPPC Auto', key: 'cPpcAuto', width: 12 },
+        { header: 'cPPC Teleop', key: 'cPpcTeleop', width: 14 },
+        { header: 'cPPC Endgame', key: 'cPpcEndgame', width: 14 },
+        { header: 'Defense Metric Avg %', key: 'defenseMetricAverage', width: 20 },
+        { header: 'Defense Metric Records', key: 'defenseMetricRecords', width: 22 },
+        { header: 'OPR', key: 'opr', width: 12 },
+        { header: 'cOPR Auto', key: 'cOprAuto', width: 12 },
+        { header: 'cOPR Teleop', key: 'cOprTeleop', width: 14 },
+        { header: 'cOPR Tower', key: 'cOprTower', width: 14 },
+        { header: 'cOPR Fuel', key: 'cOprFuel', width: 14 },
+        { header: 'cOPR Total', key: 'cOprTotal', width: 14 },
+        { header: 'DPR', key: 'dpr', width: 12 },
+        { header: 'EPA', key: 'epa', width: 12 },
+        { header: 'cEPA Auto', key: 'cEpaAuto', width: 12 },
+        { header: 'cEPA Teleop', key: 'cEpaTeleop', width: 14 },
+        { header: 'cEPA Tower', key: 'cEpaTower', width: 14 },
+        { header: 'cEPA Fuel', key: 'cEpaFuel', width: 14 },
+        { header: 'PPA', key: 'ppa', width: 12 },
+        { header: 'Defense Impact', key: 'defenseImpact', width: 16 },
+        { header: 'TBA Rank', key: 'tbaRank', width: 12 },
+        { header: 'Raw Payload JSON', key: 'rawPayloadJson', width: 80 }
+      ], allRawDataRows);
 
       addWorkbookSheet(workbook, 'Raw V4 Data', [
         { header: 'Event Key', key: 'eventKey', width: 14 },
@@ -1892,6 +2572,7 @@ export default function AdminMainframeV2View() {
         { header: 'Type', key: 'recordType', width: 14 },
         { header: 'Source', key: 'source', width: 14 },
         { header: 'Sync Status', key: 'syncStatus', width: 16 },
+        { header: 'Sync Mode', key: 'syncMode', width: 14 },
         { header: 'Deleted', key: 'deleted', width: 10 },
         { header: 'Deleted At', key: 'deletedAt', width: 24 },
         { header: 'Last Firebase Attempt', key: 'lastFirebaseAttemptAt', width: 24 },
@@ -1906,6 +2587,7 @@ export default function AdminMainframeV2View() {
         recordType: record.recordType,
         source: record.source,
         syncStatus: record.syncStatus,
+        syncMode: record.syncMode || 'strict',
         deleted: record.deleted ? 'yes' : 'no',
         deletedAt: record.deletedAt ? new Date(record.deletedAt).toISOString() : '',
         lastFirebaseAttemptAt: record.lastFirebaseAttemptAt ? new Date(record.lastFirebaseAttemptAt).toISOString() : '',
@@ -2008,6 +2690,8 @@ export default function AdminMainframeV2View() {
         { header: 'PPC', key: 'ppc', width: 12 },
         { header: 'cPPC Auto', key: 'cppcAuto', width: 12 },
         { header: 'cPPC Teleop', key: 'cppcTeleop', width: 14 },
+        { header: 'PPC Endgame', key: 'ppcEndgame', width: 14 },
+        { header: 'PPC Reliability', key: 'ppcReliability', width: 16 },
         { header: 'PPC Matches', key: 'ppcMatches', width: 12 },
         { header: 'Defense Metric', key: 'defenseMetric', width: 14 },
         { header: 'Defense Records', key: 'defenseRecords', width: 14 },
@@ -2036,6 +2720,8 @@ export default function AdminMainframeV2View() {
           ppc: teamAverage?.avgTotalMatchPoints ?? '',
           cppcAuto: teamAverage?.avgAutoPoints ?? '',
           cppcTeleop: teamAverage?.avgTeleopPoints ?? '',
+          ppcEndgame: teamAverage?.avgEndgamePoints ?? '',
+          ppcReliability: teamAverage ? Number((teamAverage.avgReliabilityScore * 100).toFixed(2)) : '',
           ppcMatches: teamAverage?.matchesPlayed ?? 0,
           defenseMetric: defenseMetric ? Number((defenseMetric.avgDefenseMetric * 100).toFixed(2)) : '',
           defenseRecords: defenseMetric?.recordsLogged ?? 0,
@@ -2404,6 +3090,20 @@ export default function AdminMainframeV2View() {
           };
         }));
 
+      addWorkbookSheet(workbook, 'Source Freshness', [
+        { header: 'Source', key: 'source', width: 14 },
+        { header: 'Dataset', key: 'key', width: 24 },
+        { header: 'Detail', key: 'detail', width: 44 },
+        { header: 'Freshness', key: 'freshness', width: 18 },
+        { header: 'Loaded At', key: 'loadedAt', width: 24 }
+      ], sourceStatusRows.map(row => ({
+        source: row.source,
+        key: row.key,
+        detail: row.detail,
+        freshness: formatFreshnessAge(row.timestamp),
+        loadedAt: row.timestamp ? new Date(row.timestamp).toISOString() : ''
+      })));
+
       addWorkbookSheet(workbook, 'Scout Assignments', [
         { header: 'Plan ID', key: 'planId', width: 32 },
         { header: 'Created At', key: 'createdAt', width: 24 },
@@ -2723,6 +3423,10 @@ export default function AdminMainframeV2View() {
                       )}
                     </div>
 
+                    {selectedTeamPerformanceProfile && (
+                      <SidebarPerformanceProfile profile={selectedTeamPerformanceProfile} />
+                    )}
+
                     {teamProfileError && (
                       <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm font-semibold text-amber-100">
                         {teamProfileError}
@@ -2937,13 +3641,32 @@ export default function AdminMainframeV2View() {
                       Upload Credentials
                       <input type="file" accept=".json,application/json" className="hidden" onChange={handleFirstCredentialUpload} />
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => downloadJsonFile('first_events_credentials_template.json', {
+                        username: 'your-first-api-username',
+                        token: 'your-first-api-authorization-token'
+                      })}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-800"
+                    >
+                      <Download className="h-4 w-4" />
+                      Template
+                    </button>
                     {firstCredentials && (
-                      <button
-                        onClick={() => void handleClearFirstCredentials()}
-                        className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-100 hover:bg-rose-500/20"
-                      >
-                        Clear
-                      </button>
+                      <>
+                        <button
+                          onClick={() => void handleRefreshFirstEventCache()}
+                          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-100 hover:bg-emerald-500/20"
+                        >
+                          Refresh FIRST Cache
+                        </button>
+                        <button
+                          onClick={() => void handleClearFirstCredentials()}
+                          className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs font-black text-rose-100 hover:bg-rose-500/20"
+                        >
+                          Clear
+                        </button>
+                      </>
                     )}
                   </div>
                   <div className="mt-2 text-xs font-semibold text-slate-400">
@@ -3130,13 +3853,36 @@ export default function AdminMainframeV2View() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-6">
+                <SummaryCard label="Visible Matches" value={rawEditorSummary.visibleMatches} />
+                <SummaryCard label="Scheduled Matches" value={rawEditorSummary.scheduledMatches} />
+                <SummaryCard label="Complete Matches" value={rawEditorSummary.completeScheduledMatches} />
+                <SummaryCard label="Submitted Rows" value={rawEditorSummary.submittedRowCount} />
+                <SummaryCard label="Missing Slots" value={rawEditorSummary.missingSlotCount} />
+                <SummaryCard label="Anomaly Rows" value={rawEditorSummary.anomalyRowCount} />
+              </div>
+
+              {(rawEditorSummary.missingSlotCount > 0 || rawEditorSummary.anomalyRowCount > 0 || rawEditorSummary.scheduleUnknownMatches > 0) && (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-100">
+                  {rawEditorSummary.missingSlotCount > 0 && (
+                    <span>{rawEditorSummary.missingSlotCount} missing slot{rawEditorSummary.missingSlotCount === 1 ? '' : 's'} need coverage. </span>
+                  )}
+                  {rawEditorSummary.anomalyRowCount > 0 && (
+                    <span>{rawEditorSummary.anomalyRowCount} submitted row{rawEditorSummary.anomalyRowCount === 1 ? '' : 's'} need review. </span>
+                  )}
+                  {rawEditorSummary.scheduleUnknownMatches > 0 && (
+                    <span>{rawEditorSummary.scheduleUnknownMatches} local-only match group{rawEditorSummary.scheduleUnknownMatches === 1 ? '' : 's'} have unknown schedule data.</span>
+                  )}
+                </div>
+              )}
+
               {rawEditorGroups.length === 0 ? (
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-10 text-center font-semibold text-slate-500">
                   No {rawEditorViewTab === 'quals' ? 'qualification' : 'practice'} V4 raw-data groups match the current filter.
                 </div>
               ) : (
                 rawEditorGroups.map(group => (
-                  <div key={group.matchKey} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+                  <div key={group.matchKey} className="admin-match-group overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
                     <div className="border-b border-slate-800 px-5 py-4">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div>
@@ -3188,13 +3934,44 @@ export default function AdminMainframeV2View() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800/70">
-                          {group.rows.length === 0 ? (
+                          {group.missingSlots.map(slot => (
+                            <tr key={`missing-${slot.key}`} className="bg-rose-950/20">
+                              <td className="px-4 py-3 text-slate-600">—</td>
+                              <td className="px-4 py-3">
+                                <TeamBadge
+                                  teamNumber={slot.teamNumber}
+                                  ownTeamNumber={ownTeamNumber}
+                                  searchedTeamNumber={searchedTeamNumber}
+                                  teamName={resolvedTeamNameLookup[slot.teamNumber]}
+                                />
+                              </td>
+                              <td className="px-4 py-3 font-mono text-rose-100">{slot.slotLabel}</td>
+                              <td className="px-4 py-3 text-rose-100">{slot.assignedScoutName || '—'}</td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black text-rose-100">
+                                  Missing Submission
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-rose-100">
+                                {slot.slotLabel} · {slot.teamNumber}
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="rounded-full bg-rose-500/15 px-2 py-1 text-xs font-black text-rose-100">
+                                  Missing {slot.slotLabel}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">—</td>
+                              <td className="px-4 py-3 text-slate-600">—</td>
+                              <td className="px-4 py-3 text-slate-500">Expected team has no V4 scouting record for this match yet.</td>
+                            </tr>
+                          ))}
+                          {group.rows.length === 0 && group.missingSlots.length === 0 ? (
                             <tr>
                               <td colSpan={10} className="px-4 py-8 text-center font-semibold text-slate-500">
                                 No V4 submissions yet for this scheduled match.
                               </td>
                             </tr>
-                          ) : (
+                          ) : group.rows.length > 0 ? (
                             group.rows.map(row => {
                               const record = row.record as MatchScoutingV4;
                               return (
@@ -3241,7 +4018,7 @@ export default function AdminMainframeV2View() {
                                 </tr>
                               );
                             })
-                          )}
+                          ) : null}
                         </tbody>
                       </table>
                     </div>
@@ -3260,15 +4037,18 @@ export default function AdminMainframeV2View() {
                 </h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="admin-sticky-table min-w-[1200px] w-full text-left text-sm">
+                <table className="admin-sticky-table min-w-[1450px] w-full text-left text-sm">
                   <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Team</th>
                       <th className="px-4 py-3">Matches</th>
                       <th className="px-4 py-3">Avg Total</th>
                       <th className="px-4 py-3">Avg Auto</th>
+                      <th className="px-4 py-3">Avg Auto Cycles</th>
                       <th className="px-4 py-3">Avg Teleop</th>
                       <th className="px-4 py-3">Avg Cycles</th>
+                      <th className="px-4 py-3">Avg Endgame</th>
+                      <th className="px-4 py-3">Avg Reliability</th>
                       <th className="px-4 py-3">Avg Contribution</th>
                       <th className="px-4 py-3">Avg Close</th>
                       <th className="px-4 py-3">Avg Middle</th>
@@ -3291,8 +4071,11 @@ export default function AdminMainframeV2View() {
                         <td className="px-4 py-3 text-slate-300">{row.matchesPlayed}</td>
                         <td className="px-4 py-3 font-black text-cyan-300">{row.avgTotalMatchPoints.toFixed(2)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgAutoPoints.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-300">{row.avgAutoCycles.toFixed(2)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgTeleopPoints.toFixed(2)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgTeleopCycles.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-300">{row.avgEndgamePoints.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-slate-300">{formatPercentMetric(row.avgReliabilityScore)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgContributionScore.toFixed(2)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgCloseAccuracy.toFixed(2)}</td>
                         <td className="px-4 py-3 text-slate-300">{row.avgMiddleAccuracy.toFixed(2)}</td>
@@ -3329,6 +4112,26 @@ export default function AdminMainframeV2View() {
                   {getPredictorViewDescription(predictorViewTab)} Using{' '}
                   <span className="font-black text-fuchsia-400">{MODEL_LABELS[selectedMetric]}</span>.
                 </p>
+                <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-400 lg:grid-cols-3">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                    Model layer:{' '}
+                    <span className="text-slate-100">
+                      {selectedMetric === 'ppc'
+                        ? 'V3/V4 scouting averages'
+                        : selectedMetric === 'opr'
+                          ? 'Uploaded COPRs first, calculated OPR second'
+                          : 'Statbotics EPA only'}
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                    Schedule layer:{' '}
+                    <span className="text-slate-100">Live TBA first, uploaded TBA schedule fallback</span>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                    Finals layer:{' '}
+                    <span className="text-slate-100">Requires TBA or uploaded playoff alliances/bracket structure</span>
+                  </div>
+                </div>
               </div>
 
               {selectedMetric === 'opr' && (
@@ -3444,7 +4247,7 @@ export default function AdminMainframeV2View() {
                             value={rankingSearch}
                             onChange={event => setRankingSearch(event.target.value)}
                             className="w-full rounded-xl border border-slate-700 bg-slate-950 py-3 pl-10 pr-4 text-sm text-white outline-none focus:border-cyan-500"
-                            placeholder="Search by team number"
+                            placeholder="Search by team number or name"
                           />
                         </div>
                       </div>
@@ -3572,6 +4375,13 @@ export default function AdminMainframeV2View() {
                         ))}
                       </div>
                     )}
+                    <div className="mt-5">
+                      <PredictionActualTrendPanel
+                        modelName={adminV2BestComparisonModel?.modelName || adminV2BestForecastLayer.modelName}
+                        sourceLabel={adminV2BestComparisonModel?.sourceLabel || adminV2BestForecastLayer.modelSource}
+                        rows={adminV2BestComparisonModel?.comparisonRows || []}
+                      />
+                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="admin-sticky-table min-w-[1280px] w-full text-left text-sm">
@@ -3785,7 +4595,7 @@ export default function AdminMainframeV2View() {
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 xl:col-span-3">
                     <div className="text-xs font-black uppercase tracking-wider text-slate-500">Quick Entry</div>
                     <p className="mt-2 text-sm text-slate-400">
-                      Paste 1-6 team numbers separated by spaces or commas. The first three go to Red, the next three go to Blue.
+                      Paste any number of team numbers separated by spaces or commas. For six-team match sims, the first three go to Red and the next three go to Blue; larger lists split into Red first, Blue second.
                     </p>
                     <div className="mt-3 flex flex-col gap-3 xl:flex-row">
                       <input
@@ -3811,9 +4621,9 @@ export default function AdminMainframeV2View() {
                       onChange={event => setRedSimulatorInput(event.target.value)}
                       rows={4}
                       className="mt-3 w-full rounded-xl border border-red-800/50 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-red-400"
-                      placeholder="Enter up to 3 teams"
+                      placeholder="Enter any number of teams"
                     />
-                    <div className="mt-3 text-xs text-slate-500">Use spaces or commas. Extra teams beyond 3 are ignored.</div>
+                    <div className="mt-3 text-xs text-slate-500">Use spaces or commas. Every entered team contributes to this side.</div>
                   </div>
 
                   <div className="rounded-2xl border border-blue-500/20 bg-blue-950/10 p-4">
@@ -3823,9 +4633,9 @@ export default function AdminMainframeV2View() {
                       onChange={event => setBlueSimulatorInput(event.target.value)}
                       rows={4}
                       className="mt-3 w-full rounded-xl border border-blue-800/50 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-400"
-                      placeholder="Enter up to 3 teams"
+                      placeholder="Enter any number of teams"
                     />
-                    <div className="mt-3 text-xs text-slate-500">Use spaces or commas. Extra teams beyond 3 are ignored.</div>
+                    <div className="mt-3 text-xs text-slate-500">Use spaces or commas. Every entered team contributes to this side.</div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
@@ -3995,6 +4805,79 @@ export default function AdminMainframeV2View() {
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h3 className="flex items-center gap-2 text-lg font-black text-white">
+                      <RefreshCw className="h-5 w-5 text-cyan-300" />
+                      Source Freshness
+                    </h3>
+                    <p className="mt-2 max-w-3xl text-sm text-slate-400">
+                      One place to verify what Admin V2 can fall back to when the internet is bad: cached TBA/FIRST/Statbotics/Firebase
+                      payloads, uploaded TBA files, and locally restored source data.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void refreshAdminV2CacheEntries()}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-400/20"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    REFRESH STATUS
+                  </button>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <SummaryCard label="Source Rows" value={sourceStatusSummary.rowCount} />
+                  <SummaryCard label="Source Types" value={sourceStatusSummary.uniqueSources} />
+                  <SummaryCard label="Latest Update" value={formatFreshnessAge(sourceStatusSummary.latestTimestamp)} />
+                  <SummaryCard label="FIRST Credentials" value={firstCredentials ? 'Saved locally' : 'Not saved'} />
+                </div>
+
+                {adminV2CacheError && (
+                  <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100">
+                    <AlertTriangle className="mr-2 inline h-4 w-4" />
+                    {adminV2CacheError}
+                  </div>
+                )}
+
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+                  <table className="admin-sticky-table min-w-full text-left text-sm">
+                    <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3">Source</th>
+                        <th className="px-4 py-3">Dataset</th>
+                        <th className="px-4 py-3">Detail</th>
+                        <th className="px-4 py-3">Freshness</th>
+                        <th className="px-4 py-3">Loaded At</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {sourceStatusRows.map(row => (
+                        <tr key={row.id}>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-xs font-black uppercase text-cyan-100">
+                              {row.source}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-white">{row.key}</td>
+                          <td className="px-4 py-3 text-slate-300">{row.detail}</td>
+                          <td className="px-4 py-3 font-black text-cyan-100">{formatFreshnessAge(row.timestamp)}</td>
+                          <td className="px-4 py-3 text-slate-400">{formatLocalTimestamp(row.timestamp)}</td>
+                        </tr>
+                      ))}
+                      {sourceStatusRows.length === 0 && (
+                        <tr>
+                          <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
+                            No cached source data yet. Upload TBA files, refresh FIRST cache, or load live Admin V2 data to populate this board.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
                 <div className="mb-6">
                   <h3 className="flex items-center gap-2 text-lg font-black text-white">
                     <Upload className="h-5 w-5 text-cyan-400" />
@@ -4006,7 +4889,11 @@ export default function AdminMainframeV2View() {
                     current V3 match records, pit records, and the existing staging protocol.
                   </p>
                 </div>
-                <QRScannerView isEmbedded={true} isActive={activeTab === 'import'} />
+                <QRScannerView
+                  isEmbedded={true}
+                  isActive={activeTab === 'import'}
+                  onArchiveChanged={() => void refreshLocalArchiveRecords()}
+                />
               </div>
 
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
@@ -4059,25 +4946,22 @@ export default function AdminMainframeV2View() {
                           <th className="px-4 py-3 text-left">Type</th>
                           <th className="px-4 py-3 text-left">Logical ID</th>
                           <th className="px-4 py-3 text-left">Sync State</th>
+                          <th className="px-4 py-3 text-left">Sync Mode</th>
                           <th className="px-4 py-3 text-left">Last Error</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-amber-300/10 text-amber-50/90">
-                        {localArchiveSummary.unsyncedRecords.slice(0, 8).map(record => (
+                        {localArchiveSummary.unsyncedRecords.map(record => (
                           <tr key={record.recordId}>
                             <td className="px-4 py-3 font-black uppercase">{record.recordType}</td>
                             <td className="px-4 py-3 font-mono text-xs">{record.logicalId}</td>
                             <td className="px-4 py-3">{record.syncStatus}</td>
+                            <td className="px-4 py-3 font-mono text-xs">{record.syncMode || 'strict'}</td>
                             <td className="px-4 py-3 text-xs text-amber-100/80">{record.lastFirebaseError || 'Waiting for retry'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {localArchiveSummary.unsyncedRecords.length > 8 && (
-                      <div className="border-t border-amber-300/10 px-4 py-3 text-xs font-semibold text-amber-100/70">
-                        Showing 8 of {localArchiveSummary.unsyncedRecords.length} unsynced records.
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -4130,7 +5014,7 @@ export default function AdminMainframeV2View() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
               <h3 className="text-lg font-black text-white">Excel Export</h3>
               <p className="mt-2 max-w-2xl text-sm text-slate-400">
-                Export one workbook with multiple sheets for the active event: raw V3/V4/defense data, team metrics,
+                Export one workbook with multiple sheets for the active event: one unified All Raw Data sheet, raw V3/V4/defense data, team metrics,
                 PPC/EPA/OPR values and components, projected rankings, forecasts, coverage audits, cached source status,
                 scout ops, and PowerCoins.
               </p>
@@ -4372,6 +5256,67 @@ const addFinalsProjectionSheet = (workbook: any, title: string, projection: Retu
     )
   );
 };
+
+function SidebarPerformanceProfile({ profile }: { profile: TeamPerformanceProfile }) {
+  const width = 240;
+  const height = 76;
+  const padding = 8;
+  const curve = profile.curve;
+  const values = curve.flatMap(point => [point.score, point.fittedScore, point.upperBand]);
+  const minValue = Math.min(0, ...values);
+  const maxValue = Math.max(1, ...values);
+  const xFor = (index: number) =>
+    curve.length <= 1 ? width / 2 : padding + (index / (curve.length - 1)) * (width - padding * 2);
+  const yFor = (value: number) =>
+    height - padding - ((value - minValue) / Math.max(1, maxValue - minValue)) * (height - padding * 2);
+  const pathFor = (accessor: (point: TeamPerformanceProfile['curve'][number]) => number) =>
+    curve
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${xFor(index).toFixed(1)} ${yFor(accessor(point)).toFixed(1)}`)
+      .join(' ');
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-black uppercase tracking-wider text-slate-500">Performance Profile</div>
+          <div className="mt-1 text-sm font-semibold text-slate-300">
+            {profile.matchesPlayed} match{profile.matchesPlayed === 1 ? '' : 'es'} · trend {formatMetricValue(profile.recentTrend, 3)}
+          </div>
+        </div>
+        <span className={`rounded-full px-2 py-1 text-xs font-black ${profile.recentTrend >= 0 ? 'bg-emerald-500/15 text-emerald-200' : 'bg-rose-500/15 text-rose-200'}`}>
+          {profile.recentTrend >= 0 ? 'RISING' : 'FALLING'}
+        </span>
+      </div>
+
+      {curve.length > 0 ? (
+        <svg className="mt-3 h-20 w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Team ${profile.teamNumber} performance curve`}>
+          <path d={pathFor(point => point.lowerBand)} fill="none" stroke="rgb(51 65 85)" strokeWidth="1" strokeDasharray="3 3" />
+          <path d={pathFor(point => point.upperBand)} fill="none" stroke="rgb(51 65 85)" strokeWidth="1" strokeDasharray="3 3" />
+          <path d={pathFor(point => point.fittedScore)} fill="none" stroke="rgb(34 211 238)" strokeWidth="2.5" strokeLinecap="round" />
+          <path d={pathFor(point => point.score)} fill="none" stroke="rgb(244 114 182)" strokeWidth="2" strokeLinecap="round" />
+          {curve.map((point, index) => (
+            <circle key={`${point.matchKey}-${index}`} cx={xFor(index)} cy={yFor(point.score)} r="2.3" fill="rgb(244 114 182)" />
+          ))}
+        </svg>
+      ) : (
+        <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-4 text-sm font-semibold text-slate-500">
+          No scouted point curve yet.
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+        <MetricField label="Avg" value={formatMetricValue(profile.averageScore)} />
+        <MetricField label="Peak" value={formatMetricValue(profile.peakScore)} />
+        <MetricField label="Floor" value={formatMetricValue(profile.floorScore)} />
+        <MetricField label="Ceiling" value={formatMetricValue(profile.ceilingScore)} />
+        <MetricField label="Std Dev" value={formatMetricValue(profile.standardDeviation)} />
+        <MetricField label="Projected" value={formatMetricValue(profile.projectedNextScore)} />
+        <MetricField label="PPA" value={formatMetricValue(profile.ppa)} />
+        <MetricField label="Defense Impact" value={formatMetricValue(profile.defenseImpact)} />
+      </div>
+    </div>
+  );
+}
 
 function MetricField({ label, value }: { label: string; value: string }) {
   return (

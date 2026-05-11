@@ -16,8 +16,6 @@ import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
 import { syncScoutArchiveRecordToFirebase } from '../utils/scoutArchiveSync';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 
-const MATCH_DEFENSE_EDIT_STORAGE_KEY = 'edit_match_defense_data_v1';
-
 type HistoryRow = ScoutArchiveRecord;
 
 const toMatchPayloadV3 = (payload: MatchScoutingV2 | MatchScoutingV3) =>
@@ -52,7 +50,7 @@ export default function HistoryView() {
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
-  const eventKey = localStorage.getItem('match_scout_v3_event_key') || DEFAULT_EVENT_KEY;
+  const eventKey = DEFAULT_EVENT_KEY;
 
   const recentRecords = useMemo(() => {
     return records
@@ -148,6 +146,7 @@ export default function HistoryView() {
   const handleEdit = (record: HistoryRow) => {
     if (record.recordType === 'matchV4') {
       localStorage.setItem('match_scout_v4_draft', JSON.stringify(record.payload));
+      localStorage.setItem('match_scout_v4_edit_mode', 'true');
       navigate('/scout');
       return;
     }
@@ -158,8 +157,7 @@ export default function HistoryView() {
     }
 
     if (record.recordType === 'matchDefense') {
-      localStorage.setItem(MATCH_DEFENSE_EDIT_STORAGE_KEY, JSON.stringify(record.payload));
-      navigate('/scout');
+      setError('Defense V1 records remain readable and exportable here. New defense edits should be submitted with the V4 scout form.');
       return;
     }
 
@@ -518,6 +516,18 @@ export default function HistoryView() {
                       )}
                     </>
                   )}
+
+                  {record.syncStatus !== 'synced' && record.lastFirebaseError && (
+                    <div
+                      className={`max-w-3xl rounded-xl px-3 py-2 text-xs font-bold ${
+                        record.lastFirebaseError.toLowerCase().includes('conflict')
+                          ? 'border border-rose-500/40 bg-rose-500/10 text-rose-100'
+                          : 'border border-amber-500/40 bg-amber-500/10 text-amber-100'
+                      }`}
+                    >
+                      {record.lastFirebaseError}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 self-start md:self-center">
@@ -530,7 +540,7 @@ export default function HistoryView() {
                       Retry Sync
                     </button>
                   )}
-                  {record.recordType !== 'match' && (
+                  {(record.recordType === 'matchV4' || record.recordType === 'pit') && (
                     <button
                       onClick={() => handleEdit(record)}
                       className="bg-emerald-600 hover:bg-emerald-500 text-white font-black tracking-wide px-4 py-2 rounded-xl flex items-center gap-2"

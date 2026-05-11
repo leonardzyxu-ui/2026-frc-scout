@@ -101,6 +101,15 @@ const getLocationLabel = (city?: string, state?: string, country?: string) =>
 const getString = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value : null;
 
+const getDisplayString = (value: unknown): string | null => {
+  const text = getString(value);
+  if (!text) return null;
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 const getNumber = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
@@ -429,10 +438,10 @@ export async function fetchPreMatchTeamProfile(
         eventType: event.event_type_string || 'Event',
         startDate: event.start_date,
         location: getLocationLabel(event.city, event.state_prov, event.country),
-        overallStatus: status?.overall_status_str || 'Status unavailable',
+        overallStatus: getDisplayString(status?.overall_status_str) || 'Status unavailable',
         qualRank: getNumber(status?.qual?.ranking?.rank),
-        allianceStatus: getString(status?.alliance?.status_str) ?? getString(status?.alliance?.name),
-        playoffStatus: getString(status?.playoff?.status_str),
+        allianceStatus: getDisplayString(status?.alliance?.status_str) ?? getDisplayString(status?.alliance?.name),
+        playoffStatus: getDisplayString(status?.playoff?.status_str),
         districtPoints: districtPointsByEvent.get(event.key) ?? null
       };
     })

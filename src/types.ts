@@ -306,6 +306,22 @@ export interface ModelBacktestResult {
   lowConfidenceRate: number;
   uncertaintyNote: string;
   calibrationBins: ModelCalibrationBin[];
+  comparisonRows: ModelBacktestComparisonRow[];
+}
+
+export interface ModelBacktestComparisonRow {
+  matchKey: string;
+  matchNumber: number;
+  title: string;
+  predictedRedScore: number;
+  predictedBlueScore: number;
+  actualRedScore: number;
+  actualBlueScore: number;
+  predictedWinner: 'Red' | 'Blue' | 'Tie';
+  actualWinner: 'Red' | 'Blue' | 'Tie';
+  winnerPickCorrect: boolean;
+  confidence: number;
+  lowConfidence: boolean;
 }
 
 export interface ModelCalibrationBin {

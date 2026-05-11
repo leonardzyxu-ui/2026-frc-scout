@@ -14,8 +14,10 @@ export const SCOUT_ASSIGNMENTS: ScoutAssignment[] = [
   { name: 'Justin', alliance: 'Blue', positionIndex: 2, slotLabel: 'Blue 3' }
 ];
 
+const normalizeAssignmentKey = (value: string) => value.trim().toLowerCase();
+
 export const getScoutAssignmentByName = (name: string) =>
-  SCOUT_ASSIGNMENTS.find(assignment => assignment.name === name) || null;
+  SCOUT_ASSIGNMENTS.find(assignment => normalizeAssignmentKey(assignment.name) === normalizeAssignmentKey(name)) || null;
 
 export const getScoutAssignmentBySlot = (slotLabel: string) =>
-  SCOUT_ASSIGNMENTS.find(assignment => assignment.slotLabel === slotLabel) || null;
+  SCOUT_ASSIGNMENTS.find(assignment => normalizeAssignmentKey(assignment.slotLabel) === normalizeAssignmentKey(slotLabel)) || null;

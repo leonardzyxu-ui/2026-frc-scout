@@ -7,11 +7,21 @@
 }
 
 @layer components {
+  .admin-sticky-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
   .admin-sticky-table thead th {
     position: sticky;
     top: 0;
     z-index: 20;
     background-color: rgb(2 6 23 / 0.96);
     backdrop-filter: blur(10px);
+  }
+
+  .admin-match-group {
+    content-visibility: auto;
+    contain-intrinsic-size: 560px;
   }
 }

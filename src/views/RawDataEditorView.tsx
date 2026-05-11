@@ -41,6 +41,7 @@ const RAW_DATA_EDITOR_SESSION_KEY = 'raw_data_editor_unlocked';
 const ANOMALY_CLASSES: Record<MatchRowAnomaly, string> = {
   wrong_team_for_slot: 'bg-rose-500/15 text-rose-200',
   scout_assignment_mismatch: 'bg-amber-500/15 text-amber-200',
+  substitute_mismatch: 'bg-orange-500/15 text-orange-200',
   unexpected_team: 'bg-fuchsia-500/15 text-fuchsia-200',
   duplicate_record: 'bg-red-500/15 text-red-200'
 };

@@ -425,7 +425,8 @@ const evaluatePredictions = (
       marginMae: 0,
       calibrationError: 0,
       lowConfidenceRate: 0,
-      calibrationBins: []
+      calibrationBins: [],
+      comparisonRows: []
     };
   }
 
@@ -437,6 +438,7 @@ const evaluatePredictions = (
   let calibrationError = 0;
   let lowConfidence = 0;
   const calibrationRows: Array<{ confidence: number; hit: boolean }> = [];
+  const comparisonRows: ModelBacktestResult['comparisonRows'] = [];
 
   predictions.forEach(({ match, redScore, blueScore, lowConfidence: isLowConfidence }) => {
     const actualRed = getOfficialAllianceScore(match, 'red');
@@ -445,6 +447,20 @@ const evaluatePredictions = (
     const actualWinner = actualRed === actualBlue ? 'Tie' : actualRed > actualBlue ? 'Red' : 'Blue';
     const hit = predictedWinner === actualWinner;
     const confidence = getPredictionConfidence(redScore, blueScore, isLowConfidence);
+    comparisonRows.push({
+      matchKey: match.key,
+      matchNumber: match.match_number,
+      title: `Q${match.match_number}`,
+      predictedRedScore: redScore,
+      predictedBlueScore: blueScore,
+      actualRedScore: actualRed,
+      actualBlueScore: actualBlue,
+      predictedWinner,
+      actualWinner,
+      winnerPickCorrect: hit,
+      confidence,
+      lowConfidence: isLowConfidence
+    });
     if (hit) winnerHits += 1;
     confidenceTotal += confidence;
     brierTotal += (confidence - (hit ? 1 : 0)) ** 2;
@@ -467,7 +483,8 @@ const evaluatePredictions = (
     marginMae: marginAbsError / predictions.length,
     calibrationError: calibrationError / predictions.length,
     lowConfidenceRate: lowConfidence / predictions.length,
-    calibrationBins: buildCalibrationBins(modelName, calibrationRows)
+    calibrationBins: buildCalibrationBins(modelName, calibrationRows),
+    comparisonRows
   };
 };
 

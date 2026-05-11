@@ -5,6 +5,7 @@ import { getScoutAssignmentByName, getScoutAssignmentBySlot, SCOUT_ASSIGNMENTS }
 export type MatchRowAnomaly =
   | 'wrong_team_for_slot'
   | 'scout_assignment_mismatch'
+  | 'substitute_mismatch'
   | 'unexpected_team'
   | 'duplicate_record';
 
@@ -73,6 +74,10 @@ const normalizeMatchKey = (matchKey: string) => {
 
 const normalizeTeamNumber = (teamNumber: string) => teamNumber.replace(/^frc/i, '').trim();
 
+const normalizeName = (name?: string) => (name || '').trim().toLowerCase();
+const normalizeSlotLabel = (slotLabel?: string) => normalizeName(slotLabel);
+const VALID_SUBSTITUTES = new Set(['charlotte', 'scarlett']);
+
 const getMatchOrderFromKey = (matchKey: string) => {
   const normalized = normalizeMatchKey(matchKey);
   const prefixMatch = normalized.match(/^[a-z]+/);
@@ -131,6 +136,8 @@ export const getRowAnomalyLabel = (anomaly: MatchRowAnomaly) => {
       return 'Wrong Team for Slot';
     case 'scout_assignment_mismatch':
       return 'Scout Assignment Mismatch';
+    case 'substitute_mismatch':
+      return 'Substitute Mismatch';
     case 'unexpected_team':
       return 'Unexpected Team';
     case 'duplicate_record':
@@ -192,11 +199,11 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
     const slotCounts = new Map<string, number>();
 
     rows.forEach(row => {
-      const normalizedTeam = row.teamNumber.trim();
+      const normalizedTeam = normalizeTeamNumber(row.teamNumber);
       if (normalizedTeam) {
         teamCounts.set(normalizedTeam, (teamCounts.get(normalizedTeam) || 0) + 1);
       }
-      const slotKey = row.assignedSlot?.trim();
+      const slotKey = normalizeSlotLabel(row.assignedSlot);
       if (slotKey) {
         slotCounts.set(slotKey, (slotCounts.get(slotKey) || 0) + 1);
       }
@@ -206,24 +213,25 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
       const anomalies: MatchRowAnomaly[] = [];
       const assignmentByName = row.assignedScoutName ? getScoutAssignmentByName(row.assignedScoutName) : null;
       const assignmentBySlot = row.assignedSlot ? getScoutAssignmentBySlot(row.assignedSlot) : null;
+      const normalizedRowTeam = normalizeTeamNumber(row.teamNumber);
       const expectedSlot =
-        (assignmentBySlot && expectedSlots.find(slot => slot.slotLabel === assignmentBySlot.slotLabel)) ||
-        (assignmentByName && expectedSlots.find(slot => slot.slotLabel === assignmentByName.slotLabel)) ||
-        expectedSlots.find(slot => slot.teamNumber === row.teamNumber);
+        (assignmentBySlot && expectedSlots.find(slot => normalizeSlotLabel(slot.slotLabel) === normalizeSlotLabel(assignmentBySlot.slotLabel))) ||
+        (assignmentByName && expectedSlots.find(slot => normalizeSlotLabel(slot.slotLabel) === normalizeSlotLabel(assignmentByName.slotLabel))) ||
+        expectedSlots.find(slot => normalizeTeamNumber(slot.teamNumber) === normalizedRowTeam);
 
-      if (group.scheduleKnown && row.teamNumber && !scheduledTeams.has(row.teamNumber)) {
+      if (group.scheduleKnown && normalizedRowTeam && !scheduledTeams.has(normalizedRowTeam)) {
         anomalies.push('unexpected_team');
       }
 
-      if (teamCounts.get(row.teamNumber.trim()) && (teamCounts.get(row.teamNumber.trim()) || 0) > 1) {
+      if (teamCounts.get(normalizedRowTeam) && (teamCounts.get(normalizedRowTeam) || 0) > 1) {
         anomalies.push('duplicate_record');
       }
 
-      if (row.assignedSlot && (slotCounts.get(row.assignedSlot.trim()) || 0) > 1) {
+      if (row.assignedSlot && (slotCounts.get(normalizeSlotLabel(row.assignedSlot)) || 0) > 1) {
         anomalies.push('duplicate_record');
       }
 
-      if (assignmentByName && row.assignedSlot && assignmentByName.slotLabel !== row.assignedSlot) {
+      if (assignmentByName && row.assignedSlot && normalizeSlotLabel(assignmentByName.slotLabel) !== normalizeSlotLabel(row.assignedSlot)) {
         anomalies.push('scout_assignment_mismatch');
       }
 
@@ -239,16 +247,28 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
         anomalies.push('scout_assignment_mismatch');
       }
 
+      if (row.substituteScoutName && !VALID_SUBSTITUTES.has(normalizeName(row.substituteScoutName))) {
+        anomalies.push('substitute_mismatch');
+      }
+
+      if (
+        row.substituteScoutName &&
+        row.scoutName &&
+        normalizeName(row.scoutName) !== normalizeName(row.substituteScoutName)
+      ) {
+        anomalies.push('substitute_mismatch');
+      }
+
       if (
         row.assignedScoutName &&
         row.scoutName &&
-        row.scoutName !== row.assignedScoutName &&
-        row.scoutName !== row.substituteScoutName
+        normalizeName(row.scoutName) !== normalizeName(row.assignedScoutName) &&
+        normalizeName(row.scoutName) !== normalizeName(row.substituteScoutName)
       ) {
         anomalies.push('scout_assignment_mismatch');
       }
 
-      if (group.scheduleKnown && expectedSlot?.teamNumber && expectedSlot.teamNumber !== row.teamNumber) {
+      if (group.scheduleKnown && expectedSlot?.teamNumber && normalizeTeamNumber(expectedSlot.teamNumber) !== normalizedRowTeam) {
         anomalies.push('wrong_team_for_slot');
       }
 
@@ -260,10 +280,18 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
       };
     });
 
-    const presentExpectedTeams = new Set(
-      validatedRows
-        .filter(row => row.record.teamNumber && scheduledTeams.has(row.record.teamNumber))
-        .map(row => row.record.teamNumber)
+    const presentExpectedSlotKeys = new Set(
+      expectedSlots
+        .filter(slot =>
+          validatedRows.some(row =>
+            normalizeTeamNumber(row.record.teamNumber) === normalizeTeamNumber(slot.teamNumber) &&
+            (
+              normalizeSlotLabel(row.record.assignedSlot) === normalizeSlotLabel(slot.slotLabel) ||
+              (!row.record.assignedSlot && row.expectedSlotLabel === slot.slotLabel)
+            )
+          )
+        )
+        .map(slot => slot.key)
     );
 
     group.rows = validatedRows.sort((left, right) => {
@@ -274,7 +302,7 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
       return left.record.teamNumber.localeCompare(right.record.teamNumber, undefined, { numeric: true });
     });
 
-    group.missingSlots = expectedSlots.filter(slot => slot.teamNumber && !presentExpectedTeams.has(slot.teamNumber));
+    group.missingSlots = expectedSlots.filter(slot => slot.teamNumber && !presentExpectedSlotKeys.has(slot.key));
 
     if (group.missingSlots.length > 0) {
       group.warnings.push(`Missing ${group.missingSlots.length} slot${group.missingSlots.length === 1 ? '' : 's'}`);
@@ -287,6 +315,9 @@ export const buildMatchValidationGroups = <TRecord extends MatchValidationLike =
     }
     if (validatedRows.some(row => row.anomalies.includes('scout_assignment_mismatch'))) {
       group.warnings.push('Scout Assignment Mismatch');
+    }
+    if (validatedRows.some(row => row.anomalies.includes('substitute_mismatch'))) {
+      group.warnings.push('Substitute Mismatch');
     }
     if (validatedRows.some(row => row.anomalies.includes('duplicate_record'))) {
       group.warnings.push('Duplicate Record');

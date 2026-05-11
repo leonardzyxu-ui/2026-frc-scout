@@ -30,14 +30,15 @@ export const syncScoutArchiveRecordToFirebase = async (
   });
 
   try {
+    const mode = record.syncMode || 'strict';
     const writeResult =
       record.recordType === 'matchV4'
-        ? await writeMatchScoutingV4Record(record.payload as MatchScoutingV4, { mode: 'strict' })
+        ? await writeMatchScoutingV4Record(record.payload as MatchScoutingV4, { mode })
         : record.recordType === 'match'
-          ? await writeMatchScoutingV3Record(toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3), { mode: 'strict' })
+          ? await writeMatchScoutingV3Record(toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3), { mode })
           : record.recordType === 'matchDefense'
-            ? await writeMatchDefenseScoutingRecord(record.payload as MatchDefenseScoutingV1, { mode: 'strict' })
-            : await writePitScoutingRecord(record.eventKey, record.payload as PitScoutingV2, { mode: 'strict' });
+            ? await writeMatchDefenseScoutingRecord(record.payload as MatchDefenseScoutingV1, { mode })
+            : await writePitScoutingRecord(record.eventKey, record.payload as PitScoutingV2, { mode });
 
     if (writeResult.outcome === 'conflict') {
       await updateScoutArchiveRecordSyncState(record.recordId, {

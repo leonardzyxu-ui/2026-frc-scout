@@ -15,6 +15,10 @@ export type ScoutArchiveSource = 'local_submit' | 'json_import' | 'qr_import';
 export type ArchivedMatchPayload = MatchScoutingV2 | MatchScoutingV3;
 export type ArchivedMatchV4Payload = MatchScoutingV4;
 export type ScoutArchiveSyncStatus = 'pending_sync' | 'synced' | 'unsynced';
+export type ScoutArchiveSyncMode = 'strict' | 'replace';
+type ScoutArchiveUpsertSyncState = Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'syncMode' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>> & {
+  preserveExistingOnConflict?: boolean;
+};
 
 interface ScoutArchiveRecordBase<T> {
   recordId: string;
@@ -28,6 +32,7 @@ interface ScoutArchiveRecordBase<T> {
   deletedAt?: number;
   source: ScoutArchiveSource;
   syncStatus: ScoutArchiveSyncStatus;
+  syncMode?: ScoutArchiveSyncMode;
   lastFirebaseAttemptAt?: number;
   lastFirebaseError?: string;
   payload: T;
@@ -66,8 +71,30 @@ const normalizeArchiveRecord = (record: ScoutArchiveRecord): ScoutArchiveRecord 
   ...record,
   deleted: !!record.deleted,
   syncStatus: record.syncStatus || 'synced',
+  syncMode: record.syncMode || 'strict',
   lastFirebaseError: record.lastFirebaseError || ''
 });
+
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== 'timestamp' && key !== 'deviceId' && key !== 'editHistory')
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value) ?? 'undefined';
+};
+
+const isSubstantiveDuplicate = (left: ScoutArchiveRecord, right: ScoutArchiveRecord) =>
+  left.recordType === right.recordType &&
+  left.logicalId === right.logicalId &&
+  stableStringify(left.payload) === stableStringify(right.payload);
 
 const openScoutArchiveDb = async (): Promise<IDBDatabase | null> => {
   if (typeof window === 'undefined' || !('indexedDB' in window)) {
@@ -179,11 +206,67 @@ const putArchiveRecord = async (record: ScoutArchiveRecord) => {
   });
 };
 
+const getArchiveRecordById = async (recordId: string) =>
+  await withStore<ScoutArchiveRecord | null>(RECORDS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.get(recordId);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load scout archive record.'));
+    request.onsuccess = () => {
+      const result = (request.result as ScoutArchiveRecord | undefined) ?? null;
+      resolve(result ? normalizeArchiveRecord(result) : null);
+    };
+  });
+
+const findSubstantiveArchiveDuplicate = async (record: ScoutArchiveRecord) =>
+  await withStore<ScoutArchiveRecord | null>(RECORDS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.getAll();
+    request.onerror = () => reject(request.error ?? new Error('Failed to scan scout archive records.'));
+    request.onsuccess = () => {
+      const records = ((request.result as ScoutArchiveRecord[] | undefined) ?? []).map(normalizeArchiveRecord);
+      resolve(records.find(existing => isSubstantiveDuplicate(existing, record)) || null);
+    };
+  });
+
+const putArchiveRecordWithImportGuard = async (
+  record: ScoutArchiveRecord,
+  preserveExistingOnConflict?: boolean
+) => {
+  if (!preserveExistingOnConflict) {
+    await putArchiveRecord(record);
+    return record;
+  }
+
+  const existingRecord = await getArchiveRecordById(record.recordId);
+  if (!existingRecord) {
+    await putArchiveRecord(record);
+    return record;
+  }
+
+  if (isSubstantiveDuplicate(existingRecord, record)) {
+    return existingRecord;
+  }
+
+  const existingSubstantiveDuplicate = await findSubstantiveArchiveDuplicate(record);
+  if (existingSubstantiveDuplicate) {
+    return existingSubstantiveDuplicate;
+  }
+
+  const conflictTimestamp = record.updatedAt || Date.now();
+  const conflictRecord: ScoutArchiveRecord = normalizeArchiveRecord({
+    ...record,
+    recordId: `${record.recordId}:conflict:${conflictTimestamp}`,
+    syncStatus: 'unsynced',
+    lastFirebaseAttemptAt: record.lastFirebaseAttemptAt || Date.now(),
+    lastFirebaseError: `Imported local conflict preserved separately. Existing local record kept at ${record.recordId}.`
+  });
+  await putArchiveRecord(conflictRecord);
+  return conflictRecord;
+};
+
 export const upsertMatchArchiveRecord = async (
   record: MatchScoutingV2,
   username: string,
   source: ScoutArchiveSource = 'local_submit',
-  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+  syncState?: ScoutArchiveUpsertSyncState
 ) => {
   const recordId = buildMatchRecordId(record);
   const logicalId = getMatchDocId(record);
@@ -198,20 +281,20 @@ export const upsertMatchArchiveRecord = async (
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
+    syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
     payload: record
   };
 
-  await putArchiveRecord(archiveRecord);
-  return archiveRecord;
+  return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
 };
 
 export const upsertMatchArchiveRecordV3 = async (
   record: MatchScoutingV3,
   username: string,
   source: ScoutArchiveSource = 'local_submit',
-  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+  syncState?: ScoutArchiveUpsertSyncState
 ) => {
   const recordId = buildMatchRecordId(record);
   const logicalId = getMatchV3DocId(record);
@@ -226,20 +309,20 @@ export const upsertMatchArchiveRecordV3 = async (
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
+    syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
     payload: record
   };
 
-  await putArchiveRecord(archiveRecord);
-  return archiveRecord;
+  return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
 };
 
 export const upsertMatchArchiveRecordV4 = async (
   record: MatchScoutingV4,
   username: string,
   source: ScoutArchiveSource = 'local_submit',
-  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+  syncState?: ScoutArchiveUpsertSyncState
 ) => {
   const recordId = buildMatchV4RecordId(record);
   const logicalId = getMatchV4DocId(record);
@@ -254,20 +337,20 @@ export const upsertMatchArchiveRecordV4 = async (
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
+    syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
     payload: record
   };
 
-  await putArchiveRecord(archiveRecord);
-  return archiveRecord;
+  return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
 };
 
 export const upsertMatchDefenseArchiveRecord = async (
   record: MatchDefenseScoutingV1,
   username: string,
   source: ScoutArchiveSource = 'local_submit',
-  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+  syncState?: ScoutArchiveUpsertSyncState
 ) => {
   const recordId = buildMatchDefenseRecordId(record);
   const logicalId = getMatchDefenseDocId(record);
@@ -282,13 +365,13 @@ export const upsertMatchDefenseArchiveRecord = async (
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
+    syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
     payload: record
   };
 
-  await putArchiveRecord(archiveRecord);
-  return archiveRecord;
+  return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
 };
 
 export const upsertPitArchiveRecord = async (
@@ -296,7 +379,7 @@ export const upsertPitArchiveRecord = async (
   record: PitScoutingV2,
   username: string,
   source: ScoutArchiveSource = 'local_submit',
-  syncState?: Partial<Pick<ScoutArchiveRecord, 'syncStatus' | 'lastFirebaseAttemptAt' | 'lastFirebaseError'>>
+  syncState?: ScoutArchiveUpsertSyncState
 ) => {
   const recordId = buildPitRecordId(eventKey, record);
   const logicalId = getPitDocId(record);
@@ -311,13 +394,13 @@ export const upsertPitArchiveRecord = async (
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
+    syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
     payload: record
   };
 
-  await putArchiveRecord(archiveRecord);
-  return archiveRecord;
+  return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
 };
 
 export const tombstoneScoutArchiveRecord = async (recordId: string) => {
@@ -435,12 +518,40 @@ export const importScoutArchiveBundleLocally = async (bundle: ScoutArchiveBundle
 
   let imported = 0;
   let skipped = 0;
+  let conflictsPreserved = 0;
   for (const record of bundle.records) {
     if (!record?.recordId || !record?.payload) {
       skipped += 1;
       continue;
     }
-    await putArchiveRecord(normalizeArchiveRecord(record));
+    const incomingRecord = normalizeArchiveRecord(record);
+    const existingRecord = await getArchiveRecordById(incomingRecord.recordId);
+    if (existingRecord) {
+      if (isSubstantiveDuplicate(existingRecord, incomingRecord)) {
+        skipped += 1;
+        continue;
+      }
+
+      const existingSubstantiveDuplicate = await findSubstantiveArchiveDuplicate(incomingRecord);
+      if (existingSubstantiveDuplicate) {
+        skipped += 1;
+        continue;
+      }
+
+      const conflictRecord: ScoutArchiveRecord = normalizeArchiveRecord({
+        ...incomingRecord,
+        recordId: `${incomingRecord.recordId}:conflict:${incomingRecord.updatedAt || Date.now()}`,
+        syncStatus: 'unsynced',
+        lastFirebaseAttemptAt: incomingRecord.lastFirebaseAttemptAt || Date.now(),
+        lastFirebaseError: `Imported JSON conflict preserved separately. Existing local record kept at ${incomingRecord.recordId}.`
+      });
+      await putArchiveRecord(conflictRecord);
+      imported += 1;
+      conflictsPreserved += 1;
+      continue;
+    }
+
+    await putArchiveRecord(incomingRecord);
     imported += 1;
   }
   let powerCoinBetsImported = 0;
@@ -456,7 +567,7 @@ export const importScoutArchiveBundleLocally = async (bundle: ScoutArchiveBundle
     powerCoinLedgerImported += 1;
   }
 
-  return { imported, skipped, powerCoinBetsImported, powerCoinLedgerImported };
+  return { imported, skipped, conflictsPreserved, powerCoinBetsImported, powerCoinLedgerImported };
 };
 
 export const isArchivedMatchV4Record = (record: ScoutArchiveRecord): record is MatchV4ArchiveRecord =>
