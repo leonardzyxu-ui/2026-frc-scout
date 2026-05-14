@@ -77,13 +77,17 @@ export default function HistoryView() {
     () => recentRecords.filter(record => record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced'),
     [recentRecords]
   );
+  const deletedRecords = useMemo(
+    () => records.filter(record => record.deleted).sort((a, b) => b.updatedAt - a.updatedAt),
+    [records]
+  );
 
   const loadHistory = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const localRecords = await listScoutArchiveRecords({ eventKey, includeDeleted: false });
+      const localRecords = await listScoutArchiveRecords({ eventKey, includeDeleted: true });
       setRecords(localRecords);
     } catch (loadError) {
       console.error('Failed to load local history', loadError);
@@ -252,7 +256,7 @@ export default function HistoryView() {
         />
       )}
 
-      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+      <div className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500">
             MY HISTORY
@@ -261,7 +265,7 @@ export default function HistoryView() {
             Local IndexedDB archive for {eventKey}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => void handleRetryAllUnsynced()}
             disabled={isBulkSyncing || unsyncedRecords.length === 0}
@@ -307,11 +311,18 @@ export default function HistoryView() {
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <HistorySummaryCard label="Active Records" value={recentRecords.length} />
+        <HistorySummaryCard label="Unsynced" value={unsyncedRecords.length} tone="amber" />
+        <HistorySummaryCard label="Deleted Tombstones" value={deletedRecords.length} tone="rose" />
+        <HistorySummaryCard label="JSON Export" value="All details preserved" tone="cyan" />
+      </div>
+
       <div className="rounded-3xl border border-slate-800 bg-slate-900/80 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
           <div className="flex items-center gap-2 text-slate-300">
             <Clock3 className="w-4 h-4" />
-            <span className="font-black uppercase tracking-wider text-sm">Local Scout Archive</span>
+            <span className="font-black uppercase tracking-wider text-sm">Active Local Records</span>
           </div>
           <div className="text-xs font-mono text-slate-400">
             {recentRecords.length} active item{recentRecords.length === 1 ? '' : 's'}
@@ -562,6 +573,69 @@ export default function HistoryView() {
           </div>
         )}
       </div>
+
+      <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-rose-500/20">
+          <div className="font-black uppercase tracking-wider text-sm text-rose-100">Deleted Tombstones</div>
+          <div className="text-xs font-mono text-rose-100/70">{deletedRecords.length} preserved item{deletedRecords.length === 1 ? '' : 's'}</div>
+        </div>
+        {deletedRecords.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm font-semibold text-rose-100/60">
+            No deleted local datasets. When scouts delete a dataset, it disappears from active history but remains here and in JSON export.
+          </div>
+        ) : (
+          <div className="divide-y divide-rose-500/10">
+            {deletedRecords.map(record => (
+              <div key={record.recordId} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black uppercase text-rose-100">
+                      Deleted
+                    </span>
+                    <span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
+                      {record.recordType}
+                    </span>
+                    <span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
+                      {record.logicalId}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs font-semibold text-rose-100/70">
+                    Details are preserved inside the local archive and JSON export for accountability.
+                  </div>
+                </div>
+                <div className="text-xs font-mono text-rose-100/70">
+                  {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HistorySummaryCard({
+  label,
+  value,
+  tone = 'slate'
+}: {
+  label: string;
+  value: number | string;
+  tone?: 'slate' | 'amber' | 'rose' | 'cyan';
+}) {
+  const toneClass =
+    tone === 'amber'
+      ? 'border-amber-500/30 bg-amber-500/10 text-amber-100'
+      : tone === 'rose'
+        ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
+        : tone === 'cyan'
+          ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100'
+          : 'border-slate-800 bg-slate-900/80 text-white';
+  return (
+    <div className={`rounded-3xl border px-5 py-4 ${toneClass}`}>
+      <div className="text-xs font-black uppercase tracking-widest opacity-70">{label}</div>
+      <div className="mt-2 text-2xl font-black">{value}</div>
     </div>
   );
 }

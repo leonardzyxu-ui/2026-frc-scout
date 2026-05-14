@@ -123,6 +123,7 @@ export default function PitScoutView() {
   const [archiveUsername, setArchiveUsernameState] = useState('');
   const [pendingArchiveUsername, setPendingArchiveUsername] = useState('');
   const [isArchiveUsernameResolved, setIsArchiveUsernameResolved] = useState(false);
+  const [showPitAdvancedDetails, setShowPitAdvancedDetails] = useState(false);
   const skipNextDraftSaveRef = useRef(false);
 
   const activeDraftKey = useMemo(() => {
@@ -549,6 +550,26 @@ export default function PitScoutView() {
             </div>
           </section>
 
+          <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-black text-white">Capability Details</h3>
+                <p className="mt-1 text-sm font-semibold text-cyan-100/75">
+                  Keep the first screen focused. Open this when you are ready to record drivetrain and shooter details.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPitAdvancedDetails(open => !open)}
+                className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-cyan-950/30 transition-all hover:bg-cyan-500 active:scale-95"
+              >
+                {showPitAdvancedDetails ? 'Hide Capability Details' : 'Show Capability Details'}
+              </button>
+            </div>
+          </section>
+
+          {showPitAdvancedDetails && (
+            <>
           <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
             <h3 className="text-lg font-black text-white">Build & Chassis</h3>
 
@@ -786,6 +807,8 @@ export default function PitScoutView() {
               </div>
             </div>
           </section>
+            </>
+          )}
 
           <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
             <h3 className="text-lg font-black text-white">Endgame Capability</h3>

@@ -5,17 +5,23 @@ import {
   AlertTriangle,
   ArrowUpDown,
   ArrowLeft,
+  BarChart3,
+  Brain,
+  Database,
   Download,
   Edit3,
+  Gauge,
   ListChecks,
   RefreshCw,
   Search,
   Settings,
+  Shield,
   Swords,
   Table2,
   TrendingUp,
   Trophy,
   Upload,
+  Users,
   X
 } from 'lucide-react';
 import { db } from '../firebase';
@@ -33,7 +39,7 @@ import {
   TeamPerformanceProfile
 } from '../types';
 import { TBA_API_KEY } from '../config';
-import { calculateLegacyDprRatings, calculateLegacyOprRatings, MathEngine, TBAMatch } from '../utils/mathEngine';
+import { calculateLegacyDprRatings, calculateLegacyOprRatings, calculateLegacyOprcRatings, MathEngine, TBAMatch } from '../utils/mathEngine';
 import QRScannerView from './QRScannerView';
 import {
   buildHistoricalAverageLookup,
@@ -43,6 +49,7 @@ import {
   buildTeamHistoricalAveragesV4Aware
 } from '../utils/adminV2Analytics';
 import {
+  buildCompletedMatchComparisons,
   buildPlayoffProjection,
   buildQualificationProjection,
   PredictedMatchRow,
@@ -130,8 +137,15 @@ import {
   filterMatchValidationGroups,
   getRowAnomalyLabel
 } from '../utils/rawDataValidation';
+import {
+  ActionGroup,
+  ContextBar,
+  MetricBarChart,
+  WorkspaceNav,
+  WorkspaceNavItem
+} from '../components/adminv4/AdminV4Primitives';
 
-type AdminV2Tab = 'results' | 'rawEditor' | 'teams' | 'sorter' | 'predictor' | 'simulator' | 'strategyBrain' | 'import' | 'export';
+type AdminV2Tab = 'command' | 'results' | 'rawEditor' | 'teams' | 'sorter' | 'predictor' | 'simulator' | 'strategyBrain' | 'scoutOps' | 'import' | 'export';
 type PredictorDisplayTab = 'ranking' | 'quals' | 'finals';
 type ResultsDisplayTab = 'quals' | 'practice';
 type SorterField = 'team' | 'tbaRank' | 'matches' | 'ppc' | 'autoPpc' | 'teleopPpc' | 'defenseMetric' | 'epa' | 'opr' | 'dpr';
@@ -263,10 +277,14 @@ const QUICK_EVENTS: Array<[string, string]> = [
   ['TEST', 'TEST EVENT']
 ];
 
+const PREDICTION_COMPARISON_EVENT_KEY = '2026cnsh';
+const PREDICTION_COMPARISON_EVENT_LABEL = 'Shanghai Regional (2026cnsh)';
+
 const MODEL_LABELS: Record<AdminV2SelectedMetric, string> = {
   ppc: 'PPC',
   opr: 'OPR',
-  epa: 'EPA'
+  epa: 'EPA',
+  ppa: 'PPA'
 };
 
 const isMatchScoutingV3 = (value: unknown): value is MatchScoutingV3 =>
@@ -484,7 +502,7 @@ export default function AdminMainframeV2View() {
   const initialSettings = useMemo(() => loadAdminV2Settings(), []);
   const [settings, setSettings] = useState<AdminV2Settings>(initialSettings);
   const [teamSearchInput, setTeamSearchInput] = useState(initialSettings.searchedTeamNumber);
-  const [activeTab, setActiveTab] = useState<AdminV2Tab>('results');
+  const [activeTab, setActiveTab] = useState<AdminV2Tab>('command');
   const [predictorViewTab, setPredictorViewTab] = useState<PredictorDisplayTab>('ranking');
   const [resultsViewTab, setResultsViewTab] = useState<ResultsDisplayTab>('quals');
   const [rawEditorViewTab, setRawEditorViewTab] = useState<ResultsDisplayTab>('quals');
@@ -536,6 +554,10 @@ export default function AdminMainframeV2View() {
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [adminV2CacheEntries, setAdminV2CacheEntries] = useState<AdminV2CacheEntry[]>([]);
   const [adminV2CacheError, setAdminV2CacheError] = useState('');
+  const [comparisonEventMatches, setComparisonEventMatches] = useState<TBAMatch[]>([]);
+  const [comparisonSourceLabel, setComparisonSourceLabel] = useState('');
+  const [comparisonError, setComparisonError] = useState('');
+  const [isComparisonLoading, setIsComparisonLoading] = useState(false);
   const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
 
   const eventKey = settings.eventKey;
@@ -571,7 +593,7 @@ export default function AdminMainframeV2View() {
         ));
       }
     } catch (archiveError) {
-      console.error('Failed to load local scout archive records in Admin V2', archiveError);
+        console.error('Failed to load local scout archive records in Admin V4', archiveError);
       setLocalArchiveRecords([]);
       setLocalArchiveError('Unable to read the local scout archive on this admin device.');
     }
@@ -596,9 +618,9 @@ export default function AdminMainframeV2View() {
       setAdminV2CacheEntries(entries);
       setAdminV2CacheError('');
     } catch (cacheError) {
-      console.error('Failed to read Admin V2 cache entries', cacheError);
+      console.error('Failed to read Admin V4 cache entries', cacheError);
       setAdminV2CacheEntries([]);
-      setAdminV2CacheError('Unable to read Admin V2 source cache from this device.');
+      setAdminV2CacheError('Unable to read Admin V4 source cache from this device.');
     }
   }, [eventKey]);
 
@@ -782,22 +804,29 @@ export default function AdminMainframeV2View() {
       if (isLocalMode) {
         await refreshLocalArchiveRecords();
       } else {
-        const [legacySnapshot, v3Snapshot, v4Snapshot, defenseSnapshot] = await Promise.all([
-          getDocs(collection(db, 'events', eventKey, 'matchScouting')),
-          getDocs(collection(db, 'events', eventKey, 'matchScoutingV3')),
-          getDocs(collection(db, 'events', eventKey, 'matchScoutingV4')),
-          getDocs(collection(db, 'events', eventKey, 'matchScoutingDefense'))
-        ]);
+        const collectionNames = ['matchScouting', 'matchScoutingV3', 'matchScoutingV4', 'matchScoutingDefense'] as const;
+        const collectionResults = await Promise.allSettled(
+          collectionNames.map(collectionName => getDocs(collection(db, 'events', eventKey, collectionName)))
+        );
+        const [legacySnapshot, v3Snapshot, v4Snapshot, defenseSnapshot] = collectionResults.map((result, index) => {
+          if (result.status === 'fulfilled') return result.value;
+          console.error(`Failed to load Firebase collection ${collectionNames[index]} for Admin V2`, result.reason);
+          return null;
+        });
+        const failedCollectionNames = collectionNames.filter((_, index) => collectionResults[index].status === 'rejected');
+        if (failedCollectionNames.length > 0) {
+          setError(`Some Firebase collections could not load: ${failedCollectionNames.join(', ')}. Showing all accessible cached/live data.`);
+        }
 
-        const legacyRecords = legacySnapshot.docs
+        const legacyRecords = (legacySnapshot?.docs || [])
           .map(docSnap => docSnap.data())
           .filter(isLegacyMatchScoutingV2)
           .map(mapLegacyMatchScoutingToV3);
-        const v3Records = v3Snapshot.docs
+        const v3Records = (v3Snapshot?.docs || [])
           .map(docSnap => docSnap.data())
           .filter(isMatchScoutingV3);
         const nextRecords = mergeV3WithLegacyRows(legacyRecords, v3Records);
-        const nextDefenseRecords = defenseSnapshot.docs
+        const nextDefenseRecords = (defenseSnapshot?.docs || [])
           .map(docSnap => docSnap.data())
           .filter(isMatchDefenseScoutingV1)
           .sort((left, right) => {
@@ -805,7 +834,7 @@ export default function AdminMainframeV2View() {
             if (matchDelta !== 0) return matchDelta;
             return Number(left.teamNumber) - Number(right.teamNumber);
           });
-        const nextV4Records = v4Snapshot.docs
+        const nextV4Records = (v4Snapshot?.docs || [])
           .map(docSnap => docSnap.data())
           .filter(isMatchScoutingV4)
           .sort((left, right) => {
@@ -855,7 +884,7 @@ export default function AdminMainframeV2View() {
         applyRankings(cachedRankings);
         if (cachedMatches.length > 0) {
           setMatchSourceLabel('Cached TBA/FIRST match data');
-          setLiveScheduleUnavailable('Live TBA is unavailable, so Admin V2 is using the latest cached TBA/FIRST match data from IndexedDB.');
+          setLiveScheduleUnavailable('Live TBA is unavailable, so Admin V4 is using the latest cached TBA/FIRST match data from IndexedDB.');
         }
         return;
       }
@@ -943,8 +972,8 @@ export default function AdminMainframeV2View() {
         setEventSummary(cachedEventSummary);
       }
     } catch (loadError) {
-      console.error('Failed to load adminv2 data', loadError);
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load adminv2 data.');
+      console.error('Failed to load Admin V4 data', loadError);
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load Admin V4 data.');
       setRecords([]);
       setV4Records([]);
       setDefenseRecords([]);
@@ -963,6 +992,79 @@ export default function AdminMainframeV2View() {
   useEffect(() => {
     void loadV3Data();
   }, [eventKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadComparisonMatches = async () => {
+      setIsComparisonLoading(true);
+      setComparisonError('');
+
+      const cachedComparisonMatches = await loadLatestCachedPayload(
+        PREDICTION_COMPARISON_EVENT_KEY,
+        'TBA',
+        'matches',
+        isCachedTbaMatches
+      ).catch(() => null);
+
+      const applyCachedMatches = (message?: string) => {
+        if (!cachedComparisonMatches || cancelled) return false;
+        setComparisonEventMatches(cachedComparisonMatches.payload);
+        setComparisonSourceLabel(
+          message || `Cached Shanghai Regional TBA data from ${formatLocalTimestamp(cachedComparisonMatches.timestamp)}`
+        );
+        return true;
+      };
+
+      try {
+        applyCachedMatches();
+
+        if (!TBA_API_KEY) {
+          if (!applyCachedMatches('Live TBA is unavailable. Showing cached Shanghai Regional data.')) {
+            setComparisonEventMatches([]);
+            setComparisonError('No TBA key or cached Shanghai Regional comparison data is available.');
+          }
+          return;
+        }
+
+        const engine = new MathEngine(TBA_API_KEY);
+        const matches = await engine.fetchEventMatches(PREDICTION_COMPARISON_EVENT_KEY, { includeUnplayed: true });
+        if (cancelled) return;
+        setComparisonEventMatches(matches);
+        setComparisonSourceLabel('Live Shanghai Regional TBA data');
+        void putAdminV2CacheEntry({
+          eventKey: PREDICTION_COMPARISON_EVENT_KEY,
+          year: getYearFromEventKey(PREDICTION_COMPARISON_EVENT_KEY),
+          source: 'TBA',
+          key: 'matches',
+          payload: matches
+        }).catch(() => {});
+      } catch (loadError) {
+        console.error('Failed to load Shanghai Regional comparison data', loadError);
+        if (cancelled) return;
+        const usedCache = applyCachedMatches(
+          cachedComparisonMatches
+            ? `Live TBA failed. Showing cached Shanghai Regional data from ${formatLocalTimestamp(cachedComparisonMatches.timestamp)}.`
+            : undefined
+        );
+        if (!usedCache) {
+          setComparisonEventMatches([]);
+          setComparisonError(loadError instanceof Error ? loadError.message : 'Failed to load Shanghai Regional comparison data.');
+          setComparisonSourceLabel('');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsComparisonLoading(false);
+        }
+      }
+    };
+
+    void loadComparisonMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const searchEvents = async () => {
     if (!TBA_API_KEY) {
@@ -1108,7 +1210,7 @@ export default function AdminMainframeV2View() {
           .then(() => refreshAdminV2CacheEntries())
           .catch(() => {});
       } catch (fetchError) {
-        console.error('Failed to load Admin V2 Statbotics EPA predictor data', fetchError);
+        console.error('Failed to load Admin V4 Statbotics EPA predictor data', fetchError);
         if (cancelled) return;
         const usedCache = applyCachedEpa(
           cachedEpa
@@ -1189,7 +1291,7 @@ export default function AdminMainframeV2View() {
           .then(() => refreshAdminV2CacheEntries())
           .catch(() => {});
       } catch (profileError) {
-        console.error('Failed to load Admin V2 team profile', profileError);
+        console.error('Failed to load Admin V4 team profile', profileError);
         if (cancelled) return;
         if (cachedProfile) {
           setTeamProfile(cachedProfile.payload);
@@ -1234,6 +1336,14 @@ export default function AdminMainframeV2View() {
   const csvOprBonusMetrics = uploadedCsvPack?.coprs?.hasBonusMetrics ? uploadedCsvPack.coprs.bonusMetrics : undefined;
   const csvOprComponents = uploadedCsvPack?.coprs?.componentPoints || {};
   const calculatedOprRatings = useMemo(() => calculateLegacyOprRatings(activePredictorMatches), [activePredictorMatches]);
+  const comparisonOprcRatings = useMemo(
+    () => calculateLegacyOprcRatings(comparisonEventMatches),
+    [comparisonEventMatches]
+  );
+  const comparisonRows = useMemo(
+    () => buildCompletedMatchComparisons(comparisonEventMatches, comparisonOprcRatings, null, null),
+    [comparisonEventMatches, comparisonOprcRatings]
+  );
   const calculatedDprRatings = useMemo(() => calculateLegacyDprRatings(activePredictorMatches), [activePredictorMatches]);
   const activeOprRatings = Object.keys(csvOprRatings).length > 0 ? csvOprRatings : calculatedOprRatings;
   const missingOprTeams = useMemo(
@@ -1261,9 +1371,6 @@ export default function AdminMainframeV2View() {
       }).filter(match => match.compLevel === 'qm'),
     [activeOprRatings, activePredictorMatches, missingOprTeams]
   );
-
-  const activePredictions =
-    selectedMetric === 'ppc' ? ppcPredictions : selectedMetric === 'epa' ? epaPredictions : oprPredictions;
 
   const ppcQualificationProjection = useMemo(
     () =>
@@ -1300,13 +1407,6 @@ export default function AdminMainframeV2View() {
       }),
     [activeOprRatings, activePredictorMatches, csvOprBonusMetrics, effectiveCurrentTbaRankOrder, effectiveCurrentTbaRanks]
   );
-  const activeQualificationProjection =
-    selectedMetric === 'ppc'
-      ? ppcQualificationProjection
-      : selectedMetric === 'epa'
-        ? epaQualificationProjection
-        : oprQualificationProjection;
-
   const resolvedTeamNameLookup = useMemo(
     () => ({
       ...cachedFirstTeamNames,
@@ -1316,17 +1416,6 @@ export default function AdminMainframeV2View() {
     [cachedFirstTeamNames, teamProfile, uploadedTeamNames]
   );
 
-  const filteredQualificationRows = useMemo(() => {
-    const normalizedSearch = rankingSearch.trim().toLowerCase();
-    if (!normalizedSearch) return activeQualificationProjection.rows;
-    return activeQualificationProjection.rows.filter(row => {
-      const teamName = resolvedTeamNameLookup[row.teamNumber] || '';
-      return row.teamNumber.toLowerCase().includes(normalizedSearch) || teamName.toLowerCase().includes(normalizedSearch);
-    });
-  }, [activeQualificationProjection.rows, rankingSearch, resolvedTeamNameLookup]);
-
-  const activeMetricRatings =
-    selectedMetric === 'ppc' ? averageLookup : selectedMetric === 'epa' ? epaRatings : activeOprRatings;
   const adminV2ModelBacktests = useMemo(() => backtestTimeAwareModels({
     matches: activePredictorMatches,
     v3Records: records,
@@ -1353,13 +1442,6 @@ export default function AdminMainframeV2View() {
       'Recency EPA': epaRatings
     }
   }), [activeOprRatings, activePredictorMatches, adminV2ModelBacktests, adminV2NoFutureBlendLookup, averageLookup, epaRatings, records, v4Records]);
-  const adminV2BestComparisonModel = useMemo(
-    () =>
-      adminV2ModelBacktests.find(result => result.modelName === adminV2BestForecastLayer.modelName) ||
-      adminV2ModelBacktests.find(result => result.matchesTested > 0) ||
-      null,
-    [adminV2BestForecastLayer.modelName, adminV2ModelBacktests]
-  );
   const adminV2PpaRatings = useMemo(() => buildPpaRatings(adminV2ModelBacktests, {
     PPC: averageLookup,
     'Rolling PPC': averageLookup,
@@ -1369,6 +1451,61 @@ export default function AdminMainframeV2View() {
     EPA: epaRatings,
     'Recency EPA': epaRatings
   }), [activeOprRatings, adminV2ModelBacktests, adminV2NoFutureBlendLookup, averageLookup, epaRatings]);
+  const missingPpaTeams = useMemo(
+    () => predictorTeams.filter(teamNumber => !(teamNumber in adminV2PpaRatings)),
+    [adminV2PpaRatings, predictorTeams]
+  );
+  const ppaPredictions = useMemo(
+    () =>
+      buildPredictedMatchesFromRatings(activePredictorMatches, {
+        ratings: adminV2PpaRatings,
+        missingTeams: missingPpaTeams
+      }).filter(match => match.compLevel === 'qm'),
+    [activePredictorMatches, adminV2PpaRatings, missingPpaTeams]
+  );
+  const ppaQualificationProjection = useMemo(
+    () =>
+      buildQualificationProjection({
+        matches: activePredictorMatches,
+        currentTbaRanks: effectiveCurrentTbaRanks,
+        currentTbaRankOrder: effectiveCurrentTbaRankOrder,
+        modelLabel: 'PPA',
+        overallRatings: adminV2PpaRatings
+      }),
+    [activePredictorMatches, adminV2PpaRatings, effectiveCurrentTbaRankOrder, effectiveCurrentTbaRanks]
+  );
+  const activePredictions =
+    selectedMetric === 'ppc'
+      ? ppcPredictions
+      : selectedMetric === 'epa'
+        ? epaPredictions
+        : selectedMetric === 'ppa'
+          ? ppaPredictions
+          : oprPredictions;
+  const activeQualificationProjection =
+    selectedMetric === 'ppc'
+      ? ppcQualificationProjection
+      : selectedMetric === 'epa'
+        ? epaQualificationProjection
+        : selectedMetric === 'ppa'
+          ? ppaQualificationProjection
+          : oprQualificationProjection;
+  const activeMetricRatings =
+    selectedMetric === 'ppc'
+      ? averageLookup
+      : selectedMetric === 'epa'
+        ? epaRatings
+        : selectedMetric === 'ppa'
+          ? adminV2PpaRatings
+          : activeOprRatings;
+  const filteredQualificationRows = useMemo(() => {
+    const normalizedSearch = rankingSearch.trim().toLowerCase();
+    if (!normalizedSearch) return activeQualificationProjection.rows;
+    return activeQualificationProjection.rows.filter(row => {
+      const teamName = resolvedTeamNameLookup[row.teamNumber] || '';
+      return row.teamNumber.toLowerCase().includes(normalizedSearch) || teamName.toLowerCase().includes(normalizedSearch);
+    });
+  }, [activeQualificationProjection.rows, rankingSearch, resolvedTeamNameLookup]);
   const adminV2FeatureMatchSnapshots = useMemo(
     () => buildNoFutureFeatureMatchSnapshots({
       matches: activePredictorMatches,
@@ -1518,6 +1655,22 @@ export default function AdminMainframeV2View() {
       };
     }
 
+    if (selectedMetric === 'ppa') {
+      return {
+        currentMetricLabel: 'PPA',
+        currentMetricValue: adminV2PpaRatings[searchedTeamNumber] ?? null,
+        autoComponent: null,
+        teleopComponent: null,
+        sourceLabel: 'Best validated model estimate',
+        extras: [
+          { label: 'PPC', value: formatMetricValue(activeTeamAverage?.avgTotalMatchPoints ?? null) },
+          { label: 'OPR', value: formatMetricValue(activeOprRatings[searchedTeamNumber] ?? null) },
+          { label: 'EPA', value: formatMetricValue(activeEpaMetrics?.overallEPA ?? null) },
+          { label: 'Defense Impact', value: formatMetricValue(selectedTeamPerformanceProfile?.defenseImpact ?? null) }
+        ]
+      };
+    }
+
     return {
       currentMetricLabel: 'EPA',
       currentMetricValue: activeEpaMetrics?.overallEPA ?? null,
@@ -1535,9 +1688,11 @@ export default function AdminMainframeV2View() {
     activeOprComponents,
     activeOprRatings,
     activeTeamAverage,
+    adminV2PpaRatings,
     hasUsableCsvOpr,
     searchedTeamNumber,
-    selectedMetric
+    selectedMetric,
+    selectedTeamPerformanceProfile
   ]);
 
   const summary = useMemo(() => {
@@ -1675,6 +1830,125 @@ export default function AdminMainframeV2View() {
     });
   }, [sorterDirection, sorterField, sorterRows]);
 
+  const getTeamHighlight = useCallback(
+    (teamNumber: string): 'own' | 'searched' | 'both' | undefined => {
+      const isOwn = ownTeamNumber !== '' && ownTeamNumber === teamNumber;
+      const isSearched = searchedTeamNumber !== '' && searchedTeamNumber === teamNumber;
+      if (isOwn && isSearched) return 'both';
+      if (isOwn) return 'own';
+      if (isSearched) return 'searched';
+      return undefined;
+    },
+    [ownTeamNumber, searchedTeamNumber]
+  );
+
+  const topOffenseRows = useMemo(
+    () => {
+      const selectedValue = (row: AdminV2SorterRow) => activeMetricRatings[row.teamNumber] ?? null;
+      const bestAvailableValue = (row: AdminV2SorterRow) => selectedValue(row) ?? row.opr ?? row.epa ?? row.ppc;
+      return sorterRows
+        .map(row => ({ row, value: bestAvailableValue(row) }))
+        .filter(item => item.value != null && Number.isFinite(item.value))
+        .sort((left, right) => (right.value ?? 0) - (left.value ?? 0))
+        .slice(0, 14)
+        .map(({ row, value }) => ({
+          key: row.teamNumber,
+          label: row.teamNumber,
+          value: value ?? 0,
+          secondary: row.teamName || undefined,
+          highlighted: getTeamHighlight(row.teamNumber)
+        }));
+    },
+    [activeMetricRatings, getTeamHighlight, sorterRows]
+  );
+
+  const topDefenseRows = useMemo(
+    () =>
+      sorterRows
+        .filter(row => row.defenseMetric != null && Number.isFinite(row.defenseMetric))
+        .sort((left, right) => (right.defenseMetric ?? 0) - (left.defenseMetric ?? 0))
+        .slice(0, 12)
+        .map(row => ({
+          key: row.teamNumber,
+          label: row.teamNumber,
+          value: row.defenseMetric ?? 0,
+          secondary: row.teamName || undefined,
+          highlighted: getTeamHighlight(row.teamNumber)
+        })),
+    [getTeamHighlight, sorterRows]
+  );
+
+  const volatilityRows = useMemo(
+    () =>
+      teamPerformanceProfiles
+        .filter(profile => Number.isFinite(profile.volatility))
+        .sort((left, right) => right.volatility - left.volatility)
+        .slice(0, 12)
+        .map(profile => ({
+          key: profile.teamNumber,
+          label: profile.teamNumber,
+          value: profile.volatility,
+          secondary: resolvedTeamNameLookup[profile.teamNumber] || undefined,
+          highlighted: getTeamHighlight(profile.teamNumber)
+        })),
+    [getTeamHighlight, resolvedTeamNameLookup, teamPerformanceProfiles]
+  );
+
+  const commandAlerts = useMemo(() => {
+    const alerts: Array<{ label: string; detail: string; tone: 'rose' | 'amber' | 'emerald' | 'cyan' }> = [];
+    if (rawEditorSummary.missingSlotCount > 0) {
+      alerts.push({
+        label: 'Coverage Gap',
+        detail: `${rawEditorSummary.missingSlotCount} expected scout slot${rawEditorSummary.missingSlotCount === 1 ? '' : 's'} missing.`,
+        tone: 'rose'
+      });
+    }
+    if (rawEditorSummary.anomalyRowCount > 0) {
+      alerts.push({
+        label: 'Data Review',
+        detail: `${rawEditorSummary.anomalyRowCount} submitted row${rawEditorSummary.anomalyRowCount === 1 ? '' : 's'} have scout/team anomalies.`,
+        tone: 'amber'
+      });
+    }
+    if (localArchiveSummary.unsyncedRecords.length > 0) {
+      alerts.push({
+        label: 'Unsynced Local Data',
+        detail: `${localArchiveSummary.unsyncedRecords.length} local record${localArchiveSummary.unsyncedRecords.length === 1 ? '' : 's'} still need Firebase sync.`,
+        tone: 'amber'
+      });
+    }
+    if (sourceStatusSummary.rowCount === 0) {
+      alerts.push({
+        label: 'No Cache Yet',
+        detail: 'Upload or refresh TBA/FIRST data before relying on offline fallbacks.',
+        tone: 'cyan'
+      });
+    }
+    if (alerts.length === 0) {
+      alerts.push({
+        label: 'System Clear',
+        detail: 'No immediate coverage, sync, or source warnings are active.',
+        tone: 'emerald'
+      });
+    }
+    return alerts;
+  }, [
+    localArchiveSummary.unsyncedRecords.length,
+    rawEditorSummary.anomalyRowCount,
+    rawEditorSummary.missingSlotCount,
+    sourceStatusSummary.rowCount
+  ]);
+
+  const workspaceItems: WorkspaceNavItem<AdminV2Tab>[] = [
+    { key: 'command', label: 'Command Center', description: 'status and next actions', icon: <Gauge className="h-4 w-4" />, tone: 'cyan' },
+    { key: 'sorter', label: 'Teams', description: 'rankings and visual profiles', icon: <Users className="h-4 w-4" />, tone: 'emerald' },
+    { key: 'predictor', label: 'Matches', description: 'forecasts and comparisons', icon: <Swords className="h-4 w-4" />, tone: 'fuchsia' },
+    { key: 'strategyBrain', label: 'Strategy', description: 'model lab and pick lists', icon: <Brain className="h-4 w-4" />, tone: 'amber' },
+    { key: 'scoutOps', label: 'Scout Ops', description: 'assignments and PowerCoins', icon: <Trophy className="h-4 w-4" />, tone: 'cyan' },
+    { key: 'import', label: 'Data Control', description: 'imports, sync, raw editor', icon: <Database className="h-4 w-4" />, tone: 'slate' },
+    { key: 'export', label: 'Reports', description: 'Excel and evidence exports', icon: <Download className="h-4 w-4" />, tone: 'emerald' }
+  ];
+
   const redSimulatorTeams = useMemo(() => parseManualTeamNumbers(redSimulatorInput), [redSimulatorInput]);
   const blueSimulatorTeams = useMemo(() => parseManualTeamNumbers(blueSimulatorInput), [blueSimulatorInput]);
   const simulatorDefenseImpactLookup = useMemo(() => {
@@ -1701,13 +1975,17 @@ export default function AdminMainframeV2View() {
           ? teamAverage?.avgAutoPoints ?? null
           : selectedMetric === 'opr'
             ? oprComponents?.autoPoints ?? null
-            : epaMetrics?.autoEPA ?? null,
+            : selectedMetric === 'epa'
+              ? epaMetrics?.autoEPA ?? null
+              : null,
       teleop:
         selectedMetric === 'ppc'
           ? teamAverage?.avgTeleopPoints ?? null
           : selectedMetric === 'opr'
             ? oprComponents?.teleopPoints ?? null
-            : epaMetrics?.teleopEPA ?? null
+            : selectedMetric === 'epa'
+              ? epaMetrics?.teleopEPA ?? null
+              : null
     };
   };
 
@@ -1789,7 +2067,7 @@ export default function AdminMainframeV2View() {
       setUploadedCsvPack(result.pack);
       setCsvMessages(result.messages);
     } catch (uploadError) {
-      console.error('Failed to import TBA CSV files for Admin V2 OPR', uploadError);
+      console.error('Failed to import TBA CSV files for Admin V4 OPR', uploadError);
       setCsvError(uploadError instanceof Error ? uploadError.message : 'Failed to import CSV files.');
     }
   };
@@ -1936,14 +2214,14 @@ export default function AdminMainframeV2View() {
       };
 
       downloadJsonFile(
-        `adminv2_full_local_backup_${eventKey}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
+        `adminv4_full_local_backup_${eventKey}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`,
         payload
       );
       setLocalBackupStatus(
         `Exported local backup with ${scoutArchive.records.length} scout archive records, ${cacheEntries.length} cache entries, ${powerCoinBets.length} PowerCoin bets, ${modelSnapshots.length} model snapshots, and ${modelFeatureSnapshots.length} feature snapshots. Scout sync states/modes were preserved; FIRST token was not included.`
       );
     } catch (backupError) {
-      console.error('Failed to export full local Admin V2 backup', backupError);
+      console.error('Failed to export full local Admin V4 backup', backupError);
       setLocalBackupError(backupError instanceof Error ? backupError.message : 'Failed to export local backup.');
       setLocalBackupStatus('');
     }
@@ -1960,12 +2238,12 @@ export default function AdminMainframeV2View() {
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
       if (!isAdminV2FullLocalBackup(parsed)) {
-        throw new Error('This is not a REBUILT Admin V2 full local backup JSON file.');
+        throw new Error('This is not a REBUILT Admin V4 full local backup JSON file.');
       }
 
       const backupEventKey = parsed.eventKey.trim().toUpperCase();
       if (backupEventKey !== eventKey.trim().toUpperCase()) {
-        throw new Error(`This backup is for ${parsed.eventKey}. Switch Admin V2 to that event before restoring it.`);
+        throw new Error(`This backup is for ${parsed.eventKey}. Switch Admin V4 to that event before restoring it.`);
       }
 
       let scoutArchiveImported = 0;
@@ -2016,7 +2294,7 @@ export default function AdminMainframeV2View() {
       );
       await refreshLocalArchiveRecords();
     } catch (backupError) {
-      console.error('Failed to import full local Admin V2 backup', backupError);
+      console.error('Failed to import full local Admin V4 backup', backupError);
       setLocalBackupError(backupError instanceof Error ? backupError.message : 'Failed to import local backup.');
       setLocalBackupStatus('');
     }
@@ -3226,7 +3504,7 @@ export default function AdminMainframeV2View() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `adminv2_insights_${eventKey}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.download = `adminv4_insights_${eventKey}_${new Date().toISOString().split('T')[0]}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -3235,8 +3513,8 @@ export default function AdminMainframeV2View() {
       setExportStatus('success');
       window.setTimeout(() => setExportStatus('idle'), 2500);
     } catch (err) {
-      console.error('Failed to export Admin V2 workbook:', err);
-      setError(err instanceof Error ? err.message : 'Failed to export the Admin V2 workbook.');
+      console.error('Failed to export Admin V4 workbook:', err);
+      setError(err instanceof Error ? err.message : 'Failed to export the Admin V4 workbook.');
       setExportStatus('idle');
     }
   };
@@ -3248,12 +3526,22 @@ export default function AdminMainframeV2View() {
         : 'border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800'
     }`;
 
-  const metricButtonClass = (metric: AdminV2SelectedMetric) =>
-    `inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-black transition-colors ${
-      selectedMetric === metric
+  const metricButtonClass = (metric: AdminV2SelectedMetric) => {
+    const isSelected = selectedMetric === metric;
+    if (metric === 'ppa') {
+      return `inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-black transition-all ${
+        isSelected
+          ? 'bg-gradient-to-r from-amber-300 via-orange-400 to-rose-400 text-slate-950 shadow-lg shadow-orange-950/30'
+          : 'border border-amber-400/50 bg-amber-400/10 text-amber-100 hover:bg-amber-400/20'
+      }`;
+    }
+
+    return `inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-black transition-colors ${
+      isSelected
         ? 'bg-fuchsia-600 text-white'
         : 'border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800'
     }`;
+  };
 
   const predictorViewButtonClass = (view: PredictorDisplayTab) =>
     `inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition-colors ${
@@ -3276,9 +3564,19 @@ export default function AdminMainframeV2View() {
         : 'border border-slate-800 bg-slate-950 text-slate-300 hover:bg-slate-800'
     }`;
 
+  const activeWorkspaceKey: AdminV2Tab =
+    activeTab === 'results' || activeTab === 'simulator'
+      ? 'predictor'
+      : activeTab === 'rawEditor'
+        ? 'import'
+        : activeTab === 'teams'
+          ? 'sorter'
+          : activeTab;
+  const activeWorkspace = workspaceItems.find(item => item.key === activeWorkspaceKey) || workspaceItems[0];
+
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-200">
-      <aside className="flex w-80 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-200 lg:flex-row">
+      <aside className="flex max-h-[46vh] w-full shrink-0 flex-col border-b border-slate-800 bg-slate-900/95 lg:max-h-none lg:w-[22rem] lg:border-b-0 lg:border-r">
         <div className="border-b border-slate-800 p-4">
           <h1 className="flex items-center gap-3 text-xl font-black tracking-tight text-white">
             <button
@@ -3287,7 +3585,7 @@ export default function AdminMainframeV2View() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            MAINFRAME V2
+            ADMIN V4
           </h1>
           <p className="mt-3 text-sm text-slate-400">
             Event <span className="font-mono text-cyan-400">{eventKey}</span> · Model{' '}
@@ -3298,15 +3596,18 @@ export default function AdminMainframeV2View() {
         <div className="flex-1 overflow-y-auto">
           <div className="space-y-6 p-4">
             <section className="space-y-3">
-              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Prediction Metric</div>
-              <div className="grid grid-cols-3 gap-2">
-                {(['ppc', 'opr', 'epa'] as AdminV2SelectedMetric[]).map(metric => (
+              <div className="text-xs font-black uppercase tracking-wider text-slate-500">Global Model</div>
+              <div className="grid grid-cols-4 gap-2">
+                {(['ppa', 'ppc', 'opr', 'epa'] as AdminV2SelectedMetric[]).map(metric => (
                   <button
                     key={metric}
                     onClick={() => updateSettings({ selectedMetric: metric })}
                     className={metricButtonClass(metric)}
                   >
-                    {MODEL_LABELS[metric]}
+                    <span className="flex flex-col items-center leading-none">
+                      <span>{MODEL_LABELS[metric]}</span>
+                      {metric === 'ppa' && <span className="mt-1 text-[9px] font-black tracking-[0.2em] opacity-80">BEST</span>}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -3316,7 +3617,7 @@ export default function AdminMainframeV2View() {
               <div>
                 <div className="text-xs font-black uppercase tracking-wider text-slate-500">Global Team Search</div>
                 <p className="mt-2 text-sm text-slate-400">
-                  Search one team and keep it highlighted across Admin V2.
+                  Search one team and keep it highlighted across Admin V4.
                 </p>
               </div>
 
@@ -3492,44 +3793,15 @@ export default function AdminMainframeV2View() {
               </div>
             </section>
 
-            <nav className="space-y-2 border-t border-slate-800 pt-4">
-              <button onClick={() => setActiveTab('results')} className={tabClass('results')}>
-                <Table2 className="h-4 w-4" />
-                Match Results
-              </button>
-              <button onClick={() => setActiveTab('rawEditor')} className={tabClass('rawEditor')}>
-                <Edit3 className="h-4 w-4" />
-                Raw Data Editor
-              </button>
-              <button onClick={() => setActiveTab('teams')} className={tabClass('teams')}>
-                <TrendingUp className="h-4 w-4" />
-                Team Averages
-              </button>
-              <button onClick={() => setActiveTab('sorter')} className={tabClass('sorter')}>
-                <ArrowUpDown className="h-4 w-4" />
-                Team Sorter
-              </button>
-              <button onClick={() => setActiveTab('predictor')} className={tabClass('predictor')}>
-                <Swords className="h-4 w-4" />
-                Future Predictor
-              </button>
-              <button onClick={() => setActiveTab('simulator')} className={tabClass('simulator')}>
-                <Swords className="h-4 w-4" />
-                Match Simulator
-              </button>
-              <button onClick={() => setActiveTab('strategyBrain')} className={tabClass('strategyBrain')}>
-                <Trophy className="h-4 w-4" />
-                Strategy Brain
-              </button>
-              <button onClick={() => setActiveTab('import')} className={tabClass('import')}>
-                <Upload className="h-4 w-4" />
-                Data Import
-              </button>
-              <button onClick={() => setActiveTab('export')} className={tabClass('export')}>
-                <Download className="h-4 w-4" />
-                Excel Export
-              </button>
-            </nav>
+            <section className="space-y-3 border-t border-slate-800 pt-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-wider text-slate-500">Workspaces</div>
+                <p className="mt-2 text-sm text-slate-400">
+                  Choose the job you are doing, then drill into the exact tool inside that workspace.
+                </p>
+              </div>
+              <WorkspaceNav<AdminV2Tab> items={workspaceItems} activeKey={activeWorkspaceKey} onChange={setActiveTab} />
+            </section>
           </div>
         </div>
 
@@ -3693,22 +3965,35 @@ export default function AdminMainframeV2View() {
 
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="mx-auto max-w-7xl space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-3xl font-black text-white">Admin V2</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Event <span className="font-mono text-cyan-400">{eventKey}</span> · Active model{' '}
-                <span className="font-black text-fuchsia-400">{MODEL_LABELS[selectedMetric]}</span>
-              </p>
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Admin V4</div>
+                <h2 className="mt-2 text-3xl font-black text-white">{activeWorkspace.label}</h2>
+                <p className="mt-2 max-w-3xl text-sm text-slate-400">
+                  {activeWorkspace.description}. The interface is split by match-day jobs so strategy, data control,
+                  and scout ops stop fighting for the same visual space.
+                </p>
+              </div>
+              <button
+                onClick={() => void loadV3Data()}
+                disabled={loading}
+                className="rounded-xl bg-emerald-600 px-4 py-3 font-black text-white hover:bg-emerald-500 disabled:opacity-50"
+              >
+                <RefreshCw className={`mr-2 inline h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                REFRESH
+              </button>
             </div>
-            <button
-              onClick={() => void loadV3Data()}
-              disabled={loading}
-              className="rounded-xl bg-emerald-600 px-4 py-3 font-black text-white hover:bg-emerald-500 disabled:opacity-50"
-            >
-              <RefreshCw className={`mr-2 inline h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              REFRESH
-            </button>
+            <ContextBar
+              items={[
+                { label: 'Event', value: eventKey, tone: 'font-mono text-cyan-300' },
+                { label: 'Model', value: MODEL_LABELS[selectedMetric], tone: 'text-fuchsia-300' },
+                { label: 'Own Team', value: ownTeamNumber || 'Not set', tone: ownTeamNumber ? 'text-orange-300' : 'text-slate-400' },
+                { label: 'Searched', value: searchedTeamNumber || 'None', tone: searchedTeamNumber ? 'text-sky-300' : 'text-slate-400' },
+                { label: 'Scout Rows', value: summary.rows },
+                { label: 'Latest Source', value: formatFreshnessAge(sourceStatusSummary.latestTimestamp) }
+              ]}
+            />
           </div>
 
           {error && (
@@ -3722,6 +4007,89 @@ export default function AdminMainframeV2View() {
             <SummaryCard label="Scout Teams" value={summary.teams} />
             <SummaryCard label="Avg Defense Metric" value={formatPercentMetric(summary.averageDefenseMetric)} />
           </div>
+
+          {activeTab === 'command' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+                {commandAlerts.map(alert => (
+                  <div
+                    key={alert.label}
+                    className={`rounded-3xl border p-5 ${
+                      alert.tone === 'rose'
+                        ? 'border-rose-500/30 bg-rose-500/10 text-rose-50'
+                        : alert.tone === 'amber'
+                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-50'
+                          : alert.tone === 'emerald'
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-50'
+                            : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-50'
+                    }`}
+                  >
+                    <div className="text-sm font-black uppercase tracking-wider">{alert.label}</div>
+                    <div className="mt-2 text-sm font-semibold opacity-80">{alert.detail}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <MetricBarChart
+                  title="Overall Power Leaders"
+                  subtitle="Uses the active model first; if scouting PPC is empty, it falls back to the best available OPR/EPA signal."
+                  rows={topOffenseRows}
+                  valueFormatter={value => value.toFixed(1)}
+                  accentClass="from-cyan-300 via-sky-400 to-blue-500"
+                />
+                <MetricBarChart
+                  title="Defense Signal Leaders"
+                  subtitle="Scouting-based defense metric average. DPR stays separate because it is official-score-derived."
+                  rows={topDefenseRows}
+                  valueFormatter={value => `${(value * 100).toFixed(1)}%`}
+                  accentClass="from-emerald-300 via-teal-400 to-cyan-500"
+                />
+              </div>
+
+              <ActionGroup
+                title="Next Useful Actions"
+                description="These are the operational shortcuts that used to live as a flat wall in the sidebar."
+              >
+                <button onClick={() => setActiveTab('predictor')} className="rounded-2xl bg-fuchsia-600 px-5 py-3 text-sm font-black text-white hover:bg-fuchsia-500">
+                  Open Match Forecasts
+                </button>
+                <button onClick={() => setActiveTab('sorter')} className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white hover:bg-emerald-500">
+                  Compare Teams
+                </button>
+                <button onClick={() => setActiveTab('rawEditor')} className="rounded-2xl border border-amber-400/40 bg-amber-400/10 px-5 py-3 text-sm font-black text-amber-50 hover:bg-amber-400/20">
+                  Audit Missing Data
+                </button>
+                <button onClick={() => setActiveTab('import')} className="rounded-2xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-400/20">
+                  Import Data
+                </button>
+                <button onClick={() => setActiveTab('export')} className="rounded-2xl border border-slate-700 bg-slate-950 px-5 py-3 text-sm font-black text-slate-200 hover:bg-slate-800">
+                  Build Excel Report
+                </button>
+              </ActionGroup>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 xl:col-span-2">
+                  <h3 className="text-lg font-black text-white">Current Event Health</h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    A fast read on whether the data is good enough to trust for strategy right now.
+                  </p>
+                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <SummaryCard label="Scheduled Groups" value={rawEditorSummary.scheduledMatches} />
+                    <SummaryCard label="Complete Groups" value={rawEditorSummary.completeScheduledMatches} />
+                    <SummaryCard label="Source Rows" value={sourceStatusSummary.rowCount} />
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
+                  <h3 className="text-lg font-black text-white">What This Page Is For</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">
+                    Start here when you are not sure what is broken. If coverage is clean, go to Matches or Strategy.
+                    If warnings appear, fix Data Control first.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeTab === 'results' && (
             <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
@@ -4095,8 +4463,16 @@ export default function AdminMainframeV2View() {
               <div className="border-b border-slate-800 px-5 py-4">
                 <h3 className="flex items-center gap-2 text-lg font-black text-white">
                   <Swords className="h-5 w-5 text-fuchsia-400" />
-                  Future Predictor
+                  Match Intelligence
                 </h3>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button onClick={() => setActiveTab('results')} className="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-4 py-2.5 text-sm font-black text-cyan-50 hover:bg-cyan-400/20">
+                    Match Results
+                  </button>
+                  <button onClick={() => setActiveTab('simulator')} className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-400/10 px-4 py-2.5 text-sm font-black text-fuchsia-50 hover:bg-fuchsia-400/20">
+                    Match Simulator
+                  </button>
+                </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <button onClick={() => setPredictorViewTab('ranking')} className={predictorViewButtonClass('ranking')}>
                     Ranking Prediction
@@ -4120,7 +4496,9 @@ export default function AdminMainframeV2View() {
                         ? 'V3/V4 scouting averages'
                         : selectedMetric === 'opr'
                           ? 'Uploaded COPRs first, calculated OPR second'
-                          : 'Statbotics EPA only'}
+                          : selectedMetric === 'ppa'
+                            ? 'Best validated no-future model estimate'
+                            : 'Statbotics EPA only'}
                     </span>
                   </div>
                   <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
@@ -4217,6 +4595,14 @@ export default function AdminMainframeV2View() {
                   </div>
                 </div>
               )}
+              {selectedMetric === 'ppa' && missingPpaTeams.length > 0 && (
+                <div className="border-b border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-100">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    {missingPpaTeams.length} team{missingPpaTeams.length === 1 ? '' : 's'} are missing PPA and will be treated as 0.
+                  </div>
+                </div>
+              )}
               {selectedMetric === 'opr' && !hasOprBonusMetrics && (
                 <div className="border-b border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-100">
                   <div className="flex items-center gap-2">
@@ -4225,6 +4611,17 @@ export default function AdminMainframeV2View() {
                   </div>
                 </div>
               )}
+
+              <div className="border-b border-slate-800 px-5 py-5">
+                <PredictionActualTrendPanel
+                  modelName="local OPRc"
+                  eventLabel={PREDICTION_COMPARISON_EVENT_LABEL}
+                  sourceLabel={comparisonSourceLabel}
+                  rows={comparisonRows}
+                  isLoading={isComparisonLoading}
+                  errorMessage={comparisonError}
+                />
+              </div>
 
               {predictorViewTab === 'ranking' && (
                 <>
@@ -4375,13 +4772,6 @@ export default function AdminMainframeV2View() {
                         ))}
                       </div>
                     )}
-                    <div className="mt-5">
-                      <PredictionActualTrendPanel
-                        modelName={adminV2BestComparisonModel?.modelName || adminV2BestForecastLayer.modelName}
-                        sourceLabel={adminV2BestComparisonModel?.sourceLabel || adminV2BestForecastLayer.modelSource}
-                        rows={adminV2BestComparisonModel?.comparisonRows || []}
-                      />
-                    </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="admin-sticky-table min-w-[1280px] w-full text-left text-sm">
@@ -4515,7 +4905,51 @@ export default function AdminMainframeV2View() {
           )}
 
           {activeTab === 'sorter' && (
-            <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+                <div className="xl:col-span-2">
+                  <MetricBarChart
+                    title="Ranked Overall Power"
+                    subtitle="Active-model leaders first, with best-available public ratings filling gaps until scouting data arrives."
+                    rows={topOffenseRows}
+                    valueFormatter={value => value.toFixed(1)}
+                    accentClass="from-cyan-300 via-sky-400 to-blue-500"
+                  />
+                </div>
+                <MetricBarChart
+                  title="Volatility Watch"
+                  subtitle="High volatility means higher upset potential, but lower reliability."
+                  rows={volatilityRows}
+                  valueFormatter={value => value.toFixed(1)}
+                  accentClass="from-amber-300 via-orange-400 to-rose-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <MetricBarChart
+                  title="Defense Metric"
+                  subtitle="Subjective scout defense score from defense records."
+                  rows={topDefenseRows}
+                  valueFormatter={value => `${(value * 100).toFixed(1)}%`}
+                  accentClass="from-emerald-300 via-teal-400 to-cyan-500"
+                />
+                <ActionGroup
+                  title="Team Workspace Tools"
+                  description="Use the visual charts for strategy first; open the table when exact values matter."
+                >
+                  <button onClick={() => setActiveTab('teams')} className="rounded-2xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-400/20">
+                    Open Averages Table
+                  </button>
+                  <button onClick={() => setActiveTab('simulator')} className="rounded-2xl border border-fuchsia-400/40 bg-fuchsia-400/10 px-5 py-3 text-sm font-black text-fuchsia-50 hover:bg-fuchsia-400/20">
+                    Simulate Alliances
+                  </button>
+                  <button onClick={() => setActiveTab('strategyBrain')} className="rounded-2xl border border-amber-400/40 bg-amber-400/10 px-5 py-3 text-sm font-black text-amber-50 hover:bg-amber-400/20">
+                    Open Team Profiles
+                  </button>
+                </ActionGroup>
+              </div>
+
+              <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
               <div className="border-b border-slate-800 px-5 py-4">
                 <h3 className="flex items-center gap-2 text-lg font-black text-white">
                   <ArrowUpDown className="h-5 w-5 text-cyan-400" />
@@ -4574,6 +5008,7 @@ export default function AdminMainframeV2View() {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           )}
 
@@ -4726,8 +5161,9 @@ export default function AdminMainframeV2View() {
             </div>
           )}
 
-          {activeTab === 'strategyBrain' && (
+          {(activeTab === 'strategyBrain' || activeTab === 'scoutOps') && (
             <AdminV2StrategyBrainView
+              defaultTab={activeTab === 'scoutOps' ? 'scoutOps' : 'foundation'}
               eventKey={eventKey}
               selectedMetric={selectedMetric}
               ownTeamNumber={ownTeamNumber}
@@ -4747,6 +5183,21 @@ export default function AdminMainframeV2View() {
 
           {activeTab === 'import' && (
             <div className="space-y-6">
+              <ActionGroup
+                title="Data Control Pipeline"
+                description="Import first, inspect staged/conflicting data, audit raw coverage, then export evidence when the event is stable."
+              >
+                <button onClick={() => setActiveTab('rawEditor')} className="rounded-2xl border border-amber-400/40 bg-amber-400/10 px-5 py-3 text-sm font-black text-amber-50 hover:bg-amber-400/20">
+                  Open Raw Data Audit
+                </button>
+                <button onClick={() => setActiveTab('export')} className="rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-50 hover:bg-emerald-400/20">
+                  Preview Excel Export
+                </button>
+                <button onClick={() => void refreshAdminV2CacheEntries()} className="rounded-2xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-400/20">
+                  Refresh Source Status
+                </button>
+              </ActionGroup>
+
               <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                   <div>
@@ -4756,7 +5207,7 @@ export default function AdminMainframeV2View() {
                     </h3>
                     <p className="mt-2 max-w-3xl text-sm text-slate-400">
                       Upload TBA exports here: matches/schedule JSON, rankings JSON, alliances JSON, event JSON,
-                      teams JSON/CSV, and OPR/COPR CSV or JSON. These files are saved locally for Admin V2 predictions,
+                      teams JSON/CSV, and OPR/COPR CSV or JSON. These files are saved locally for Admin V4 predictions,
                       rankings, team labels, and playoff structure fallback.
                     </p>
                   </div>
@@ -4812,7 +5263,7 @@ export default function AdminMainframeV2View() {
                       Source Freshness
                     </h3>
                     <p className="mt-2 max-w-3xl text-sm text-slate-400">
-                      One place to verify what Admin V2 can fall back to when the internet is bad: cached TBA/FIRST/Statbotics/Firebase
+                      One place to verify what Admin V4 can fall back to when the internet is bad: cached TBA/FIRST/Statbotics/Firebase
                       payloads, uploaded TBA files, and locally restored source data.
                     </p>
                   </div>
@@ -4868,7 +5319,7 @@ export default function AdminMainframeV2View() {
                       {sourceStatusRows.length === 0 && (
                         <tr>
                           <td className="px-4 py-8 text-center text-slate-500" colSpan={5}>
-                            No cached source data yet. Upload TBA files, refresh FIRST cache, or load live Admin V2 data to populate this board.
+                            No cached source data yet. Upload TBA files, refresh FIRST cache, or load live Admin V4 data to populate this board.
                           </td>
                         </tr>
                       )}
@@ -4974,7 +5425,7 @@ export default function AdminMainframeV2View() {
                       Full Local Backup
                     </h3>
                     <p className="mt-2 max-w-3xl text-sm text-emerald-50/80">
-                      Export the Admin V2 device state as JSON: scout archive records including tombstones, cached
+                      Export the Admin V4 device state as JSON: scout archive records including tombstones, cached
                       source data, uploaded TBA files, model snapshots, scout assignment plans, and PowerCoins. FIRST
                       credentials are summarized, but the token is never included.
                     </p>

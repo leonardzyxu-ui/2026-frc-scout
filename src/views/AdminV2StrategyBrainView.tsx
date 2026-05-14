@@ -55,7 +55,6 @@ import {
   upsertPowerCoinLedgerEntry
 } from '../utils/adminV2LocalStore';
 import { fetchAndCacheFirstEventBundle, getYearFromEventKey } from '../utils/firstEventsApi';
-import PredictionActualTrendPanel from '../components/admin/PredictionActualTrendPanel';
 
 type StrategyBrainTab = 'foundation' | 'models' | 'profiles' | 'strategy' | 'alliance' | 'scoutOps';
 
@@ -241,6 +240,7 @@ function StrategyTeamBadgeList({
 }
 
 export default function AdminV2StrategyBrainView({
+  defaultTab = 'foundation',
   eventKey,
   selectedMetric,
   ownTeamNumber,
@@ -256,6 +256,7 @@ export default function AdminV2StrategyBrainView({
   epaRatings,
   teamNameLookup
 }: {
+  defaultTab?: StrategyBrainTab;
   eventKey: string;
   selectedMetric: AdminV2SelectedMetric;
   ownTeamNumber: string;
@@ -271,7 +272,7 @@ export default function AdminV2StrategyBrainView({
   epaRatings: Record<string, number>;
   teamNameLookup: Record<string, string>;
 }) {
-  const [activeTab, setActiveTab] = useState<StrategyBrainTab>('foundation');
+  const [activeTab, setActiveTab] = useState<StrategyBrainTab>(defaultTab);
   const [firstCredentials, setFirstCredentials] = useState<FirstEventsCredentials | null>(null);
   const [cacheCount, setCacheCount] = useState(0);
   const [cacheEntries, setCacheEntries] = useState<AdminV2CacheEntry[]>([]);
@@ -291,6 +292,10 @@ export default function AdminV2StrategyBrainView({
   const [scoutOpsStatus, setScoutOpsStatus] = useState('');
   const [latestModelSnapshot, setLatestModelSnapshot] = useState<ModelLabSnapshot | null>(null);
   const [latestFeatureSnapshot, setLatestFeatureSnapshot] = useState<ModelFeatureSnapshot | null>(null);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -360,11 +365,6 @@ export default function AdminV2StrategyBrainView({
     });
   }, [allianceSeed, allianceSelectionLoadedFor, eventKey, pickedTeamsText]);
 
-  const activeMetricRatings = useMemo(
-    () => selectedMetric === 'ppc' ? averageLookup : selectedMetric === 'opr' ? oprRatings : epaRatings,
-    [averageLookup, epaRatings, oprRatings, selectedMetric]
-  );
-
   const modelBacktests = useMemo(() => backtestTimeAwareModels({
     matches,
     v3Records,
@@ -390,6 +390,17 @@ export default function AdminV2StrategyBrainView({
     EPA: epaRatings,
     'Recency EPA': epaRatings
   }), [averageLookup, dprRatings, epaRatings, modelBacktests, noFutureBlendLookup, oprRatings]);
+  const activeMetricRatings = useMemo(
+    () =>
+      selectedMetric === 'ppc'
+        ? averageLookup
+        : selectedMetric === 'opr'
+          ? oprRatings
+          : selectedMetric === 'ppa'
+            ? ppaRatings
+            : epaRatings,
+    [averageLookup, epaRatings, oprRatings, ppaRatings, selectedMetric]
+  );
 
   const bestModelForecastLayer = useMemo(() => buildBestModelFutureForecasts({
     matches,
@@ -669,7 +680,7 @@ export default function AdminV2StrategyBrainView({
   const handleExportAdminV2Cache = async () => {
     try {
       const cacheEntries = await listAdminV2CacheEntries(eventKey);
-      downloadJsonFile(`adminv2_cache_${eventKey}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, {
+      downloadJsonFile(`adminv4_cache_${eventKey}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`, {
         format: 'rebuilt-2026-admin-v2-cache',
         version: 1,
         eventKey,
@@ -684,7 +695,7 @@ export default function AdminV2StrategyBrainView({
       setFirstStatus(`Exported ${cacheEntries.length} cached source entr${cacheEntries.length === 1 ? 'y' : 'ies'} plus model, feature, scout, and PowerCoin snapshots.`);
       setFirstError('');
     } catch (error) {
-      setFirstError(error instanceof Error ? error.message : 'Failed to export Admin V2 cache.');
+      setFirstError(error instanceof Error ? error.message : 'Failed to export Admin V4 cache.');
     }
   };
 
@@ -693,16 +704,16 @@ export default function AdminV2StrategyBrainView({
     event.target.value = '';
     if (!file) return;
 
-    setFirstStatus('Restoring Admin V2 cache JSON...');
+    setFirstStatus('Restoring Admin V4 cache JSON...');
     setFirstError('');
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
       if (!isAdminV2CacheExportPayload(parsed)) {
-        throw new Error('This is not a REBUILT Admin V2 cache JSON export.');
+        throw new Error('This is not a REBUILT Admin V4 cache JSON export.');
       }
 
       if (parsed.eventKey.trim().toUpperCase() !== eventKey.trim().toUpperCase()) {
-        throw new Error(`This cache file is for ${parsed.eventKey}. Switch Admin V2 to that event before importing it.`);
+        throw new Error(`This cache file is for ${parsed.eventKey}. Switch Admin V4 to that event before importing it.`);
       }
 
       const restoredCacheEntries = await restoreAdminV2CacheEntries(parsed.cacheEntries || []);
@@ -735,10 +746,10 @@ export default function AdminV2StrategyBrainView({
       setPowerCoinBets(bets);
       setPowerCoinLedger(ledger);
       setFirstStatus(
-        `Imported Admin V2 cache: ${restoredCacheEntries} source entries, ${(parsed.powerCoinBets || []).length} PowerCoin bets, ${(parsed.powerCoinLedger || []).length} ledger entries.`
+        `Imported Admin V4 cache: ${restoredCacheEntries} source entries, ${(parsed.powerCoinBets || []).length} PowerCoin bets, ${(parsed.powerCoinLedger || []).length} ledger entries.`
       );
     } catch (error) {
-      setFirstError(error instanceof Error ? error.message : 'Failed to import Admin V2 cache JSON.');
+      setFirstError(error instanceof Error ? error.message : 'Failed to import Admin V4 cache JSON.');
       setFirstStatus('');
     }
   };
@@ -894,7 +905,7 @@ export default function AdminV2StrategyBrainView({
             </h3>
             <p className="mt-2 max-w-4xl text-sm font-semibold text-cyan-100/80">
               V4 evidence, cached APIs, no-future-data model evaluation, defense attribution, match strategy,
-              alliance selection, scout assignment optimization, and PowerCoins live in one Admin V2 workspace.
+              alliance selection, scout assignment optimization, and PowerCoins live in one Admin V4 strategy workspace.
             </p>
           </div>
           <div className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm">
@@ -1063,13 +1074,6 @@ export default function AdminV2StrategyBrainView({
                 Latest saved snapshot: {new Date(latestModelSnapshot.createdAt).toLocaleString()} · forecast model {latestModelSnapshot.selectedForecastModel}.
               </p>
             )}
-          </div>
-          <div className="mt-5">
-            <PredictionActualTrendPanel
-              modelName={bestModel?.modelName || 'Best available model'}
-              sourceLabel={bestModel?.sourceLabel}
-              rows={bestModel?.comparisonRows || []}
-            />
           </div>
           <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">

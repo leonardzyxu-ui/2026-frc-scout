@@ -1,6 +1,6 @@
 import { DEFAULT_EVENT_KEY } from './sharedEventState';
 
-export type AdminV2SelectedMetric = 'ppc' | 'opr' | 'epa';
+export type AdminV2SelectedMetric = 'ppc' | 'opr' | 'epa' | 'ppa';
 
 export interface AdminV2Settings {
   eventKey: string;
@@ -39,7 +39,10 @@ export const loadAdminV2Settings = (): AdminV2Settings => {
       eventKey: sanitizeEventKey(parsed.eventKey || DEFAULT_EVENT_KEY),
       ownTeamNumber: sanitizeTeamNumber(parsed.ownTeamNumber || ''),
       selectedMetric:
-        parsed.selectedMetric === 'epa' || parsed.selectedMetric === 'opr' || parsed.selectedMetric === 'ppc'
+        parsed.selectedMetric === 'epa' ||
+        parsed.selectedMetric === 'opr' ||
+        parsed.selectedMetric === 'ppc' ||
+        parsed.selectedMetric === 'ppa'
           ? parsed.selectedMetric
           : 'ppc',
       searchedTeamNumber: sanitizeTeamNumber(parsed.searchedTeamNumber || '')

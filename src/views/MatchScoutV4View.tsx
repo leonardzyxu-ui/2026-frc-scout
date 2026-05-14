@@ -585,7 +585,7 @@ export default function MatchScoutV4View() {
               className="w-full rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
             />
             <span className="block text-[11px] font-semibold text-slate-500">
-              Scout event is locked locally; Admin V2 settings do not change scout submissions.
+              Scout event is locked locally; Admin V4 settings do not change scout submissions.
             </span>
           </label>
           <div className="space-y-2">
@@ -937,7 +937,7 @@ export default function MatchScoutV4View() {
                 </div>
                 <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
                   <Download className="h-4 w-4" />
-                  Scan this in Admin V2 Data Import if Firebase is unavailable.
+                  Scan this in Admin V4 Data Control if Firebase is unavailable.
                 </p>
               </div>
             )}

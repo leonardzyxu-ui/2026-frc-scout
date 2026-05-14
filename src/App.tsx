@@ -55,7 +55,8 @@ export default function App() {
           <Routes>
             {/* Admin Route - Protected */}
             <Route path="/admin" element={<AdminGuard><AdminMainframeView /></AdminGuard>} />
-            <Route path="/adminv2" element={<AdminGuard><AdminMainframeV2View /></AdminGuard>} />
+            <Route path="/adminv4" element={<AdminGuard><AdminMainframeV2View /></AdminGuard>} />
+            <Route path="/adminv2" element={<Navigate to="/adminv4" replace />} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={
