@@ -9,7 +9,9 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [
       react(), 
-      tailwindcss(),
+      tailwindcss({
+        optimize: false
+      }),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg'],
