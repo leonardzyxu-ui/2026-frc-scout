@@ -10,10 +10,12 @@
       "DOM.Iterable"
     ],
     "skipLibCheck": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
-    "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
@@ -22,5 +24,21 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vite.local.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-local",
+    "Local Scout",
+    "output",
+    "reports",
+    ".firebase",
+    ".playwright-cli",
+    "app/applet"
+  ]
 }

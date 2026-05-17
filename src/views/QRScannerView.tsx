@@ -18,6 +18,7 @@ import {
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
 import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { stableStringify } from '../utils/keys';
 
 type ImportStatus = 'pending' | 'uploaded' | 'duplicate' | 'conflict' | 'failed';
 type StageOutcome = 'added' | 'duplicate' | 'conflict' | false;
@@ -40,6 +41,15 @@ const STATUS_CLASSES: Record<ImportStatus, string> = {
   conflict: 'bg-rose-500/15 text-rose-200',
   failed: 'bg-red-500/15 text-red-200'
 };
+
+const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
+
+const isJsonImportFile = (file: File) => {
+  const name = file.name.toLowerCase();
+  return name.endsWith('.json') || file.type === 'application/json' || file.type === 'text/json';
+};
+
+const isImageImportFile = (file: File) => file.type.startsWith('image/');
 
 const getTargetCollection = (record: ScoutingImportRecord) =>
   record.recordType === 'match'
@@ -90,22 +100,6 @@ const getRecordScoutName = (record: ScoutingImportRecord) =>
   record.recordType === 'pit'
     ? record.data.scoutName || 'Imported Scout'
     : record.data.scoutName || record.data.substituteScoutName || record.data.assignedScoutName || 'Imported Scout';
-
-const stableStringify = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
-  }
-
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key !== 'timestamp' && key !== 'deviceId' && key !== 'editHistory')
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
-      .join(',')}}`;
-  }
-
-  return JSON.stringify(value) ?? 'undefined';
-};
 
 const hashRecord = (record: ScoutingImportRecord) =>
   `${getLogicalKey(record)}|${stableStringify(record.data)}`;
@@ -332,7 +326,17 @@ export default function QRScannerView({
 
     for (const file of files) {
       try {
-        if (file.name.endsWith('.json')) {
+        if (file.size > MAX_IMPORT_FILE_BYTES) {
+          failCount += 1;
+          continue;
+        }
+
+        if (!isJsonImportFile(file) && !isImageImportFile(file)) {
+          failCount += 1;
+          continue;
+        }
+
+        if (isJsonImportFile(file)) {
           const text = await file.text();
           const parsed = JSON.parse(text);
           if (Array.isArray(parsed)) {
@@ -419,7 +423,7 @@ export default function QRScannerView({
       } catch (error) {
         console.warn(`Failed to process ${file.name}`, error);
         failCount += 1;
-        if (!file.name.endsWith('.json')) {
+        if (isImageImportFile(file)) {
           nextFailedFiles.push({ file, url: URL.createObjectURL(file) });
         }
       }

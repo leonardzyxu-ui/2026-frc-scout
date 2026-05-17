@@ -13,7 +13,12 @@ import { DEFAULT_EVENT_KEY, getPersistentDeviceId, getSharedEventDocRef, getStor
 import { SCOUT_ASSIGNMENTS } from '../utils/scoutAssignments';
 import { getMatchDocId, writeMatchScoutingRecord } from '../utils/scoutingWrites';
 import { buildScoutDraftKey, deleteScoutDraft, getScoutDraft, setScoutDraft } from '../utils/scoutDrafts';
-import { getScoutArchiveUsername, setScoutArchiveUsername, upsertMatchArchiveRecord } from '../utils/scoutArchive';
+import {
+  getScoutArchiveUsername,
+  setScoutArchiveUsername,
+  updateScoutArchiveRecordSyncState,
+  upsertMatchArchiveRecord
+} from '../utils/scoutArchive';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 
 const MATCH_SCOUT_EVENT_KEY_STORAGE = 'match_scout_event_key';
@@ -519,42 +524,68 @@ export default function MatchScoutView() {
       };
 
       const docId = getMatchDocId(payload);
-      const existingDoc = await getDoc(doc(db, 'events', payload.eventKey, 'matchScouting', docId));
-      if (existingDoc.exists()) {
-        const existingData = existingDoc.data() as MatchScoutingV2;
-        if (isEditing || !originalDocId || originalDocId === docId) {
-          const history = existingData.editHistory || [];
-          payload.editHistory = [
-            ...history,
-            {
-              timestamp: Date.now(),
-              editor: payload.scoutName,
-              changes: 'Match updated by scout'
-            }
-          ];
-        }
-      }
-
-      const writeResult = await writeMatchScoutingRecord(payload, {
-        mode: isEditing && (!!originalDocId && originalDocId === docId) ? 'replace' : 'strict'
+      const mode = isEditing && !!originalDocId && originalDocId === docId ? 'replace' : 'strict';
+      const archiveRecord = await upsertMatchArchiveRecord(payload, archiveUsername, 'local_submit', {
+        syncStatus: 'pending_sync',
+        syncMode: mode,
+        lastFirebaseAttemptAt: Date.now(),
+        lastFirebaseError: ''
       });
-
-      if (writeResult.outcome === 'duplicate') {
-        showNotification('This exact match record already exists.', 'error');
-        return;
-      }
-
-      if (writeResult.outcome === 'conflict') {
-        showNotification('A conflicting match record already exists. Resolve it in Admin Raw Data.', 'error');
-        return;
-      }
-
-      await upsertMatchArchiveRecord(payload, archiveUsername, 'local_submit');
-
       await deleteScoutDraft(activeDraftKey);
       skipNextDraftSaveRef.current = true;
 
-      showNotification(isEditing ? 'Match updated successfully!' : 'Match submitted successfully!', 'success');
+      let syncMessage = isEditing ? 'Match updated successfully!' : 'Match submitted successfully!';
+      let syncMessageType: 'success' | 'error' = 'success';
+
+      try {
+        const existingDoc = await getDoc(doc(db, 'events', payload.eventKey, 'matchScouting', docId));
+        if (existingDoc.exists()) {
+          const existingData = existingDoc.data() as MatchScoutingV2;
+          if (isEditing || !originalDocId || originalDocId === docId) {
+            const history = existingData.editHistory || [];
+            payload.editHistory = [
+              ...history,
+              {
+                timestamp: Date.now(),
+                editor: payload.scoutName,
+                changes: 'Match updated by scout'
+              }
+            ];
+          }
+        }
+
+        const writeResult = await writeMatchScoutingRecord(payload, { mode });
+
+        if (writeResult.outcome === 'conflict') {
+          await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+            syncStatus: 'unsynced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: writeResult.message
+          });
+          syncMessage = 'Saved locally. Firebase reported a conflict, so this record is unsynced in My History.';
+          syncMessageType = 'error';
+        } else {
+          await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+            syncStatus: 'synced',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: ''
+          });
+          syncMessage = writeResult.outcome === 'duplicate'
+            ? 'Saved locally. The same match already exists in Firebase.'
+            : syncMessage;
+        }
+      } catch (syncError) {
+        console.error('Error syncing match to Firebase', syncError);
+        await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
+          syncStatus: 'unsynced',
+          lastFirebaseAttemptAt: Date.now(),
+          lastFirebaseError: syncError instanceof Error ? syncError.message : 'Firebase sync failed.'
+        });
+        syncMessage = 'Saved locally. Firebase sync failed, so this record is unsynced in My History.';
+        syncMessageType = 'error';
+      }
+
+      showNotification(syncMessage, syncMessageType);
 
       if (isEditing) {
         setTimeout(() => navigate('/history'), 1500);

@@ -7,6 +7,7 @@ import {
   initialMatchScoutingV4
 } from '../types';
 import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3, toNonNegativeInt } from './matchScoutingV3';
+import { normalizeTeamNumber } from './keys';
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 
@@ -52,7 +53,7 @@ export const normalizeMatchScoutingV4 = (raw: Partial<MatchScoutingV4>): MatchSc
     matchType,
     matchNumber,
     matchKey: (raw.matchKey || buildMatchKeyV4(matchType, matchNumber)).toLowerCase(),
-    teamNumber: (raw.teamNumber || '').trim(),
+    teamNumber: normalizeTeamNumber(raw.teamNumber),
     scoutName: (raw.scoutName || '').trim(),
     assignedScoutName: (raw.assignedScoutName || '').trim(),
     assignedSlot: (raw.assignedSlot || '').trim(),

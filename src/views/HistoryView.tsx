@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock3, Download, Edit3, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
 import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
-import { DEFAULT_EVENT_KEY } from '../utils/sharedEventState';
+import { DEFAULT_EVENT_KEY, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
 import {
   buildScoutArchiveBundle,
   getScoutArchiveUsername,
@@ -15,6 +15,7 @@ import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchSco
 import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
 import { syncScoutArchiveRecordToFirebase } from '../utils/scoutArchiveSync';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
+import { normalizeEventKey } from '../utils/keys';
 
 type HistoryRow = ScoutArchiveRecord;
 
@@ -49,8 +50,13 @@ export default function HistoryView() {
   const [isArchiveUsernameResolved, setIsArchiveUsernameResolved] = useState(false);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [eventKey, setEventKey] = useState(() => normalizeEventKey(getStoredEventKey(), DEFAULT_EVENT_KEY));
 
-  const eventKey = DEFAULT_EVENT_KEY;
+  const handleEventKeyChange = (value: string) => {
+    const nextEventKey = normalizeEventKey(value, DEFAULT_EVENT_KEY);
+    setEventKey(nextEventKey);
+    storeEventKey(nextEventKey);
+  };
 
   const recentRecords = useMemo(() => {
     return records
@@ -266,6 +272,16 @@ export default function HistoryView() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-500">
+            Event
+            <input
+              type="text"
+              value={eventKey}
+              onChange={event => handleEventKeyChange(event.target.value)}
+              className="w-28 bg-transparent font-mono text-sm text-cyan-300 outline-none"
+              aria-label="History event key"
+            />
+          </label>
           <button
             onClick={() => void handleRetryAllUnsynced()}
             disabled={isBulkSyncing || unsyncedRecords.length === 0}

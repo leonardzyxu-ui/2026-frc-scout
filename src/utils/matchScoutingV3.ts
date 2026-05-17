@@ -9,8 +9,15 @@ import {
   MatchScoutingV3SubstituteScoutName,
   initialMatchScoutingV3
 } from '../types';
+import {
+  buildMatchKey,
+  normalizeEventKey,
+  normalizeTeamNumber,
+  parseMatchNumber,
+  parseMatchType
+} from './keys';
 
-export const sanitizeEventKeyV3 = (value: string) => value.toUpperCase().replace(/\s+/g, '');
+export const sanitizeEventKeyV3 = (value: string) => normalizeEventKey(value);
 
 export const clampScore = (value: number, min = 0, max = 10) =>
   Math.min(max, Math.max(min, value));
@@ -20,15 +27,12 @@ export const roundScore = (value: number) => Number(clampScore(value).toFixed(2)
 export const toNonNegativeInt = (value: number) => Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
 
 export const buildMatchKeyV3 = (matchType: MatchScoutingV3MatchType, matchNumber: number) =>
-  `${matchType === 'Practice' ? 'pm' : 'qm'}${Math.max(1, matchNumber)}`;
+  buildMatchKey(matchType, matchNumber);
 
-export const parseMatchNumberV3 = (matchKey: string) => {
-  const match = (matchKey || '').match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 1;
-};
+export const parseMatchNumberV3 = (matchKey: string) => parseMatchNumber(matchKey);
 
 export const parseMatchTypeV3 = (matchKey: string): MatchScoutingV3MatchType =>
-  (matchKey || '').toLowerCase().startsWith('pm') ? 'Practice' : 'Qualification';
+  parseMatchType(matchKey);
 
 export const calculateTotalMatchPoints = (
   autoPoints: number,
@@ -71,7 +75,7 @@ export const normalizeMatchScoutingV3 = (raw: Partial<MatchScoutingV3>): MatchSc
     matchType,
     matchNumber,
     matchKey: (raw.matchKey || buildMatchKeyV3(matchType, matchNumber)).toLowerCase(),
-    teamNumber: (raw.teamNumber || '').trim(),
+    teamNumber: normalizeTeamNumber(raw.teamNumber),
     scoutName: (raw.scoutName || '').trim(),
     assignedScoutName: (raw.assignedScoutName || '').trim(),
     assignedSlot: (raw.assignedSlot || '').trim(),

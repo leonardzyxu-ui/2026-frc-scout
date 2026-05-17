@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 console.log('Building local scout...');
-execSync('npx vite build -c vite.local.config.ts', { stdio: 'inherit' });
+execSync('node ./node_modules/vite/bin/vite.js build -c vite.local.config.ts', { stdio: 'inherit' });
 
 const distHtml = path.join(__dirname, 'dist-local', 'index.html');
 const targetDir = path.join(__dirname, 'Local Scout');

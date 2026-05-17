@@ -1,9 +1,20 @@
 node_modules/
 build/
 dist/
+dist-local/
 coverage/
 .playwright-cli/
+.firebase/
 .DS_Store
 *.log
 .env*
 !.env.example
+output/
+reports/
+Local Scout/
+tailwind.js
+jsmediatags.js
+confetti.js
+test-module.*
+test_tba*.*
+app/applet/test_tba*

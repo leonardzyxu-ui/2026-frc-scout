@@ -1,10 +1,10 @@
 // firebase-env.js
-// KEEP THIS FILE SECRET. DO NOT EMAIL THIS FILE TO UNAUTHORIZED PEOPLE.
+// Local/offline template only. Do not commit real project values here.
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDBcELIhSrLnBBQeO8pmP1fwx4lB2h7VRU",
-  authDomain: "scout-rebuilt-2026.firebaseapp.com",
-  projectId: "scout-rebuilt-2026",
-  storageBucket: "scout-rebuilt-2026.firebasestorage.app",
-  messagingSenderId: "471366348699",
-  appId: "1:471366348699:web:7c537b84da9621053cfb3e"
+  apiKey: "replace-me",
+  authDomain: "replace-me.firebaseapp.com",
+  projectId: "replace-me",
+  storageBucket: "replace-me.appspot.com",
+  messagingSenderId: "replace-me",
+  appId: "replace-me"
 };

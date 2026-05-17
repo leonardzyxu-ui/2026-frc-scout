@@ -5,8 +5,6 @@ import {
   Check,
   ChevronUp,
   Edit2,
-  Eye,
-  EyeOff,
   History,
   Lock,
   Search,
@@ -16,7 +14,7 @@ import {
 } from 'lucide-react';
 import { db } from '../firebase';
 import { MatchScoutingV3 } from '../types';
-import { verifyAdminPassword } from '../utils/adminAuth';
+import { getAdminAccessState } from '../utils/adminAuth';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 import {
@@ -107,11 +105,8 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
     message: string;
     targetId?: string;
   }>({ isOpen: false, type: 'alert', message: '' });
-  const [passwordInput, setPasswordInput] = useState('');
   const [isEntryAuthorized, setIsEntryAuthorized] = useState(false);
-  const [entryPassword, setEntryPassword] = useState('');
-  const [entryError, setEntryError] = useState(false);
-  const [showEntryPassword, setShowEntryPassword] = useState(false);
+  const [entryMessage, setEntryMessage] = useState('Admin role will be checked against Firebase before access is granted.');
 
   useEffect(() => {
     setIsEntryAuthorized(sessionStorage.getItem(RAW_DATA_EDITOR_SESSION_KEY) === 'true');
@@ -166,31 +161,30 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
   const handleEntryUnlock = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (await verifyAdminPassword(entryPassword)) {
+    const access = await getAdminAccessState();
+    if (access.isAdmin) {
       sessionStorage.setItem(RAW_DATA_EDITOR_SESSION_KEY, 'true');
       setIsEntryAuthorized(true);
-      setEntryPassword('');
-      setEntryError(false);
+      setEntryMessage(access.message);
       return;
     }
 
-    setEntryError(true);
-    window.setTimeout(() => setEntryError(false), 500);
+    setEntryMessage(access.message);
   };
 
   const handleDeleteClick = (id: string) => {
     setModalState({
       isOpen: true,
       type: 'delete',
-      message: 'Enter admin password to delete this record. This cannot be undone.',
+      message: 'Confirm your Firebase admin role before deleting this record. This cannot be undone.',
       targetId: id
     });
-    setPasswordInput('');
   };
 
   const executeDelete = async () => {
-    if (!(await verifyAdminPassword(passwordInput))) {
-      setModalState({ isOpen: true, type: 'alert', message: 'Incorrect password.' });
+    const access = await getAdminAccessState();
+    if (!access.isAdmin) {
+      setModalState({ isOpen: true, type: 'alert', message: access.message });
       return;
     }
     const id = modalState.targetId;
@@ -213,13 +207,13 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
 
   const handleSaveClick = () => {
     if (!editingId) return;
-    setModalState({ isOpen: true, type: 'save', message: 'Enter admin password to save changes.' });
-    setPasswordInput('');
+    setModalState({ isOpen: true, type: 'save', message: 'Confirm your Firebase admin role before saving raw data changes.' });
   };
 
   const executeSave = async () => {
-    if (!(await verifyAdminPassword(passwordInput))) {
-      setModalState({ isOpen: true, type: 'alert', message: 'Incorrect password.' });
+    const access = await getAdminAccessState();
+    if (!access.isAdmin) {
+      setModalState({ isOpen: true, type: 'alert', message: access.message });
       return;
     }
 
@@ -355,30 +349,12 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
 
           <h2 className="text-2xl font-black text-center mb-2 tracking-tight text-white">RAW DATA EDITOR LOCKED</h2>
           <p className="text-slate-400 text-center text-sm mb-8 font-medium">
-            Re-enter the admin password before accessing direct Firestore editing.
+            Firebase admin role verification is required before accessing direct Firestore editing.
           </p>
 
           <form onSubmit={handleEntryUnlock} className="space-y-4">
-            <div className="relative">
-              <input
-                type={showEntryPassword ? 'text' : 'password'}
-                value={entryPassword}
-                onChange={(e) => setEntryPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className={`w-full bg-slate-950 border rounded-xl p-4 text-center tracking-widest text-lg text-white focus:outline-none transition-all ${
-                  entryError
-                    ? 'border-red-500 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
-                    : 'border-slate-800 focus:border-amber-500 focus:shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                }`}
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => setShowEntryPassword(prev => !prev)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                {showEntryPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
+            <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm font-semibold text-slate-300">
+              {entryMessage}
             </div>
             <button
               type="submit"
@@ -820,19 +796,9 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
             <p className="text-slate-300 mb-6 leading-relaxed">{modalState.message}</p>
 
             {(modalState.type === 'delete' || modalState.type === 'save') && (
-              <input
-                type="password"
-                placeholder="Enter Admin Password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white mb-6 focus:outline-none focus:border-emerald-500 transition-colors"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    modalState.type === 'delete' ? executeDelete() : executeSave();
-                  }
-                }}
-              />
+              <div className="mb-6 rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm font-semibold text-slate-300">
+                The app will refresh your Firebase token and verify your admin claim or admin role document.
+              </div>
             )}
 
             <div className="flex justify-end gap-3">

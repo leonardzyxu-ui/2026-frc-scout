@@ -1,14 +1,73 @@
-export const ADMIN_HASH = 'f51017681489feaa432c4f86ceb66aae7bf383ed137b75ae9eeeea61e616af02';
+import { getIdTokenResult } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 
-export async function sha256(message: string) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
+export interface AdminAccessState {
+  isAdmin: boolean;
+  reason: 'claim' | 'role-doc' | 'local-mode' | 'signed-out' | 'missing-role' | 'error';
+  message: string;
 }
 
-export async function verifyAdminPassword(password: string) {
-  const hash = await sha256(password);
-  return hash === ADMIN_HASH;
+const isLocalMode = () => import.meta.env.VITE_LOCAL_MODE === 'true';
+
+const hasAdminClaim = (claims: Record<string, unknown>) =>
+  claims.admin === true || claims.scoutAdmin === true || claims.role === 'admin';
+
+export async function getAdminAccessState(): Promise<AdminAccessState> {
+  if (isLocalMode()) {
+    return {
+      isAdmin: true,
+      reason: 'local-mode',
+      message: 'Local mode grants admin access on this device.'
+    };
+  }
+
+  const user = auth.currentUser;
+  if (!user) {
+    return {
+      isAdmin: false,
+      reason: 'signed-out',
+      message: 'Firebase auth is not ready yet. Try again after the app connects.'
+    };
+  }
+
+  try {
+    const token = await getIdTokenResult(user, true);
+    if (hasAdminClaim(token.claims)) {
+      return {
+        isAdmin: true,
+        reason: 'claim',
+        message: 'Admin access granted by Firebase custom claim.'
+      };
+    }
+
+    const roleSnapshot = await getDoc(doc(db, 'adminRoles', user.uid));
+    if (roleSnapshot.exists() && roleSnapshot.data().enabled === true) {
+      return {
+        isAdmin: true,
+        reason: 'role-doc',
+        message: 'Admin access granted by admin role document.'
+      };
+    }
+
+    return {
+      isAdmin: false,
+      reason: 'missing-role',
+      message: `This device is signed in as ${user.uid}, but it does not have an admin role.`
+    };
+  } catch (error) {
+    return {
+      isAdmin: false,
+      reason: 'error',
+      message: error instanceof Error ? error.message : 'Unable to verify admin access.'
+    };
+  }
+}
+
+export async function isCurrentUserAdmin() {
+  return (await getAdminAccessState()).isAdmin;
+}
+
+export async function verifyAdminPassword(_password: string) {
+  return isCurrentUserAdmin();
 }

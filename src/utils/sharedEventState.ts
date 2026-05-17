@@ -1,18 +1,18 @@
 import { doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { normalizeEventKey } from './keys';
 
 export const DEFAULT_EVENT_KEY = '2026MNUM';
 
 export const getSharedEventDocRef = () => doc(db, 'appState', 'currentEvent');
 
 export const getStoredEventKey = () =>
-  localStorage.getItem('globalEventKey') ||
-  localStorage.getItem('setting_event') ||
-  DEFAULT_EVENT_KEY;
+  normalizeEventKey(localStorage.getItem('globalEventKey') || localStorage.getItem('setting_event'), DEFAULT_EVENT_KEY);
 
 export const storeEventKey = (eventKey: string) => {
-  localStorage.setItem('globalEventKey', eventKey);
-  localStorage.setItem('setting_event', eventKey);
+  const normalized = normalizeEventKey(eventKey, DEFAULT_EVENT_KEY);
+  localStorage.setItem('globalEventKey', normalized);
+  localStorage.setItem('setting_event', normalized);
 };
 
 export const getPersistentDeviceId = () => {

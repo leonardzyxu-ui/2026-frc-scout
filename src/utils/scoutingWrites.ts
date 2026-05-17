@@ -4,6 +4,7 @@ import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScouting
 import { getMatchScoutingV3DocId } from './matchScoutingV3';
 import { getMatchDefenseScoutingV1DocId } from './matchDefenseScouting';
 import { getMatchScoutingV4DocId } from './matchScoutingV4';
+import { stableStringify } from './keys';
 
 type WriteMode = 'strict' | 'replace';
 
@@ -165,7 +166,7 @@ const canonicalizePit = (record: PitScoutingV2) => ({
   notes: normalizeString(record.notes)
 });
 
-const areEqual = (left: unknown, right: unknown) => JSON.stringify(left) === JSON.stringify(right);
+const areEqual = (left: unknown, right: unknown) => stableStringify(left) === stableStringify(right);
 
 export const getMatchDocId = (record: Pick<MatchScoutingV2, 'matchKey' | 'teamNumber'>) =>
   `${record.matchKey}_${record.teamNumber}`;

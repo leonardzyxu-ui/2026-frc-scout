@@ -1939,6 +1939,57 @@ export default function AdminMainframeV2View() {
     sourceStatusSummary.rowCount
   ]);
 
+  const dataHealthRows = useMemo(() => {
+    const conflictCount = localArchiveSummary.conflictRecords.length;
+    return [
+      {
+        label: 'Coverage Gaps',
+        value: rawEditorSummary.missingSlotCount,
+        detail: 'missing six-slot assignments',
+        tone: rawEditorSummary.missingSlotCount > 0 ? 'rose' : 'emerald'
+      },
+      {
+        label: 'Unsynced Local',
+        value: localArchiveSummary.unsyncedRecords.length,
+        detail: 'records waiting for Firebase',
+        tone: localArchiveSummary.unsyncedRecords.length > 0 ? 'amber' : 'emerald'
+      },
+      {
+        label: 'Conflicts',
+        value: conflictCount,
+        detail: 'local archive conflict records',
+        tone: conflictCount > 0 ? 'rose' : 'emerald'
+      },
+      {
+        label: 'Source Freshness',
+        value: formatFreshnessAge(sourceStatusSummary.latestTimestamp),
+        detail: `${sourceStatusSummary.rowCount} cached or uploaded sources`,
+        tone: sourceStatusSummary.rowCount > 0 ? 'cyan' : 'amber'
+      },
+      {
+        label: 'Model Source',
+        value: MODEL_LABELS[selectedMetric],
+        detail: selectedMetric === 'ppa' ? 'scouting-derived adapter' : 'fallback-compatible metric',
+        tone: 'cyan'
+      },
+      {
+        label: 'Mode',
+        value: isLocalMode ? 'Local' : 'Firebase',
+        detail: loading ? 'refreshing data' : 'ready',
+        tone: loading ? 'amber' : 'emerald'
+      }
+    ] as Array<{ label: string; value: number | string; detail: string; tone: 'rose' | 'amber' | 'emerald' | 'cyan' }>;
+  }, [
+    isLocalMode,
+    loading,
+    localArchiveSummary.conflictRecords.length,
+    localArchiveSummary.unsyncedRecords.length,
+    rawEditorSummary.missingSlotCount,
+    selectedMetric,
+    sourceStatusSummary.latestTimestamp,
+    sourceStatusSummary.rowCount
+  ]);
+
   const workspaceItems: WorkspaceNavItem<AdminV2Tab>[] = [
     { key: 'command', label: 'Command Center', description: 'status and next actions', icon: <Gauge className="h-4 w-4" />, tone: 'cyan' },
     { key: 'sorter', label: 'Teams', description: 'rankings and visual profiles', icon: <Users className="h-4 w-4" />, tone: 'emerald' },
@@ -3994,6 +4045,26 @@ export default function AdminMainframeV2View() {
                 { label: 'Latest Source', value: formatFreshnessAge(sourceStatusSummary.latestTimestamp) }
               ]}
             />
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6" aria-label="Admin data health">
+              {dataHealthRows.map(row => (
+                <div
+                  key={row.label}
+                  className={`rounded-2xl border px-4 py-3 ${
+                    row.tone === 'rose'
+                      ? 'border-rose-500/30 bg-rose-500/10'
+                      : row.tone === 'amber'
+                        ? 'border-amber-500/30 bg-amber-500/10'
+                        : row.tone === 'emerald'
+                          ? 'border-emerald-500/30 bg-emerald-500/10'
+                          : 'border-cyan-500/30 bg-cyan-500/10'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{row.label}</div>
+                  <div className="mt-1 text-lg font-black text-white">{row.value}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-400">{row.detail}</div>
+                </div>
+              ))}
+            </section>
           </div>
 
           {error && (

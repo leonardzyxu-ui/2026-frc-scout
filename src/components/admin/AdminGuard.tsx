@@ -1,30 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Lock, Eye, EyeOff } from 'lucide-react';
-import { verifyAdminPassword } from '../../utils/adminAuth';
+import React, { useEffect, useState } from 'react';
+import { Lock, RefreshCw, ShieldCheck } from 'lucide-react';
+import { getAdminAccessState } from '../../utils/adminAuth';
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
   const [isUnlocked, setIsUnlocked] = useState(false);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
+  const [isChecking, setIsChecking] = useState(true);
+  const [message, setMessage] = useState('Checking Firebase admin role...');
+
+  const checkAccess = async () => {
+    setIsChecking(true);
+    const state = await getAdminAccessState();
+    setIsUnlocked(state.isAdmin);
+    setMessage(state.message);
+    setIsChecking(false);
+  };
 
   useEffect(() => {
-    if (isLocalMode || localStorage.getItem('admin_unlocked') === 'true') {
-      setIsUnlocked(true);
-    }
-  }, [isLocalMode]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (await verifyAdminPassword(password)) {
-      localStorage.setItem('admin_unlocked', 'true');
-      setIsUnlocked(true);
-    } else {
-      setError(true);
-      setTimeout(() => setError(false), 500);
-    }
-  };
+    void checkAccess();
+  }, []);
 
   if (isUnlocked) {
     return <>{children}</>;
@@ -34,45 +27,35 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans text-white">
       <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-        
+
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-slate-950 rounded-full flex items-center justify-center border border-slate-800 shadow-inner">
-            <Lock className="w-8 h-8 text-blue-400" />
+            {isChecking ? (
+              <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
+            ) : (
+              <Lock className="w-8 h-8 text-blue-400" />
+            )}
           </div>
         </div>
-        
-        <h2 className="text-2xl font-black text-center mb-2 tracking-tight">RESTRICTED ACCESS</h2>
-        <p className="text-slate-500 text-center text-sm mb-8 font-medium">Please enter the mainframe password to continue.</p>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className={`w-full bg-slate-950 border rounded-xl p-4 text-center tracking-widest text-lg focus:outline-none transition-all ${
-                error 
-                  ? 'border-red-500 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
-                  : 'border-slate-800 focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-              }`}
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-          </div>
-          <button 
-            type="submit"
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black tracking-wide shadow-lg shadow-blue-900/20 transition-all active:scale-95"
-          >
-            ACCESS MAINFRAME
-          </button>
-        </form>
+
+        <h2 className="text-2xl font-black text-center mb-2 tracking-tight">ADMIN ACCESS REQUIRED</h2>
+        <p className="text-slate-400 text-center text-sm mb-8 font-medium">
+          Admin access is verified with Firebase custom claims or an enabled admin role document for this signed-in device.
+        </p>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm font-semibold text-slate-300">
+          {message}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void checkAccess()}
+          disabled={isChecking}
+          className="mt-4 w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black tracking-wide shadow-lg shadow-blue-900/20 transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <ShieldCheck className="mr-2 inline h-5 w-5" />
+          {isChecking ? 'CHECKING' : 'REFRESH ADMIN ACCESS'}
+        </button>
       </div>
     </div>
   );

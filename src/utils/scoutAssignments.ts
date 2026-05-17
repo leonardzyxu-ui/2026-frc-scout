@@ -1,3 +1,5 @@
+import { getScoutAssignment } from './keys';
+
 export interface ScoutAssignment {
   name: string;
   alliance: 'Red' | 'Blue';
@@ -14,10 +16,8 @@ export const SCOUT_ASSIGNMENTS: ScoutAssignment[] = [
   { name: 'Justin', alliance: 'Blue', positionIndex: 2, slotLabel: 'Blue 3' }
 ];
 
-const normalizeAssignmentKey = (value: string) => value.trim().toLowerCase();
-
 export const getScoutAssignmentByName = (name: string) =>
-  SCOUT_ASSIGNMENTS.find(assignment => normalizeAssignmentKey(assignment.name) === normalizeAssignmentKey(name)) || null;
+  getScoutAssignment(SCOUT_ASSIGNMENTS, { name });
 
 export const getScoutAssignmentBySlot = (slotLabel: string) =>
-  SCOUT_ASSIGNMENTS.find(assignment => normalizeAssignmentKey(assignment.slotLabel) === normalizeAssignmentKey(slotLabel)) || null;
+  getScoutAssignment(SCOUT_ASSIGNMENTS, { slotLabel });
