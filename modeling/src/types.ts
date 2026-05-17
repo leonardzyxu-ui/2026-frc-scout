@@ -115,9 +115,11 @@ export interface ModelConfig {
     | 'knn'
     | 'kernel'
     | 'monteCarloEpa'
+    | 'ensembleEpa'
     | 'sourcePrediction'
     | 'opr'
     | 'onlineEpa'
+    | 'relativeEpa'
     | 'onlineDualEpa';
   lambda?: number;
   alpha?: number;
@@ -127,12 +129,24 @@ export interface ModelConfig {
   seasonDecay?: number;
   eventAdjustmentScale?: number;
   eventLearningRate?: number;
+  eventResidualShiftWeight?: number;
+  eventResidualShiftMinSamples?: number;
+  eventResidualShiftWindow?: number;
+  eventScoreScaleWeight?: number;
+  eventScoreScaleMinSamples?: number;
+  eventScoreScaleWindow?: number;
+  eventScoreScaleThreshold?: number;
+  eventScoreScalePositiveOnly?: boolean;
+  championshipDivisionScoreShift?: number;
+  championshipEventScoreShift?: number;
   defenseLearningRate?: number;
   roleAdjustmentScale?: number;
   simulationCount?: number;
   teamUncertaintyScale?: number;
   scoreNoiseScale?: number;
   roleSimulationScale?: number;
+  ensembleMonteCarloWeight?: number;
+  ensembleMonteCarloWinWeight?: number;
   featureSet?: 'full' | 'compact' | 'minimal';
   useRoleFeatures: boolean;
   useContextEpa: boolean;

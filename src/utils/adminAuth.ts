@@ -1,4 +1,4 @@
-import { getIdTokenResult } from 'firebase/auth';
+import { getIdTokenResult, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, hasFirebaseServices } from '../firebase';
 
@@ -12,6 +12,27 @@ const isLocalMode = () => import.meta.env.VITE_LOCAL_MODE === 'true';
 
 const hasAdminClaim = (claims: Record<string, unknown>) =>
   claims.admin === true || claims.scoutAdmin === true || claims.role === 'admin';
+
+const waitForSignedInUser = () =>
+  new Promise<User | null>((resolve) => {
+    if (auth.currentUser) {
+      resolve(auth.currentUser);
+      return;
+    }
+
+    let unsubscribe: (() => void) | undefined;
+    const timeout = window.setTimeout(() => {
+      unsubscribe?.();
+      resolve(auth.currentUser);
+    }, 5000);
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      window.clearTimeout(timeout);
+      unsubscribe?.();
+      resolve(user);
+    });
+  });
 
 export async function getAdminAccessState(): Promise<AdminAccessState> {
   if (isLocalMode()) {
@@ -30,7 +51,7 @@ export async function getAdminAccessState(): Promise<AdminAccessState> {
     };
   }
 
-  const user = auth.currentUser;
+  const user = await waitForSignedInUser();
   if (!user) {
     return {
       isAdmin: false,

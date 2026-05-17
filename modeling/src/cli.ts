@@ -82,7 +82,16 @@ const trainFromStore = (
     console.log(`Focused benchmark: ${configs.length} model config(s) matched --model-filter.`);
   }
 
-  const run = runModelSearch(dataset, configs);
+  console.log(`Evaluating ${configs.length} model config(s) with walk-forward replay...`);
+  const run = runModelSearch(dataset, configs, {
+    onModelResult: (result, index, total) => {
+      console.log(
+        `[${index}/${total}] ${result.config.name}: score MAE ${result.scoreMae.toFixed(2)}, margin MAE ${result.marginMae.toFixed(
+          2
+        )}, Brier ${result.winBrier.toFixed(4)}, worst event ${result.worstEventScoreMae.toFixed(2)}`
+      );
+    }
+  });
   store.saveResearchRun(run);
   const outputDir = writeRunArtifacts(run, options.outputDir);
   console.log(`Best model: ${run.bestModelName ?? 'none promoted yet'}`);

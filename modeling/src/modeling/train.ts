@@ -113,6 +113,546 @@ export const candidateModelConfigs: ModelConfig[] = [
     leakageRisk: 'low'
   },
   {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.20',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 1,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.05',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.05,
+    ensembleMonteCarloWinWeight: 1,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.10',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.1,
+    ensembleMonteCarloWinWeight: 1,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.35',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.35,
+    ensembleMonteCarloWinWeight: 1,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.20 W=0.20',
+    family: 'ensembleEpa',
+    lambda: 1.2,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 1,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.20',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0.2,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift EPA K=1.10 S=0.25',
+    family: 'onlineEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    eventResidualShiftWeight: 0.25,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift EPA K=1.10 S=0.50',
+    family: 'onlineEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    eventResidualShiftWeight: 0.5,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift EPA K=1.10 S=0.75',
+    family: 'onlineEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    eventResidualShiftWeight: 0.75,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.25',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.25,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.10 M=8',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.1,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 I=1.05',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    intervalScale: 1.05,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 I=1.10',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    intervalScale: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=8 D=4',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    championshipDivisionScoreShift: 8,
+    championshipEventScoreShift: 4,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    championshipDivisionScoreShift: 12,
+    championshipEventScoreShift: 6,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=16 D=8',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    championshipDivisionScoreShift: 16,
+    championshipEventScoreShift: 8,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    championshipDivisionScoreShift: 20,
+    championshipEventScoreShift: 10,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.20',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.2,
+    eventScoreScaleMinSamples: 10,
+    eventScoreScaleWindow: 30,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.05 N=24',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.05,
+    eventScoreScaleMinSamples: 24,
+    eventScoreScaleWindow: 36,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.10 N=24',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.1,
+    eventScoreScaleMinSamples: 24,
+    eventScoreScaleWindow: 36,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future High-Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.10 T=10 N=24',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.1,
+    eventScoreScaleMinSamples: 24,
+    eventScoreScaleWindow: 36,
+    eventScoreScaleThreshold: 10,
+    eventScoreScalePositiveOnly: true,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future High-Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.15 T=10 N=24',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.15,
+    eventScoreScaleMinSamples: 24,
+    eventScoreScaleWindow: 36,
+    eventScoreScaleThreshold: 10,
+    eventScoreScalePositiveOnly: true,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future High-Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.20 T=15 N=24',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.2,
+    eventScoreScaleMinSamples: 24,
+    eventScoreScaleWindow: 36,
+    eventScoreScaleThreshold: 15,
+    eventScoreScalePositiveOnly: true,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future High-Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.10 T=15 N=36',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.1,
+    eventScoreScaleMinSamples: 36,
+    eventScoreScaleWindow: 48,
+    eventScoreScaleThreshold: 15,
+    eventScoreScalePositiveOnly: true,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.35',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.35,
+    eventScoreScaleMinSamples: 10,
+    eventScoreScaleWindow: 30,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Scale Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 A=0.50',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.15,
+    eventResidualShiftMinSamples: 8,
+    eventResidualShiftWindow: 18,
+    eventScoreScaleWeight: 0.5,
+    eventScoreScaleMinSamples: 10,
+    eventScoreScaleWindow: 30,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.20 M=12',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.2,
+    eventResidualShiftMinSamples: 12,
+    eventResidualShiftWindow: 24,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.25 I=1.05',
+    family: 'ensembleEpa',
+    lambda: 1.1,
+    intervalScale: 1.05,
+    seasonDecay: 0,
+    simulationCount: 120,
+    teamUncertaintyScale: 0.9,
+    scoreNoiseScale: 1.05,
+    ensembleMonteCarloWeight: 0.2,
+    ensembleMonteCarloWinWeight: 0,
+    eventResidualShiftWeight: 0.25,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
     name: 'No-Future Batch OPR L2=1',
     family: 'opr',
     lambda: 1,
@@ -314,6 +854,69 @@ export const candidateModelConfigs: ModelConfig[] = [
     name: 'No-Future Season-Reset EPA K=1.10',
     family: 'onlineEpa',
     lambda: 1.1,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Season-Reset EPA K=1.10 I=1.05',
+    family: 'onlineEpa',
+    lambda: 1.1,
+    intervalScale: 1.05,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Season-Reset EPA K=1.10 I=1.10',
+    family: 'onlineEpa',
+    lambda: 1.1,
+    intervalScale: 1.1,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Relative Season EPA K=1.00',
+    family: 'relativeEpa',
+    lambda: 1,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Relative Season EPA K=1.10',
+    family: 'relativeEpa',
+    lambda: 1.1,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Relative Season EPA K=1.20',
+    family: 'relativeEpa',
+    lambda: 1.2,
+    seasonDecay: 0,
+    useRoleFeatures: false,
+    useContextEpa: false,
+    eligibleForPromotion: true,
+    leakageRisk: 'low'
+  },
+  {
+    name: 'No-Future Relative Season EPA K=1.10 I=1.05',
+    family: 'relativeEpa',
+    lambda: 1.1,
+    intervalScale: 1.05,
     seasonDecay: 0,
     useRoleFeatures: false,
     useContextEpa: false,
@@ -616,8 +1219,10 @@ const MINIMAL_FEATURES = new Set([
 const selectFeatureNames = (dataset: WalkForwardDataset, config: ModelConfig) =>
   config.family === 'opr' ||
   config.family === 'onlineEpa' ||
+  config.family === 'relativeEpa' ||
   config.family === 'onlineDualEpa' ||
   config.family === 'monteCarloEpa' ||
+  config.family === 'ensembleEpa' ||
   config.family === 'sourcePrediction'
     ? []
     : dataset.featureNames.filter(feature => {
@@ -635,7 +1240,11 @@ const selectFeatureNames = (dataset: WalkForwardDataset, config: ModelConfig) =>
       });
 
 const isOnlineRatingFamily = (family: ModelConfig['family']) =>
-  family === 'onlineEpa' || family === 'onlineDualEpa' || family === 'monteCarloEpa';
+  family === 'onlineEpa' ||
+  family === 'relativeEpa' ||
+  family === 'onlineDualEpa' ||
+  family === 'monteCarloEpa' ||
+  family === 'ensembleEpa';
 
 interface FittedModel {
   family: 'linear' | 'memory';
@@ -835,6 +1444,8 @@ interface OnlineEpaState {
   defenseRatings: Map<string, number>;
   eventOffsets: Map<string, number>;
   eventCounts: Map<string, number>;
+  eventResiduals: Map<string, number[]>;
+  eventScores: Map<string, number[]>;
   counts: Map<string, number>;
   allianceScores: number[];
   residuals: number[];
@@ -847,6 +1458,8 @@ const createOnlineEpaState = (): OnlineEpaState => ({
   defenseRatings: new Map(),
   eventOffsets: new Map(),
   eventCounts: new Map(),
+  eventResiduals: new Map(),
+  eventScores: new Map(),
   counts: new Map(),
   allianceScores: [],
   residuals: [],
@@ -857,7 +1470,39 @@ const createOnlineEpaState = (): OnlineEpaState => ({
 const getOnlineEpaDefaultContribution = (state: OnlineEpaState) =>
   state.allianceScores.length > 0 ? mean(state.allianceScores) / 3 : state.previousDefaultContribution ?? 0;
 
+const getOnlineAllianceScoreScale = (state: OnlineEpaState) =>
+  state.allianceScores.length > 0 ? mean(state.allianceScores) : (state.previousDefaultContribution ?? 0) * 3;
+
 const eventTeamKey = (eventKey: string, teamKey: string) => `${eventKey}|${teamKey}`;
+
+const getEventSlug = (eventKey: string) => eventKey.replace(/^\d+/, '').toLowerCase();
+
+const CHAMPIONSHIP_DIVISION_SLUGS = new Set([
+  'arc',
+  'cur',
+  'dal',
+  'gal',
+  'hop',
+  'mil',
+  'new',
+  'joh',
+  'car',
+  'tes',
+  'roe',
+  'dav',
+  'ein'
+]);
+
+const getEventArchetypeScoreShift = (row: FeatureRow, config: ModelConfig) => {
+  const slug = getEventSlug(row.eventKey);
+  if (CHAMPIONSHIP_DIVISION_SLUGS.has(slug)) {
+    return config.championshipDivisionScoreShift ?? 0;
+  }
+  if (slug.includes('cmp')) {
+    return config.championshipEventScoreShift ?? 0;
+  }
+  return 0;
+};
 
 const predictOnlineEpa = (row: FeatureRow, state: OnlineEpaState, eventAdjustmentScale = 0) => {
   const defaultContribution = getOnlineEpaDefaultContribution(state);
@@ -867,6 +1512,50 @@ const predictOnlineEpa = (row: FeatureRow, state: OnlineEpaState, eventAdjustmen
       const eventOffset = state.eventOffsets.get(eventTeamKey(row.eventKey, teamKey)) ?? 0;
       return sum + globalContribution + eventOffset * eventAdjustmentScale;
     }, 0),
+    0,
+    MAX_REASONABLE_FRC_SCORE
+  );
+};
+
+const getEventResidualShift = (row: FeatureRow, state: OnlineEpaState, config: ModelConfig) => {
+  const weight = config.eventResidualShiftWeight ?? 0;
+  if (weight <= 0) return 0;
+  const minSamples = Math.max(1, Math.floor(config.eventResidualShiftMinSamples ?? 4));
+  const window = Math.max(1, Math.floor(config.eventResidualShiftWindow ?? 24));
+  const residuals = state.eventResiduals.get(row.eventKey) ?? [];
+  if (residuals.length < minSamples) return 0;
+  return mean(residuals.slice(Math.max(0, residuals.length - window))) * weight;
+};
+
+const getEventScoreScaleShift = (row: FeatureRow, state: OnlineEpaState, config: ModelConfig) => {
+  const weight = config.eventScoreScaleWeight ?? 0;
+  if (weight <= 0 || state.allianceScores.length === 0) return 0;
+  const minSamples = Math.max(1, Math.floor(config.eventScoreScaleMinSamples ?? 8));
+  const window = Math.max(1, Math.floor(config.eventScoreScaleWindow ?? 24));
+  const eventScores = state.eventScores.get(row.eventKey) ?? [];
+  if (eventScores.length < minSamples) return 0;
+  const eventMean = mean(eventScores.slice(Math.max(0, eventScores.length - window)));
+  const seasonMean = getOnlineAllianceScoreScale(state);
+  const delta = eventMean - seasonMean;
+  const threshold = Math.max(0, config.eventScoreScaleThreshold ?? 0);
+  const adjustedDelta =
+    config.eventScoreScalePositiveOnly === true
+      ? Math.max(0, delta - threshold)
+      : Math.abs(delta) <= threshold
+        ? 0
+        : Math.sign(delta) * (Math.abs(delta) - threshold);
+  return clamp(adjustedDelta * weight, -80, 80);
+};
+
+const getEventContextShift = (row: FeatureRow, state: OnlineEpaState, config: ModelConfig) =>
+  getEventResidualShift(row, state, config) +
+  getEventScoreScaleShift(row, state, config) +
+  getEventArchetypeScoreShift(row, config);
+
+const predictRelativeEpa = (row: FeatureRow, state: OnlineEpaState) => {
+  const scoreScale = getOnlineAllianceScoreScale(state);
+  return clamp(
+    row.allianceTeams.reduce((sum, teamKey) => sum + (state.ratings.get(teamKey) ?? 1 / 3), 0) * scoreScale,
     0,
     MAX_REASONABLE_FRC_SCORE
   );
@@ -952,7 +1641,14 @@ const simulateAllianceScore = (
         clamp((row.roleOption.netSwing + 12) / 36, 0, 1) *
         random()
       : 0;
-  return clamp(base + roleDelta + randomNormal(random) * residualSd * scoreNoiseScale, 0, MAX_REASONABLE_FRC_SCORE);
+  return clamp(
+    base +
+      getEventContextShift(row, state, config) +
+      roleDelta +
+      randomNormal(random) * residualSd * scoreNoiseScale,
+    0,
+    MAX_REASONABLE_FRC_SCORE
+  );
 };
 
 const buildMonteCarloGroupPredictions = (
@@ -1007,9 +1703,10 @@ const updateOnlineEpa = (
   state: OnlineEpaState,
   kFactor: number,
   eventAdjustmentScale = 0,
-  eventLearningRate = 0.8
+  eventLearningRate = 0.8,
+  expectedScoreOverride?: number
 ) => {
-  const predicted = predictOnlineEpa(row, state, eventAdjustmentScale);
+  const predicted = expectedScoreOverride ?? predictOnlineEpa(row, state, eventAdjustmentScale);
   const error = row.targetScore - predicted;
   const perTeamError = error / Math.max(1, row.allianceTeams.length);
   row.allianceTeams.forEach(teamKey => {
@@ -1030,6 +1727,31 @@ const updateOnlineEpa = (
   });
   state.allianceScores.push(row.targetScore);
   state.residuals.push(error);
+  const eventResiduals = state.eventResiduals.get(row.eventKey) ?? [];
+  eventResiduals.push(error);
+  state.eventResiduals.set(row.eventKey, eventResiduals.slice(-100));
+  const eventScores = state.eventScores.get(row.eventKey) ?? [];
+  eventScores.push(row.targetScore);
+  state.eventScores.set(row.eventKey, eventScores.slice(-100));
+};
+
+const updateRelativeEpa = (row: FeatureRow, state: OnlineEpaState, kFactor: number) => {
+  const scoreScale = Math.max(1, getOnlineAllianceScoreScale(state));
+  const predicted = predictRelativeEpa(row, state);
+  const predictedRelativeScore = predicted / scoreScale;
+  const actualRelativeScore = row.targetScore / scoreScale;
+  const relativeError = actualRelativeScore - predictedRelativeScore;
+  const perTeamRelativeError = relativeError / Math.max(1, row.allianceTeams.length);
+
+  row.allianceTeams.forEach(teamKey => {
+    const count = state.counts.get(teamKey) ?? 0;
+    const adaptiveK = kFactor / Math.sqrt(count + 1);
+    const current = state.ratings.get(teamKey) ?? 1 / 3;
+    state.ratings.set(teamKey, current + adaptiveK * perTeamRelativeError);
+    state.counts.set(teamKey, count + 1);
+  });
+  state.allianceScores.push(row.targetScore);
+  state.residuals.push(row.targetScore - predicted);
 };
 
 const updateOnlineDualEpa = (
@@ -1075,6 +1797,8 @@ const applySeasonDecay = (state: OnlineEpaState, season: number, decay: number |
     state.counts.clear();
     state.eventOffsets.clear();
     state.eventCounts.clear();
+    state.eventResiduals.clear();
+    state.eventScores.clear();
     state.allianceScores = [];
     state.residuals = state.residuals.slice(-500);
     state.season = season;
@@ -1091,6 +1815,8 @@ const applySeasonDecay = (state: OnlineEpaState, season: number, decay: number |
   });
   state.eventOffsets.clear();
   state.eventCounts.clear();
+  state.eventResiduals.clear();
+  state.eventScores.clear();
   state.residuals = state.residuals.slice(-500);
   state.season = season;
 };
@@ -1431,9 +2157,11 @@ export const evaluateModel = (dataset: WalkForwardDataset, config: ModelConfig):
       )
     );
     const monteCarloPredictions =
-      config.family === 'monteCarloEpa' && onlineEpaState
+      (config.family === 'monteCarloEpa' || config.family === 'ensembleEpa') && onlineEpaState
         ? buildMonteCarloGroupPredictions(group, onlineEpaState, config)
         : new Map<string, MonteCarloRowPrediction>();
+    const groupScorePredictions: ScorePrediction[] = [];
+    const expectedScoresByRow = new Map<string, number>();
 
     group.forEach(row => {
       let expectedScore = predictBaseline(row, trainingRows, config.useRoleFeatures);
@@ -1457,6 +2185,33 @@ export const evaluateModel = (dataset: WalkForwardDataset, config: ModelConfig):
             0,
             MAX_REASONABLE_FRC_SCORE
           );
+        }
+        expectedScore = clamp(
+          expectedScore + getEventContextShift(row, onlineEpaState, config),
+          0,
+          MAX_REASONABLE_FRC_SCORE
+        );
+      } else if (config.family === 'relativeEpa' && onlineEpaState) {
+        expectedScore = predictRelativeEpa(row, onlineEpaState);
+      } else if (config.family === 'ensembleEpa' && onlineEpaState) {
+        const onlineScore = clamp(
+          predictOnlineEpa(row, onlineEpaState, config.eventAdjustmentScale ?? 0) +
+            getEventContextShift(row, onlineEpaState, config),
+          0,
+          MAX_REASONABLE_FRC_SCORE
+        );
+        const monteCarlo = monteCarloPredictions.get(row.rowId);
+        const monteCarloWeight = clamp(config.ensembleMonteCarloWeight ?? 0.2, 0, 1);
+        expectedScore = clamp(
+          onlineScore * (1 - monteCarloWeight) + (monteCarlo?.expectedScore ?? onlineScore) * monteCarloWeight,
+          0,
+          MAX_REASONABLE_FRC_SCORE
+        );
+        if (monteCarlo) {
+          const monteCarloWinWeight = config.ensembleMonteCarloWinWeight ?? 1;
+          if (monteCarloWinWeight > 0) {
+            predictionOverrides.winProbability = monteCarlo.winProbability;
+          }
         }
       } else if (config.family === 'monteCarloEpa' && onlineEpaState) {
         const monteCarlo = monteCarloPredictions.get(row.rowId);
@@ -1485,21 +2240,49 @@ export const evaluateModel = (dataset: WalkForwardDataset, config: ModelConfig):
           : isOnlineRatingFamily(config.family) && onlineEpaState
             ? getOnlineResidualSd(onlineEpaState)
             : fitted?.residualSd ?? fallbackResidualSd;
-      scorePredictions.push(
+      groupScorePredictions.push(
         buildScorePrediction(row, expectedScore, residualSd, config.intervalScale ?? 1, predictionOverrides)
       );
+      expectedScoresByRow.set(row.rowId, expectedScore);
     });
+    if (config.family === 'ensembleEpa') {
+      const monteCarloWinWeight = clamp(config.ensembleMonteCarloWinWeight ?? 1, 0, 1);
+      if (monteCarloWinWeight > 0 && monteCarloWinWeight < 1) {
+        const red = groupScorePredictions.find(prediction => prediction.perspective === 'red');
+        const blue = groupScorePredictions.find(prediction => prediction.perspective === 'blue');
+        if (red && blue && red.winProbability != null) {
+          const redSd = Math.max(1, (red.p90Score - red.p10Score) / 2.5632);
+          const blueSd = Math.max(1, (blue.p90Score - blue.p10Score) / 2.5632);
+          const analyticWinProbability = normalCdf(
+            red.expectedScore - blue.expectedScore,
+            0,
+            Math.sqrt(redSd ** 2 + blueSd ** 2)
+          );
+          const blendedWinProbability = clamp(
+            analyticWinProbability * (1 - monteCarloWinWeight) + red.winProbability * monteCarloWinWeight,
+            0,
+            1
+          );
+          red.winProbability = blendedWinProbability;
+          blue.winProbability = 1 - blendedWinProbability;
+        }
+      }
+    }
+    scorePredictions.push(...groupScorePredictions);
 
-    if ((config.family === 'onlineEpa' || config.family === 'monteCarloEpa') && onlineEpaState) {
+    if ((config.family === 'onlineEpa' || config.family === 'monteCarloEpa' || config.family === 'ensembleEpa') && onlineEpaState) {
       group.forEach(row =>
         updateOnlineEpa(
           row,
           onlineEpaState,
           config.lambda ?? 0.35,
           config.eventAdjustmentScale ?? 0,
-          config.eventLearningRate ?? 0.8
+          config.eventLearningRate ?? 0.8,
+          expectedScoresByRow.get(row.rowId)
         )
       );
+    } else if (config.family === 'relativeEpa' && onlineEpaState) {
+      group.forEach(row => updateRelativeEpa(row, onlineEpaState, config.lambda ?? 1));
     } else if (config.family === 'onlineDualEpa' && onlineEpaState) {
       group.forEach(row =>
         updateOnlineDualEpa(row, onlineEpaState, config.lambda ?? 0.8, config.defenseLearningRate ?? 0.35)
@@ -1705,10 +2488,18 @@ const applyBenchmarkScores = (modelResults: ModelResult[]) => {
     });
 };
 
-export const runModelSearch = (dataset: WalkForwardDataset, configs = candidateModelConfigs): ResearchRun => {
+export const runModelSearch = (
+  dataset: WalkForwardDataset,
+  configs = candidateModelConfigs,
+  options: { onModelResult?: (result: ModelResult, index: number, total: number) => void } = {}
+): ResearchRun => {
   const skippedFamilies = new Set(dataset.rows.length > 5000 ? ['knn', 'kernel', 'opr'] : []);
   const activeConfigs = configs.filter(config => !skippedFamilies.has(config.family));
-  const modelResults = activeConfigs.map(config => evaluateModel(dataset, config));
+  const modelResults = activeConfigs.map((config, index) => {
+    const result = evaluateModel(dataset, config);
+    options.onModelResult?.(result, index + 1, activeConfigs.length);
+    return result;
+  });
   applyBenchmarkScores(modelResults);
   const eligible = modelResults
     .filter(result => result.config.eligibleForPromotion && result.rejectionReasons.length === 0)

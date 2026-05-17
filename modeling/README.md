@@ -52,12 +52,21 @@ Generated outputs live under `modeling/artifacts/` and are gitignored:
 - `runs/<run-id>/best-model-summary.json`: compact best-known model summary.
 - `demo/latest-run/`: deterministic synthetic demo run.
 
+The cross-run judge narrative is tracked in `modeling/MODELING_RESEARCH_LOG.md`.
+
 ## Current Modeling Scope
 
-The first implemented milestone includes:
+The implemented research pipeline includes:
 
 - prior-score baselines,
 - role-aware baselines,
+- batch OPR-style models,
+- online EPA-style models,
+- Monte Carlo score simulation,
+- EPA-Monte Carlo ensembles,
+- gated event residual shift experiments,
+- event score-scale experiments,
+- selective high-score event-scale experiments,
 - no-future ridge models,
 - context-EPA ridge as a non-promotable comparison,
 - VIF diagnostics,
@@ -67,4 +76,6 @@ The first implemented milestone includes:
 - asymmetric score bands derived from walk-forward residual spread,
 - role/defense assignment features.
 
-Next serious candidates are boosted trees, conformal score intervals, season-specific score component adapters, and hidden holdout event manifests.
+Current evidence favors an event-shift EPA-Monte Carlo ensemble, but the preferred shift strength differs between the broad 2024-2026 replay and the 2026-only replay. Treat this as a scope-aware research result, not a final universal answer.
+
+Long training runs now print per-model progress. Next serious candidates are exact experiment manifests/checkpoints, scope-aware promotion, conformal score intervals, season/event archetype adapters, real Firebase scout enrichment, boosted trees, and hidden holdout event manifests.
