@@ -1,6 +1,6 @@
 import { getIdTokenResult } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, hasFirebaseServices } from '../firebase';
 
 export interface AdminAccessState {
   isAdmin: boolean;
@@ -19,6 +19,14 @@ export async function getAdminAccessState(): Promise<AdminAccessState> {
       isAdmin: true,
       reason: 'local-mode',
       message: 'Local mode grants admin access on this device.'
+    };
+  }
+
+  if (!hasFirebaseServices) {
+    return {
+      isAdmin: false,
+      reason: 'error',
+      message: 'Firebase is not configured for this deployment, so admin access cannot be verified.'
     };
   }
 

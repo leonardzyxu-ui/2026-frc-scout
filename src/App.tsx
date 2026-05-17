@@ -1,6 +1,6 @@
 import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { auth } from './firebase';
+import { auth, hasFirebaseServices } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ScoutProvider } from './context/ScoutContext';
 import { LocalFileProvider } from './context/LocalFileContext';
@@ -19,7 +19,7 @@ export default function App() {
   const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
 
   useEffect(() => {
-    if (isLocalMode) {
+    if (isLocalMode || !hasFirebaseServices) {
       setIsAuthReady(true);
       return;
     }

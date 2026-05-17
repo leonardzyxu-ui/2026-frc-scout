@@ -1,7 +1,7 @@
-import { initializeApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getStorage } from 'firebase/storage';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, type Auth } from 'firebase/auth';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
@@ -12,14 +12,64 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID ?? ''
 };
 
-export const app = initializeApp(firebaseConfig);
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
-});
-export const auth = getAuth(app);
-export const storage = getStorage(app);
+const isLocalMode = import.meta.env.VITE_LOCAL_MODE === 'true';
+const placeholderPattern = /replace-me|^your-.+|^todo$|^undefined$|^null$/i;
+const isConfiguredValue = (value: string) => {
+  const trimmedValue = value.trim();
+  return Boolean(trimmedValue) && !placeholderPattern.test(trimmedValue);
+};
+const hasRequiredFirebaseConfig = Object.values(firebaseConfig).every(isConfiguredValue);
 
-// Sign in anonymously for scouts
-signInAnonymously(auth).catch((error) => {
-  console.error("Error signing in anonymously:", error);
-});
+let initializedApp: FirebaseApp | null = null;
+let initializedDb: Firestore | null = null;
+let initializedAuth: Auth | null = null;
+let initializedStorage: FirebaseStorage | null = null;
+let initializationError: unknown = null;
+
+export const isFirebaseConfigured = !isLocalMode && hasRequiredFirebaseConfig;
+
+if (isFirebaseConfigured) {
+  try {
+    initializedApp = initializeApp(firebaseConfig);
+    initializedDb = initializeFirestore(initializedApp, {
+      localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})
+    });
+    initializedAuth = getAuth(initializedApp);
+    initializedStorage = getStorage(initializedApp);
+
+    // Sign in anonymously for scouts.
+    signInAnonymously(initializedAuth).catch((error) => {
+      console.error('Error signing in anonymously:', error);
+    });
+  } catch (error) {
+    initializationError = error;
+    initializedApp = null;
+    initializedDb = null;
+    initializedAuth = null;
+    initializedStorage = null;
+    console.error('Firebase initialization failed. The app will continue in local-only mode.', error);
+  }
+} else if (!isLocalMode) {
+  console.warn('Firebase env vars are missing or still use placeholders. The app will continue in local-only mode.');
+}
+
+export const firebaseInitializationError = initializationError;
+export const hasFirebaseServices = Boolean(initializedApp && initializedDb && initializedAuth && initializedStorage);
+
+const unavailableFirebaseMessage =
+  'Firebase is unavailable because the deployed app is missing valid VITE_FIREBASE_* configuration.';
+
+const createUnavailableFirebaseService = <T>(serviceName: string) =>
+  new Proxy(
+    {},
+    {
+      get() {
+        throw new Error(`${serviceName} is unavailable. ${unavailableFirebaseMessage}`);
+      }
+    }
+  ) as T;
+
+export const app = initializedApp;
+export const db = initializedDb ?? createUnavailableFirebaseService<Firestore>('Firestore');
+export const auth = initializedAuth ?? createUnavailableFirebaseService<Auth>('Firebase Auth');
+export const storage = initializedStorage ?? createUnavailableFirebaseService<FirebaseStorage>('Firebase Storage');
