@@ -1,0 +1,22 @@
+{
+  "name": "holdout-2024-2026-bucket3-role-v3-tail-guarded",
+  "description": "Checkpointed broad 2024-2026 holdout for RoleV3 tail-guarded mean correction: replay all cached matches, but score only event-key hash bucket 3 of 5.",
+  "years": [2024, 2025, 2026],
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [3],
+    "label": "2024-2026 RoleV3 tail-guarded checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket3-role-v3-tail-guarded",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "Fourth bucket confirmation slice for TailGuarded RoleV3.",
+    "The earlier RoleV3 sweep preferred moderate RoleV3 on this bucket, so this slice checks whether tail guards help or hurt that warning."
+  ]
+}

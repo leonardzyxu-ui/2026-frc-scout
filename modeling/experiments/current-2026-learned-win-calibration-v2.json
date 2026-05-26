@@ -1,0 +1,18 @@
+{
+  "name": "current-2026-learned-win-calibration-v2",
+  "description": "Full 2026 replay testing conservative learned win-probability calibration after the first learned calibration overcorrected.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-learned-win-calibration-v2",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.10 WL=50 WN=320 WW=2400 C=0.040 F=MC",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.10 WL=50 WN=320 WW=2400 C=0.040 F=MC",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.15 WL=30 WN=320 WW=2400 C=0.040 F=B"
+  ],
+  "notes": [
+    "The first learned calibration run improved calibration error but worsened Brier, indicating overcorrection.",
+    "These candidates lower the calibration weight/clip and include a bias-only alternative."
+  ]
+}

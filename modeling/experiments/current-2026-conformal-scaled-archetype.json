@@ -1,0 +1,19 @@
+{
+  "name": "current-2026-conformal-scaled-archetype",
+  "description": "Exact 2026 current-season test of no-future conformal interval calibration for the scaled archetype model.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/manifest-current-2026-conformal-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.84",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.88"
+  ],
+  "notes": [
+    "Conformal variants update interval widths only from prior absolute residuals; point predictions use the same scaled-archetype model.",
+    "This manifest checks whether better score-band coverage is worth the extra interval width and win-probability softening."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "current-2024-2026-high-score-tail",
+  "description": "Broad 2024-2026 test of championship-scoped event score-scale corrections against the current residual-ridge default.",
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-high-score-tail",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge+Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 TW=0.15 N=720 T=16 C=35",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.10 T=8 N=12",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.20 T=8 N=12",
+    "No-Future ChampsDiv-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.15 T=8 N=12"
+  ],
+  "notes": [
+    "The broad replay checks whether the targeted championship tail correction generalizes across multiple seasons rather than only helping 2026.",
+    "All scale corrections are no-future because the event mean is computed only from previous alliance scores in that same event."
+  ]
+}

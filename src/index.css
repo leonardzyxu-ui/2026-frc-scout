@@ -10,6 +10,41 @@
 }
 
 @layer components {
+  .admin-g2 {
+    border-radius: 22px;
+  }
+
+  .admin-g2-sm {
+    border-radius: 14px;
+  }
+
+  .admin-g2-lg {
+    border-radius: 30px;
+  }
+
+  @supports (corner-shape: squircle) {
+    .admin-g2,
+    .admin-g2-sm,
+    .admin-g2-lg {
+      corner-shape: squircle;
+    }
+  }
+
+  .admin-surface {
+    border-radius: 22px;
+    @apply border border-slate-800 bg-slate-900/60;
+  }
+
+  .admin-button {
+    border-radius: 14px;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-black transition-colors;
+  }
+
+  .admin-input {
+    border-radius: 14px;
+    @apply border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-cyan-500;
+  }
+
   .admin-sticky-table {
     border-collapse: separate;
     border-spacing: 0;

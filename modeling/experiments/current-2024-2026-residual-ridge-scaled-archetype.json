@@ -1,0 +1,16 @@
+{
+  "name": "current-2024-2026-residual-ridge-scaled-archetype",
+  "description": "Exact broad 2024-2026 test of no-future residual-ridge correction on top of the current scaled-archetype 2026 candidate.",
+  "outputDir": "modeling/artifacts/runs/residual-ridge-2024-2026-scaled-archetype",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Residual-Ridge Component Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35 CP=0.10 CM=4"
+  ],
+  "notes": [
+    "This manifest intentionally has no year filter; it replays all cached official matches, currently the 2024-2026 cache.",
+    "It checks whether the 2026 residual-ridge improvement survives multiple game years before we describe it as more than a current-season candidate.",
+    "The residual model trains only on prior prediction errors during replay; the current match is never used to train its own correction."
+  ]
+}

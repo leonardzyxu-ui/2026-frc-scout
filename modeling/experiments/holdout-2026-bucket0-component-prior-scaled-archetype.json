@@ -1,0 +1,21 @@
+{
+  "name": "holdout-2026-bucket0-component-prior-scaled-archetype",
+  "description": "Checkpointed 2026 confirmation run for component-prior scaled-archetype candidates: replay all 2026 matches, but score only event-key hash bucket 0 of 5.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [0],
+    "label": "2026 component-prior checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket0-component-prior-scaled-archetype",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Component-Prior Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 CP=0.05 CM=2",
+    "No-Future Component-Prior Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 CP=0.10 CM=2",
+    "No-Future Component-Prior Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 CP=0.10 CM=4"
+  ],
+  "notes": [
+    "This checks whether the component-prior near-tie is stable on an event-key holdout slice.",
+    "The model replay still updates on all 2026 matches in chronological order; only metrics are restricted to the held-out event bucket."
+  ]
+}

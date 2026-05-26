@@ -6,6 +6,7 @@ import type {
   AllianceColor,
   AllianceMatchRecord,
   DataSource,
+  EventMetadata,
   HistoricalMatch,
   ScoutingObservation,
   StatboticsTeamSignal
@@ -45,6 +46,19 @@ const firstArray = (record: Record<string, unknown>, keys: string[]) => {
     if (Array.isArray(value)) return value;
   }
   return [];
+};
+
+const sumNumbers = (record: Record<string, unknown>, keys: string[]) => {
+  let total = 0;
+  let count = 0;
+  keys.forEach(key => {
+    const value = firstNumber(record, [key]);
+    if (value != null) {
+      total += value;
+      count += 1;
+    }
+  });
+  return count > 0 ? total : null;
 };
 
 const getRequiredEnv = (keys: string[], label: string) => {
@@ -207,6 +221,111 @@ const normalizeFirstCompLevel = (value: string, fallback = 'qm') => {
   return fallback;
 };
 
+const normalizeStatboticsEvent = (payload: unknown): EventMetadata | null => {
+  const row = asRecord(payload);
+  const eventKey = normalizeEventKey(firstString(row, ['key', 'event']));
+  if (!eventKey) return null;
+  return {
+    eventKey,
+    season: firstNumber(row, ['year']) ?? seasonFromEventKey(eventKey),
+    name: firstString(row, ['name'], eventKey),
+    eventType: firstString(row, ['type'], 'unknown').toLowerCase(),
+    week: firstNumber(row, ['week']),
+    country: firstString(row, ['country']) || null,
+    stateProv: firstString(row, ['state', 'state_prov', 'stateProv']) || null,
+    district: firstString(row, ['district']) || null,
+    startDate: firstString(row, ['start_date', 'startDate']) || null,
+    endDate: firstString(row, ['end_date', 'endDate']) || null,
+    teamCount: firstNumber(row, ['num_teams', 'team_count', 'numTeams']),
+    source: 'Statbotics',
+    raw: payload
+  };
+};
+
+const TBA_EVENT_TYPE_MAP = new Map<number, string>([
+  [0, 'regional'],
+  [1, 'district'],
+  [2, 'district_cmp'],
+  [3, 'champs_div'],
+  [4, 'einstein'],
+  [5, 'district_cmp'],
+  [6, 'foc'],
+  [7, 'remote'],
+  [99, 'offseason'],
+  [100, 'preseason'],
+  [-1, 'unknown']
+]);
+
+const normalizeTbaEventMetadata = (payload: unknown): EventMetadata | null => {
+  const row = asRecord(payload);
+  const eventKey = normalizeEventKey(firstString(row, ['key', 'event_key', 'eventKey']));
+  if (!eventKey) return null;
+  const eventTypeNumber = firstNumber(row, ['event_type', 'eventType']);
+  const eventTypeString = firstString(row, ['event_type_string', 'eventTypeString']).toLowerCase();
+  return {
+    eventKey,
+    season: firstNumber(row, ['year']) ?? seasonFromEventKey(eventKey),
+    name: firstString(row, ['name'], eventKey),
+    eventType:
+      eventTypeNumber == null
+        ? eventTypeString.replace(/\s+/g, '_') || 'unknown'
+        : TBA_EVENT_TYPE_MAP.get(eventTypeNumber) ?? `tba_${eventTypeNumber}`,
+    week: firstNumber(row, ['week']),
+    country: firstString(row, ['country']) || null,
+    stateProv: firstString(row, ['state_prov', 'stateProv', 'state']) || null,
+    district: firstString(asRecord(row.district), ['key', 'abbreviation', 'display_name', 'displayName']) || null,
+    startDate: firstString(row, ['start_date', 'startDate']) || null,
+    endDate: firstString(row, ['end_date', 'endDate']) || null,
+    teamCount: firstNumber(row, ['team_count', 'teamCount', 'num_teams', 'numTeams']),
+    source: 'TBA',
+    raw: payload
+  };
+};
+
+const normalizeFirstEventType = (row: Record<string, unknown>) => {
+  const typeText = firstString(row, [
+    'type',
+    'Type',
+    'eventType',
+    'EventType',
+    'eventTypeName',
+    'EventTypeName',
+    'tournamentType',
+    'TournamentType'
+  ]).toLowerCase();
+  const divisionCode = firstString(row, ['divisionCode', 'DivisionCode']).toLowerCase();
+  if (typeText.includes('einstein') || typeText.includes('final')) return 'einstein';
+  if (typeText.includes('championship') && (typeText.includes('division') || divisionCode)) return 'champs_div';
+  if (typeText.includes('district') && typeText.includes('champ')) return 'district_cmp';
+  if (typeText.includes('district')) return 'district';
+  if (typeText.includes('regional')) return 'regional';
+  if (typeText.includes('offseason') || typeText.includes('off-season')) return 'offseason';
+  if (typeText.includes('preseason') || typeText.includes('pre-season')) return 'preseason';
+  return typeText.replace(/\s+/g, '_') || 'unknown';
+};
+
+export const normalizeFirstEventMetadata = (payload: unknown, season: number): EventMetadata | null => {
+  const row = asRecord(payload);
+  const code = firstString(row, ['code', 'eventCode', 'EventCode', 'event_code']).toUpperCase();
+  const eventKey = normalizeEventKey(firstString(row, ['key', 'eventKey']) || `${season}${code}`);
+  if (!eventKey || !code) return null;
+  return {
+    eventKey,
+    season,
+    name: firstString(row, ['name', 'Name'], eventKey),
+    eventType: normalizeFirstEventType(row),
+    week: firstNumber(row, ['week', 'Week']),
+    country: firstString(row, ['country', 'Country']) || null,
+    stateProv: firstString(row, ['stateprov', 'stateProv', 'StateProv', 'state_prov', 'state']) || null,
+    district: firstString(row, ['districtCode', 'DistrictCode', 'district', 'District']) || null,
+    startDate: firstString(row, ['dateStart', 'DateStart', 'startDate', 'start_date']) || null,
+    endDate: firstString(row, ['dateEnd', 'DateEnd', 'endDate', 'end_date']) || null,
+    teamCount: firstNumber(row, ['teamCount', 'TeamCount', 'numTeams', 'num_teams']),
+    source: 'FIRST',
+    raw: payload
+  };
+};
+
 const normalizeFirstMatch = (
   payload: unknown,
   season: number,
@@ -263,19 +382,39 @@ export const ingestTba = async (
 ) => {
   const apiKey = getRequiredEnv(['MODEL_TBA_API_KEY', 'VITE_TBA_API_KEY'], 'TBA API key');
   const headers = { 'X-TBA-Auth-Key': apiKey, Accept: 'application/json' };
-  const eventKeys = options.eventKey
-    ? [normalizeEventKey(options.eventKey)]
-    : (
-        await fetchJson<Array<{ key: string }>>(`${TBA_BASE}/events/${options.year}`, {
-          headers
-        })
-      )
-        .map(event => normalizeEventKey(event.key))
+  const eventMetadata: EventMetadata[] = [];
+  const eventKeys = options.eventKey ? [normalizeEventKey(options.eventKey)] : [];
+  if (!options.eventKey) {
+    const eventsPayload = await fetchJson<unknown[]>(`${TBA_BASE}/events/${options.year}`, { headers });
+    store.upsertRawPayload({
+      source: 'TBA',
+      endpointKey: `/events/${options.year}`,
+      season: options.year,
+      payload: eventsPayload
+    });
+    eventMetadata.push(...eventsPayload.map(normalizeTbaEventMetadata).filter((event): event is EventMetadata => event !== null));
+    eventKeys.push(
+      ...eventsPayload
+        .map(event => normalizeEventKey(firstString(asRecord(event), ['key'])))
         .filter(Boolean)
-        .slice(0, options.limitEvents ?? Number.POSITIVE_INFINITY);
+        .slice(0, options.limitEvents ?? Number.POSITIVE_INFINITY)
+    );
+  }
 
   const imported: HistoricalMatch[] = [];
   for (const eventKey of eventKeys) {
+    if (options.eventKey) {
+      const eventPayload = await fetchJson<unknown>(`${TBA_BASE}/event/${eventKey}`, { headers });
+      store.upsertRawPayload({
+        source: 'TBA',
+        endpointKey: `/event/${eventKey}`,
+        eventKey,
+        season: seasonFromEventKey(eventKey),
+        payload: eventPayload
+      });
+      const event = normalizeTbaEventMetadata(eventPayload);
+      if (event) eventMetadata.push(event);
+    }
     const matchesPayload = await fetchJson<unknown[]>(`${TBA_BASE}/event/${eventKey}/matches`, { headers });
     store.upsertRawPayload({
       source: 'TBA',
@@ -287,6 +426,9 @@ export const ingestTba = async (
     const matches = matchesPayload.map(normalizeTbaMatch).filter((match): match is HistoricalMatch => match !== null);
     store.upsertMatches(matches);
     imported.push(...matches);
+  }
+  if (eventMetadata.length > 0) {
+    store.upsertEventMetadata(eventMetadata);
   }
 
   return { events: eventKeys.length, matches: imported.length };
@@ -301,16 +443,25 @@ export const ingestFirst = async (
   const auth = Buffer.from(`${username}:${token}`).toString('base64');
   const headers = { Authorization: `Basic ${auth}`, Accept: 'application/json' };
 
-  const eventCodes = options.eventCode
-    ? [options.eventCode.toUpperCase()]
-    : (
-        await fetchJson<Record<string, unknown>>(`${FIRST_BASE}/${options.year}/events`, { headers })
-      ).Events;
+  const eventsPayload = await fetchJson<Record<string, unknown>>(`${FIRST_BASE}/${options.year}/events`, { headers });
+  store.upsertRawPayload({
+    source: 'FIRST',
+    endpointKey: `/events/${options.year}`,
+    season: options.year,
+    payload: eventsPayload
+  });
+  const events = firstArray(eventsPayload, ['Events', 'events']);
+  const eventCodes = options.eventCode ? [options.eventCode.toUpperCase()] : events;
 
   const normalizedCodes = (Array.isArray(eventCodes) ? eventCodes : [])
     .map(event => (typeof event === 'string' ? event : firstString(asRecord(event), ['code', 'eventCode', 'EventCode'])))
     .filter(Boolean)
     .slice(0, options.limitEvents ?? Number.POSITIVE_INFINITY);
+  const selectedCodes = new Set(normalizedCodes.map(code => code.toUpperCase()));
+  const eventMetadata = events
+    .map(event => normalizeFirstEventMetadata(event, options.year))
+    .filter((event): event is EventMetadata => event !== null)
+    .filter(event => selectedCodes.has(event.eventKey.replace(/^\d+/, '').toUpperCase()));
 
   const imported: HistoricalMatch[] = [];
   for (const eventCode of normalizedCodes) {
@@ -338,6 +489,9 @@ export const ingestFirst = async (
       store.upsertMatches(matches);
       imported.push(...matches);
     }
+  }
+  if (eventMetadata.length > 0) {
+    store.upsertEventMetadata(eventMetadata);
   }
 
   return { events: normalizedCodes.length, matches: imported.length };
@@ -395,6 +549,56 @@ export const ingestStatbotics = async (
 
   store.upsertStatboticsSignals(signals);
   return { teams: signals.length };
+};
+
+export const ingestStatboticsEvents = async (
+  store: ResearchStore,
+  options: { year?: number; startYear?: number; endYear?: number; eventKey?: string; limitEvents?: number }
+) => {
+  const years = options.eventKey
+    ? [options.year ?? seasonFromEventKey(normalizeEventKey(options.eventKey))]
+    : Array.from(
+        {
+          length:
+            (options.endYear ?? options.year ?? new Date().getFullYear()) -
+            (options.startYear ?? options.year ?? new Date().getFullYear()) +
+            1
+        },
+        (_, index) => (options.startYear ?? options.year ?? new Date().getFullYear()) + index
+      );
+  const events: EventMetadata[] = [];
+
+  if (options.eventKey) {
+    const eventKey = normalizeEventKey(options.eventKey);
+    const payload = await fetchJson<Record<string, unknown>>(`${STATBOTICS_BASE}/event/${eventKey}`);
+    store.upsertRawPayload({
+      source: 'Statbotics',
+      endpointKey: `/event/${eventKey}`,
+      eventKey,
+      season: seasonFromEventKey(eventKey),
+      payload
+    });
+    const event = normalizeStatboticsEvent(payload);
+    if (event) events.push(event);
+  } else {
+    for (const year of years) {
+      const url = new URL(`${STATBOTICS_BASE}/events`);
+      url.searchParams.set('year', String(year));
+      url.searchParams.set('limit', String(Math.min(1000, Math.max(1, options.limitEvents ?? 1000))));
+      const payload = await fetchJson<unknown[]>(url.toString());
+      store.upsertRawPayload({
+        source: 'Statbotics',
+        endpointKey: `/events?${url.searchParams.toString()}`,
+        season: year,
+        payload
+      });
+      events.push(...payload.map(normalizeStatboticsEvent).filter((event): event is EventMetadata => event !== null));
+    }
+  }
+
+  const limited = events.slice(0, options.limitEvents ?? Number.POSITIVE_INFINITY);
+  store.upsertEventMetadata(limited);
+  return { years: years.length, events: limited.length };
 };
 
 export const ingestStatboticsMatches = async (
@@ -462,9 +666,21 @@ const decodeFirestoreValue = (value: unknown): unknown => {
 
 const decodeFirestoreDocument = (doc: unknown) => {
   const record = asRecord(doc);
-  return Object.fromEntries(
+  const decoded = Object.fromEntries(
     Object.entries(asRecord(record.fields)).map(([key, value]) => [key, decodeFirestoreValue(value)])
   );
+  const documentPath = firstString(record, ['name']);
+  const pathSegments = documentPath.split('/documents/')[1]?.split('/') ?? [];
+  const documentId = pathSegments[pathSegments.length - 1] ?? '';
+  const eventIndex = pathSegments.findIndex(segment => segment === 'events');
+  const eventKeyFromPath = eventIndex >= 0 ? normalizeEventKey(pathSegments[eventIndex + 1] ?? '') : '';
+  const decodedRecord = asRecord(decoded);
+  return {
+    ...decoded,
+    id: firstString(decodedRecord, ['id']) || documentId,
+    eventKey: firstString(decodedRecord, ['eventKey', 'event_key', 'event']) || eventKeyFromPath,
+    firestorePath: documentPath || null
+  };
 };
 
 const toObservation = (source: DataSource, raw: unknown, fallbackId: string): ScoutingObservation | null => {
@@ -477,12 +693,15 @@ const toObservation = (source: DataSource, raw: unknown, fallbackId: string): Sc
   const allianceRaw = firstString(row, ['alliance', 'allianceColor']).toLowerCase();
   const alliance: AllianceColor | null = allianceRaw.startsWith('r') ? 'red' : allianceRaw.startsWith('b') ? 'blue' : null;
   const playedDefense = row.playedDefense ?? row.defense ?? row.played_defense;
+  const rolePlayed = firstString(row, ['rolePlayed', 'role_played']).toLowerCase();
+  const defenseIntensity = firstNumber(row, ['defenseIntensity', 'defense_intensity']);
+  const defenseDurationSeconds = firstNumber(row, ['defenseDurationSeconds', 'defense_duration_seconds']);
   const defenseValue =
-    firstNumber(row, ['defenseValue', 'defense_value', 'defenseMetric']) ??
-    (typeof row.defenseIntensity === 'number' ? Number(row.defenseIntensity) * 10 : null);
+    firstNumber(row, ['defenseValue', 'defense_value', 'defenseMetric', 'defense_metric']) ??
+    (defenseIntensity == null ? null : defenseIntensity * 10);
   const offensePoints =
-    firstNumber(row, ['offensePoints', 'offense_points', 'totalPoints', 'syntheticScore']) ??
-    firstNumber(row, ['autoPoints', 'teleopPoints']);
+    firstNumber(row, ['offensePoints', 'offense_points', 'totalMatchPoints', 'total_match_points', 'totalPoints', 'syntheticScore']) ??
+    sumNumbers(row, ['autoPoints', 'auto_points', 'teleopPoints', 'teleop_points', 'endgamePoints', 'endgame_points']);
 
   return {
     id:
@@ -495,7 +714,12 @@ const toObservation = (source: DataSource, raw: unknown, fallbackId: string): Sc
     alliance,
     offensePoints,
     defenseValue,
-    playedDefense: typeof playedDefense === 'boolean' ? playedDefense : null,
+    playedDefense:
+      typeof playedDefense === 'boolean'
+        ? playedDefense
+        : rolePlayed === 'defense' || rolePlayed === 'mixed' || (defenseIntensity ?? 0) > 0 || (defenseDurationSeconds ?? 0) > 0
+          ? true
+          : null,
     reliabilityPenalty:
       (row.robotDied ? 4 : 0) +
       (row.mechanismBroke ? 3 : 0) +
@@ -508,44 +732,112 @@ const toObservation = (source: DataSource, raw: unknown, fallbackId: string): Sc
 
 export const ingestFirebase = async (
   store: ResearchStore,
-  options: { projectId?: string; accessToken?: string; collections?: string[] }
+  options: {
+    projectId?: string;
+    accessToken?: string;
+    collections?: string[];
+    includeCollectionGroups?: boolean;
+    includeRootCollections?: boolean;
+  }
 ) => {
   const projectId = options.projectId || getRequiredEnv(['MODEL_FIREBASE_PROJECT_ID', 'VITE_FIREBASE_PROJECT_ID'], 'Firebase project id');
   const accessToken = options.accessToken || getRequiredEnv(['MODEL_FIREBASE_ACCESS_TOKEN'], 'Firebase access token');
   const collections = options.collections ?? ['matchScouting', 'matchScoutingV3', 'matchScoutingV4', 'matchScoutingDefense'];
+  const includeCollectionGroups = options.includeCollectionGroups ?? true;
+  const includeRootCollections = options.includeRootCollections ?? true;
   const observations: ScoutingObservation[] = [];
+  const seenDocumentNames = new Set<string>();
+
+  const collectDocument = (collection: string, doc: unknown, index: number, sourceLabel: string) => {
+    const docRecord = asRecord(doc);
+    const firestorePath = firstString(docRecord, ['name']);
+    if (firestorePath) {
+      if (seenDocumentNames.has(firestorePath)) return;
+      seenDocumentNames.add(firestorePath);
+    }
+    const observation = toObservation('Firebase', decodeFirestoreDocument(doc), `${sourceLabel}:${collection}:${index}`);
+    if (observation) observations.push(observation);
+  };
 
   for (const collection of collections) {
-    let pageToken = '';
-    do {
-      const url = new URL(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}`
+    if (includeCollectionGroups) {
+      const payload = await fetchJson<unknown[]>(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            structuredQuery: {
+              from: [{ collectionId: collection, allDescendants: true }]
+            }
+          })
+        }
       );
-      url.searchParams.set('pageSize', '300');
-      if (pageToken) url.searchParams.set('pageToken', pageToken);
-      const payload = await fetchJson<Record<string, unknown>>(url.toString(), {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
-      });
       store.upsertRawPayload({
         source: 'Firebase',
-        endpointKey: `/documents/${collection}${pageToken ? `?pageToken=${pageToken}` : ''}`,
+        endpointKey: `/documents:runQuery/${collection}`,
         payload
       });
-      asArray(payload.documents).forEach((doc, index) => {
-        const observation = toObservation('Firebase', decodeFirestoreDocument(doc), `${collection}:${index}`);
-        if (observation) observations.push(observation);
+      asArray(payload).forEach((row, index) => {
+        const doc = asRecord(row).document;
+        if (doc) collectDocument(collection, doc, index, 'collectionGroup');
       });
-      pageToken = firstString(payload, ['nextPageToken']);
-    } while (pageToken);
+    }
+
+    if (includeRootCollections) {
+      let pageToken = '';
+      do {
+        const url = new URL(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}`
+        );
+        url.searchParams.set('pageSize', '300');
+        if (pageToken) url.searchParams.set('pageToken', pageToken);
+        const payload = await fetchJson<Record<string, unknown>>(url.toString(), {
+          headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' }
+        });
+        store.upsertRawPayload({
+          source: 'Firebase',
+          endpointKey: `/documents/${collection}${pageToken ? `?pageToken=${pageToken}` : ''}`,
+          payload
+        });
+        asArray(payload.documents).forEach((doc, index) => collectDocument(collection, doc, index, 'rootCollection'));
+        pageToken = firstString(payload, ['nextPageToken']);
+      } while (pageToken);
+    }
   }
 
   store.upsertScoutingObservations(observations);
   return { observations: observations.length };
 };
 
+const archiveRecordToObservationPayload = (archiveRecord: unknown): Record<string, unknown> | null => {
+  const record = asRecord(archiveRecord);
+  if (record.deleted === true) return null;
+  const recordType = firstString(record, ['recordType']);
+  if (recordType !== 'match' && recordType !== 'matchV4' && recordType !== 'matchDefense') return null;
+  const payload = asRecord(record.payload);
+  if (Object.keys(payload).length === 0) return null;
+  return {
+    ...payload,
+    id: firstString(record, ['recordId']) || firstString(payload, ['id']),
+    eventKey: firstString(payload, ['eventKey']) || firstString(record, ['eventKey']),
+    timestamp: firstNumber(payload, ['timestamp']) ?? firstNumber(record, ['updatedAt']),
+    archiveRecordType: recordType,
+    archiveSource: firstString(record, ['source'])
+  };
+};
+
 const collectJsonObjects = (payload: unknown): unknown[] => {
   if (Array.isArray(payload)) return payload;
   const record = asRecord(payload);
+  const scoutArchive = asRecord(record.scoutArchive);
+  const archiveRecords = firstArray(scoutArchive, ['records'])
+    .map(archiveRecordToObservationPayload)
+    .filter((item): item is Record<string, unknown> => item !== null);
   const candidates = [
     record.matchScouting,
     record.matchScoutingV3,
@@ -555,7 +847,15 @@ const collectJsonObjects = (payload: unknown): unknown[] => {
     record.data,
     record.items
   ];
-  return candidates.flatMap(candidate => (Array.isArray(candidate) ? candidate : []));
+  const directRecords = candidates.flatMap(candidate => (Array.isArray(candidate) ? candidate : []));
+  const archiveDirectRecords = directRecords
+    .map(archiveRecordToObservationPayload)
+    .filter((item): item is Record<string, unknown> => item !== null);
+  return [
+    ...archiveRecords,
+    ...archiveDirectRecords,
+    ...directRecords.filter(item => archiveRecordToObservationPayload(item) == null)
+  ];
 };
 
 export const importLocalBackup = (store: ResearchStore, filePath: string) => {
@@ -570,6 +870,7 @@ export const importLocalBackup = (store: ResearchStore, filePath: string) => {
     payload
   });
   const matches: HistoricalMatch[] = [];
+  const events: EventMetadata[] = [];
   const adminV2 = asRecord(asRecord(payload).adminV2);
   const cacheEntries = firstArray(adminV2, ['cacheEntries']);
   cacheEntries.forEach((entry, index) => {
@@ -593,9 +894,16 @@ export const importLocalBackup = (store: ResearchStore, filePath: string) => {
         if (match) matches.push(match);
       });
     }
+    if (source === 'TBA' && key === 'event-summary') {
+      const event = normalizeTbaEventMetadata(entryPayload);
+      if (event) events.push(event);
+    }
   });
   if (matches.length > 0) {
     store.upsertMatches(matches);
+  }
+  if (events.length > 0) {
+    store.upsertEventMetadata(events);
   }
   const observations = collectJsonObjects(payload)
     .map((record, index) => toObservation('LocalBackup', record, `${absolute}:${index}`))

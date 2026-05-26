@@ -1,0 +1,22 @@
+{
+  "name": "holdout-2026-bucket2-scoutgate",
+  "description": "2026 event-key bucket-2 holdout for coverage-aware ScoutGate RoleV3 variants.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [2],
+    "label": "2026 ScoutGate bucket-2 holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket2-scoutgate",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future ScoutGate Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 SG=E2/S6",
+    "No-Future ScoutGate TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 SG=E2/S6"
+  ],
+  "notes": [
+    "Third deterministic holdout slice for ScoutGate.",
+    "A robust improvement should appear beyond the full-year aggregate."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "current-2026-conditional-learned-championship-tail",
+  "description": "2026 replay testing conditional no-future learned championship tail residual correction against the defended residual baseline.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-conditional-learned-championship-tail",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future ConditionalLearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.50 TL=15 TN=16 TC=35 F=PRS POS G=8/R4/F20",
+    "No-Future ConditionalLearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "Bucket 1 supported the conservative conditional learned-tail candidate; this checks the main 2026 replay before any broader promotion claim.",
+    "The conditional gate is no-future and uses only prior event residual evidence."
+  ]
+}

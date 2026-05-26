@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, QrCode, Save, X } from 'lucide-react';
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, QrCode, Save, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
 import { PitScoutingV2 } from '../types';
@@ -7,7 +7,13 @@ import {
   DEFAULT_EVENT_KEY,
   getPersistentDeviceId
 } from '../utils/sharedEventState';
-import { normalizePitChassisSpeed } from '../utils/pitScouting';
+import {
+  formatPitChassisSpeed,
+  getClimbCapabilityLabel,
+  getShooterLabel,
+  getTraversalLabel,
+  normalizePitChassisSpeed
+} from '../utils/pitScouting';
 import { compressPitData } from '../utils/qrCompression';
 import { writePitScoutingRecord } from '../utils/scoutingWrites';
 import { buildScoutDraftKey, deleteScoutDraft, getScoutDraft, setScoutDraft } from '../utils/scoutDrafts';
@@ -18,11 +24,51 @@ import {
   upsertPitArchiveRecord
 } from '../utils/scoutArchive';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
+import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
 
 const PIT_EDIT_STORAGE_KEY = 'edit_pit_data';
 const PIT_SCOUT_NAME_STORAGE_KEY = 'pit_scout_name';
 
 type BallField = 'match' | 'auto' | 'teleop';
+type PitScoutStepKey = 'identity' | 'build' | 'scoring' | 'endgame' | 'handoff';
+
+const PIT_SCOUT_STEPS: Array<{
+  key: PitScoutStepKey;
+  label: string;
+  question: string;
+  output: string;
+}> = [
+  {
+    key: 'identity',
+    label: 'Identity',
+    question: 'Which team are we interviewing?',
+    output: 'team profile anchor'
+  },
+  {
+    key: 'build',
+    label: 'Build',
+    question: 'What kind of robot is this?',
+    output: 'traffic and compatibility prior'
+  },
+  {
+    key: 'scoring',
+    label: 'Scoring Prior',
+    question: 'What do they claim they can score?',
+    output: 'early PPA capability prior'
+  },
+  {
+    key: 'endgame',
+    label: 'Endgame',
+    question: 'What can they finish with?',
+    output: 'pick-list role fit'
+  },
+  {
+    key: 'handoff',
+    label: 'Handoff',
+    question: 'What should match scouts verify?',
+    output: 'verification notes and local-first save'
+  }
+];
 
 interface PitScoutDraftPayload {
   form: PitScoutingV2;
@@ -71,6 +117,8 @@ const parseNonNegativeInteger = (value: string) => {
   const digits = sanitizeDigits(value);
   return digits ? parseInt(digits, 10) : 0;
 };
+const inputClass = 'admin-g2-sm w-full border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-emerald-400';
+const labelClass = 'block text-xs font-black uppercase tracking-widest text-slate-500';
 
 function ChoiceButton({
   active,
@@ -98,12 +146,198 @@ function ChoiceButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-3 py-3 text-sm font-bold transition-all ${
+      className={`admin-g2-sm px-3 py-3 text-sm font-bold transition-all ${
         active ? activeClasses[tone] : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
       } ${disabled ? 'opacity-40 cursor-not-allowed hover:bg-slate-800' : ''}`}
     >
       {label}
     </button>
+  );
+}
+
+const getPitStepReadiness = (step: PitScoutStepKey, form: PitScoutingV2) => {
+  switch (step) {
+    case 'identity':
+      return Boolean(form.teamNumber.trim() && form.teamName.trim() && form.scoutName.trim());
+    case 'build':
+      return Boolean(form.robotBaseType || form.canCrossTrench || form.isBumpOnly || form.chassisSpeed > 0);
+    case 'scoring':
+      return Boolean(
+        form.turretCount ||
+        form.expectedHubBallsPerMatch > 0 ||
+        form.expectedAutoBalls > 0 ||
+        form.expectedTeleopBalls > 0 ||
+        form.canUseHopper ||
+        form.shootingStyle
+      );
+    case 'endgame':
+      return Boolean(form.noClimbCapability || form.canClimbL1 || form.canClimbL2 || form.canClimbL3);
+    case 'handoff':
+      return Boolean(form.notes.trim());
+  }
+};
+
+function PitStepNav({
+  activeStep,
+  form,
+  onChange
+}: {
+  activeStep: PitScoutStepKey;
+  form: PitScoutingV2;
+  onChange: (step: PitScoutStepKey) => void;
+}) {
+  return (
+    <nav className="admin-g2 border border-slate-800 bg-slate-900/70 p-3">
+      <div className="grid auto-cols-[minmax(180px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+        {PIT_SCOUT_STEPS.map((step, index) => {
+          const isActive = activeStep === step.key;
+          const ready = getPitStepReadiness(step.key, form);
+          return (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => onChange(step.key)}
+              className={`admin-g2-sm border p-3 text-left transition ${
+                isActive
+                  ? 'border-emerald-300 bg-emerald-400/15 text-emerald-50 ring-1 ring-emerald-300/40'
+                  : 'border-slate-800 bg-slate-950/65 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{index + 1}</span>
+                {ready ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-emerald-300' : 'bg-slate-700'}`} />}
+              </div>
+              <div className="mt-2 text-sm font-black text-white">{step.label}</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">{step.question}</div>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function PitStepFrame({
+  step,
+  children
+}: {
+  step: PitScoutStepKey;
+  children: React.ReactNode;
+}) {
+  const currentStep = PIT_SCOUT_STEPS.find(item => item.key === step) || PIT_SCOUT_STEPS[0];
+  return (
+    <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">{currentStep.label}</div>
+          <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{currentStep.question}</h2>
+        </div>
+        <div className="admin-g2-sm hidden border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-50 sm:block">
+          Creates: {currentStep.output}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PitStepFooter({
+  activeStep,
+  onChange
+}: {
+  activeStep: PitScoutStepKey;
+  onChange: (step: PitScoutStepKey) => void;
+}) {
+  const activeIndex = PIT_SCOUT_STEPS.findIndex(step => step.key === activeStep);
+  const previousStep = PIT_SCOUT_STEPS[activeIndex - 1];
+  const nextStep = PIT_SCOUT_STEPS[activeIndex + 1];
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <button
+        type="button"
+        disabled={!previousStep}
+        onClick={() => previousStep && onChange(previousStep.key)}
+        className="admin-g2-sm inline-flex items-center gap-2 border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back Step
+      </button>
+      {nextStep && (
+        <button
+          type="button"
+          onClick={() => onChange(nextStep.key)}
+          className="admin-g2-sm inline-flex items-center gap-2 bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-emerald-300"
+        >
+          Next: {nextStep.label}
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PitPriorStrip({ form }: { form: PitScoutingV2 }) {
+  const shooterLabel = getShooterLabel(form) || 'Shooter unknown';
+  const traversalLabel = getTraversalLabel(form) || 'Path unknown';
+  const climbLabel = getClimbCapabilityLabel(form) || 'Endgame unknown';
+  const speedLabel = formatPitChassisSpeed(form);
+  const verificationQuestions = [
+    form.expectedHubBallsPerMatch ? '' : 'Ask match scouts to verify scoring volume.',
+    form.expectedAutoBalls || form.expectedTeleopBalls ? '' : 'Ask for auto/teleop split.',
+    climbLabel === 'Endgame unknown' ? 'Watch if the climb works under defense and time pressure.' : '',
+    traversalLabel === 'Path unknown' ? 'Confirm field pathing before assigning traffic-heavy roles.' : ''
+  ].filter(Boolean);
+
+  const cards = [
+    {
+      label: 'Capability Prior',
+      value: form.robotBaseType || shooterLabel !== 'Shooter unknown' ? [form.robotBaseType, shooterLabel].filter(Boolean).join(' / ') : 'Ask robot design',
+      detail: 'Creates the human prior before enough match rows exist.'
+    },
+    {
+      label: 'Scoring Split',
+      value: `${form.expectedAutoBalls || 0} auto / ${form.expectedTeleopBalls || 0} teleop`,
+      detail: `${form.expectedHubBallsPerMatch || 0} expected total balls for match scouts to verify.`
+    },
+    {
+      label: 'Compatibility',
+      value: `${traversalLabel} · ${speedLabel}`,
+      detail: 'Used for role fit, traffic planning, and alliance compatibility.'
+    },
+    {
+      label: 'Pick-List Context',
+      value: climbLabel,
+      detail: verificationQuestions[0] || 'Pit prior is usable; match data should confirm it.'
+    }
+  ];
+
+  return (
+    <section className="admin-g2 border border-emerald-400/25 bg-emerald-500/10 p-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Pit Prior Map</div>
+          <h2 className="mt-1 text-xl font-black text-white">Turn the interview into model context</h2>
+        </div>
+        <div className="text-sm font-semibold text-emerald-50/75">
+          {form.teamNumber || 'Team TBD'} · {form.teamName || 'name pending'} · {climbLabel}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {cards.map(card => (
+          <div key={card.label} className="admin-g2-sm border border-emerald-200/10 bg-slate-950/55 px-3 py-3">
+            <div className="text-xs font-black uppercase tracking-wider text-emerald-100">{card.label}</div>
+            <div className="mt-2 text-lg font-black text-white">{card.value}</div>
+            <div className="mt-2 text-xs font-semibold text-slate-300">{card.detail}</div>
+          </div>
+        ))}
+      </div>
+      {verificationQuestions.length > 0 && (
+        <div className="admin-g2-sm mt-3 border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-100">
+          Verify next: {verificationQuestions.slice(0, 2).join(' ')}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -123,7 +357,9 @@ export default function PitScoutView() {
   const [archiveUsername, setArchiveUsernameState] = useState('');
   const [pendingArchiveUsername, setPendingArchiveUsername] = useState('');
   const [isArchiveUsernameResolved, setIsArchiveUsernameResolved] = useState(false);
-  const [showPitAdvancedDetails, setShowPitAdvancedDetails] = useState(false);
+  const [activeStep, setActiveStep] = useState<PitScoutStepKey>('identity');
+  const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
+  const activeStepRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftSaveRef = useRef(false);
 
   const activeDraftKey = useMemo(() => {
@@ -137,6 +373,18 @@ export default function PitScoutView() {
   const updateForm = (updates: Partial<PitScoutingV2>) => {
     setForm(prev => ({ ...prev, ...updates }));
   };
+
+  const handleStepChange = (step: PitScoutStepKey) => {
+    setHasUsedStepNav(true);
+    setActiveStep(step);
+  };
+
+  useEffect(() => {
+    if (!hasUsedStepNav) return;
+    window.setTimeout(() => {
+      activeStepRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 0);
+  }, [activeStep, hasUsedStepNav]);
 
   useEffect(() => {
     let cancelled = false;
@@ -470,111 +718,90 @@ export default function PitScoutView() {
           />
         )}
 
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex-1 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
-                {isEditing ? 'EDIT PIT' : 'PIT SCOUT'}
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                Structured capability interview for the 2026 robot package.
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                {eventKey}
-              </div>
-              <div className="text-[11px] font-bold text-slate-600 uppercase tracking-widest mt-1">
+        <ScoutWorkflowHeader
+          missionKey="pitScout"
+          title={isEditing ? 'Edit Pit Scout' : 'Pit Scout'}
+          subtitle="Interview the team for capability priors, compatibility notes, and the questions match scouts should verify."
+          onBack={() => navigate('/')}
+          metric={(
+            <div className="admin-g2-sm border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-right">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-200">{eventKey}</div>
+              <div className="mt-1 text-[11px] font-black uppercase tracking-widest text-emerald-100/60">
                 {isEditing ? 'History Edit' : 'Admin Controlled'}
               </div>
             </div>
-          </div>
-        </div>
+          )}
+        />
 
         {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 p-3 rounded-lg text-sm font-medium">
+          <div className="admin-g2-sm border border-red-500 bg-red-900/50 p-3 text-sm font-medium text-red-200">
             {error}
           </div>
         )}
 
         {successMessage && (
-          <div className="bg-emerald-900/50 border border-emerald-500 text-emerald-200 p-3 rounded-lg text-sm font-medium flex items-center gap-2">
+          <div className="admin-g2-sm flex items-center gap-2 border border-emerald-500 bg-emerald-900/50 p-3 text-sm font-medium text-emerald-200">
             <Check className="w-4 h-4" /> {successMessage}
           </div>
         )}
 
+        <PitStepNav activeStep={activeStep} form={form} onChange={handleStepChange} />
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <h3 className="text-lg font-black text-white">Team Identity</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Team Number</label>
-                <input
-                  type="number"
-                  value={form.teamNumber}
-                  onChange={(e) => updateForm({ teamNumber: e.target.value })}
-                  disabled={isEditing}
-                  className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  placeholder="e.g. 254"
-                  required
-                />
+          <div ref={activeStepRef} className="scroll-mt-4">
+          {activeStep === 'identity' && (
+            <PitStepFrame step="identity">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className={labelClass}>Team Number</label>
+                  <input
+                    type="number"
+                    value={form.teamNumber}
+                    onChange={(e) => updateForm({ teamNumber: e.target.value })}
+                    disabled={isEditing}
+                    className={`${inputClass} font-mono text-xl ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    placeholder="e.g. 254"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className={labelClass}>Team Name</label>
+                  <input
+                    type="text"
+                    value={form.teamName}
+                    onChange={(e) => updateForm({ teamName: e.target.value })}
+                    className={inputClass}
+                    placeholder="Required"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className={labelClass}>Scout Name</label>
+                  <input
+                    type="text"
+                    value={form.scoutName}
+                    onChange={(e) => updateForm({ scoutName: e.target.value })}
+                    className={inputClass}
+                    placeholder="Required"
+                    required
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Team Name</label>
-                <input
-                  type="text"
-                  value={form.teamName}
-                  onChange={(e) => updateForm({ teamName: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Required"
-                  required
-                />
+              <div className="admin-g2-sm mt-4 border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100">
+                This anchors every pit claim to team profile, pick list, match prep, and model fallback context.
               </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Scout Name</label>
-                <input
-                  type="text"
-                  value={form.scoutName}
-                  onChange={(e) => updateForm({ scoutName: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Required"
-                  required
-                />
+              <div className="mt-5">
+                <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
               </div>
-            </div>
-          </section>
+            </PitStepFrame>
+          )}
 
-          <section className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-5">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-lg font-black text-white">Capability Details</h3>
-                <p className="mt-1 text-sm font-semibold text-cyan-100/75">
-                  Keep the first screen focused. Open this when you are ready to record drivetrain and shooter details.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPitAdvancedDetails(open => !open)}
-                className="rounded-xl bg-cyan-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-cyan-950/30 transition-all hover:bg-cyan-500 active:scale-95"
-              >
-                {showPitAdvancedDetails ? 'Hide Capability Details' : 'Show Capability Details'}
-              </button>
-            </div>
-          </section>
-
-          {showPitAdvancedDetails && (
-            <>
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <h3 className="text-lg font-black text-white">Build & Chassis</h3>
+          {activeStep === 'build' && (
+            <PitStepFrame step="build">
+              <div className="space-y-5">
 
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Robot Base Type</label>
+              <label className={labelClass}>Robot Base Type</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {(['WCP', 'KitBot', 'Custom'] as const).map(option => (
                   <ChoiceButton
@@ -589,19 +816,19 @@ export default function PitScoutView() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2 md:col-span-1">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Chassis Speed</label>
+                <label className={labelClass}>Chassis Speed</label>
                 <input
                   type="number"
                   min="0"
                   step="0.1"
                   value={form.chassisSpeed || ''}
                   onChange={(e) => updateForm({ chassisSpeed: Number(e.target.value) || 0 })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="e.g. 4.5"
                 />
               </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Speed Units</label>
+                <label className={labelClass}>Speed Units</label>
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {(['meters', 'feet', 'miles', 'kilometers', 'yards'] as const).map(option => (
@@ -631,7 +858,7 @@ export default function PitScoutView() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Field Traversal</label>
+              <label className={labelClass}>Field Traversal</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <ChoiceButton
                   active={form.canCrossTrench}
@@ -647,13 +874,19 @@ export default function PitScoutView() {
                 />
               </div>
             </div>
-          </section>
+              </div>
+              <div className="mt-5">
+                <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </PitStepFrame>
+          )}
 
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <h3 className="text-lg font-black text-white">Scoring System</h3>
+          {activeStep === 'scoring' && (
+            <PitStepFrame step="scoring">
+              <div className="space-y-5">
 
             <div className="space-y-2">
-              <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Shooter Count</label>
+              <label className={labelClass}>Shooter Count</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {(['1', '2', '3', 'More'] as const).map(option => (
                   <ChoiceButton
@@ -670,7 +903,7 @@ export default function PitScoutView() {
                   type="text"
                   value={form.customTurretCount}
                   onChange={(e) => updateForm({ customTurretCount: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} focus:border-amber-400`}
                   placeholder="Describe the shooter setup"
                 />
               )}
@@ -678,7 +911,7 @@ export default function PitScoutView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Hopper</label>
+                <label className={labelClass}>Hopper</label>
                 <div className="grid grid-cols-2 gap-2">
                   <ChoiceButton
                     active={form.canUseHopper}
@@ -695,13 +928,13 @@ export default function PitScoutView() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Hopper Capacity</label>
+                <label className={labelClass}>Hopper Capacity</label>
                 <input
                   type="number"
                   min="0"
                   value={form.hopperCapacity || ''}
                   onChange={(e) => updateForm({ hopperCapacity: Number(e.target.value) || 0 })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono focus:border-amber-400`}
                   placeholder="Balls in hopper"
                   disabled={!form.canUseHopper}
                 />
@@ -710,38 +943,38 @@ export default function PitScoutView() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Expected Balls / Match</label>
+                <label className={labelClass}>Expected Balls / Match</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={String(form.expectedHubBallsPerMatch)}
                   onChange={(e) => handleBallFieldChange('match', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="Total"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Expected Auto Balls</label>
+                <label className={labelClass}>Expected Auto Balls</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={String(form.expectedAutoBalls)}
                   onChange={(e) => handleBallFieldChange('auto', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="Auto"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Expected Teleop Balls</label>
+                <label className={labelClass}>Expected Teleop Balls</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   value={String(form.expectedTeleopBalls)}
                   onChange={(e) => handleBallFieldChange('teleop', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="Teleop"
                 />
               </div>
@@ -749,25 +982,25 @@ export default function PitScoutView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Balls Per Second</label>
+                <label className={labelClass}>Balls Per Second</label>
                 <input
                   type="number"
                   min="0"
                   step="0.1"
                   value={form.ballsPerSecond || ''}
                   onChange={(e) => updateForm({ ballsPerSecond: Number(e.target.value) || 0 })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="e.g. 2.5"
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Number of flywheels per shooter</label>
+                <label className={labelClass}>Number of flywheels per shooter</label>
                 <input
                   type="number"
                   min="0"
                   value={form.shootingFlywheelCount || ''}
                   onChange={(e) => updateForm({ shootingFlywheelCount: Number(e.target.value) || 0 })}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
+                  className={`${inputClass} font-mono`}
                   placeholder="e.g. 2"
                 />
               </div>
@@ -775,7 +1008,7 @@ export default function PitScoutView() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Shooting Style</label>
+                <label className={labelClass}>Shooting Style</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['On the Fly', 'Fixed Point'] as const).map(option => (
                     <ChoiceButton
@@ -789,7 +1022,7 @@ export default function PitScoutView() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-slate-300 uppercase tracking-wider">Adjustable Hood (firing angle)</label>
+                <label className={labelClass}>Adjustable Hood (firing angle)</label>
                 <div className="grid grid-cols-2 gap-2">
                   <ChoiceButton
                     active={form.hoodAdjustable}
@@ -806,12 +1039,19 @@ export default function PitScoutView() {
                 </div>
               </div>
             </div>
-          </section>
-            </>
+              </div>
+              <div className="mt-5">
+                <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </PitStepFrame>
           )}
 
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-            <h3 className="text-lg font-black text-white">Endgame Capability</h3>
+          {activeStep === 'endgame' && (
+            <PitStepFrame step="endgame">
+            <div className="space-y-4">
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-300">
+                This is a claimed capability prior. Match Scout confirms reliability later under time pressure, defense, and field traffic.
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <ChoiceButton
                 active={form.noClimbCapability}
@@ -838,41 +1078,59 @@ export default function PitScoutView() {
                 disabled={form.noClimbCapability}
               />
             </div>
-          </section>
+            </div>
+            <div className="mt-5">
+              <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
+            </div>
+            </PitStepFrame>
+          )}
 
-          <section className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-3">
-            <h3 className="text-lg font-black text-white">Notes</h3>
-            <textarea
-              value={form.notes}
-              onChange={(e) => updateForm({ notes: e.target.value })}
-              className="w-full min-h-28 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
-              placeholder="Anything the team mentioned that matters for strategy or pit prep."
-            />
-          </section>
+          {activeStep === 'handoff' && (
+            <PitStepFrame step="handoff">
+              <PitPriorStrip form={form} />
+              <div className="mt-5 space-y-3">
+                <div>
+                  <h3 className="text-lg font-black text-white">Verification Notes</h3>
+                  <p className="mt-1 text-sm font-semibold text-slate-400">Write what strategy should remember and what match scouts should confirm later.</p>
+                </div>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => updateForm({ notes: e.target.value })}
+                  className={`${inputClass} min-h-28`}
+                  placeholder="Examples: needs protected path, climb only works if lined up early, shooter needs warmup, ask match scouts to watch intake jams."
+                />
+              </div>
 
-          <div className="grid grid-cols-4 gap-4">
-            <button
-              type="button"
-              onClick={() => setShowQr(true)}
-              className="col-span-1 py-4 bg-slate-800 hover:bg-slate-700 rounded-2xl text-white font-black shadow-xl active:scale-95 transition-all flex items-center justify-center"
-            >
-              <QrCode className="w-8 h-8" />
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="col-span-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-xl shadow-lg shadow-emerald-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? 'SAVING...' : isEditing ? 'UPDATE PIT DATA' : 'SAVE PIT DATA'}
-              {!isSubmitting && <Save className="w-5 h-5" />}
-            </button>
+              <div className="admin-g2 mt-5 grid grid-cols-4 gap-4 border border-slate-800 bg-slate-950/45 p-4">
+                <button
+                  type="button"
+                  onClick={() => setShowQr(true)}
+                  className="admin-g2-sm col-span-1 flex items-center justify-center bg-slate-800 py-4 font-black text-white shadow-xl transition-all hover:bg-slate-700 active:scale-95"
+                >
+                  <QrCode className="w-8 h-8" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="admin-g2-sm col-span-3 flex items-center justify-center gap-2 bg-emerald-600 py-4 text-lg font-black text-white shadow-lg shadow-emerald-900/20 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSubmitting ? 'SAVING...' : isEditing ? 'UPDATE PIT DATA' : 'SAVE PIT DATA'}
+                  {!isSubmitting && <Save className="w-5 h-5" />}
+                </button>
+              </div>
+
+              <div className="mt-5">
+                <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </PitStepFrame>
+          )}
           </div>
         </form>
       </div>
 
       {showQr && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
-          <div className="bg-white p-8 rounded-3xl max-w-sm w-full flex flex-col items-center relative">
+          <div className="admin-g2-lg relative flex w-full max-w-sm flex-col items-center bg-white p-8">
             <button
               onClick={() => setShowQr(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-900"
@@ -883,7 +1141,7 @@ export default function PitScoutView() {
             <p className="text-center text-sm text-slate-600 mb-6">
               Scan this code from the Admin device if internet is unavailable.
             </p>
-            <div className="p-4 bg-white rounded-2xl shadow-lg">
+            <div className="admin-g2-sm bg-white p-4 shadow-lg">
               <QRCodeSVG
                 value={compressPitData({
                   eventKey,

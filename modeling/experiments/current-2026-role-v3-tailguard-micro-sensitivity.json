@@ -1,0 +1,21 @@
+{
+  "name": "current-2026-role-v3-tailguard-micro-sensitivity",
+  "description": "Full 2026 replay around the promoted RoleV3 TailGuard weight, testing the immediate neighborhood plus ultra-micro neighbors TW=0.18, TW=0.21, TW=0.22, TW=0.23, and TW=0.25 against the defended TW=0.20 setting.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-role-v3-tailguard-micro-sensitivity",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.15 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.18 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.21 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.22 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.23 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.25 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "This is a local sensitivity pass around the already promoted TW=0.20 candidate, not a new model family.",
+    "Promotion requires beating TW=0.20 under the same no-future replay and then surviving broad confirmation."
+  ]
+}

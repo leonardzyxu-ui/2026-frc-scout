@@ -1,0 +1,20 @@
+{
+  "name": "current-2024-2026-event-type-residual",
+  "description": "Exact broad 2024-2026 test of no-future, season-scoped event-type residual correction after full event metadata coverage.",
+  "outputDir": "modeling/artifacts/runs/manifest-current-2024-2026-event-type-residual",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.05 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.10 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.15 M=60"
+  ],
+  "notes": [
+    "This manifest intentionally has no year filter; it replays all cached official matches, currently the 2024-2026 cache.",
+    "The residual memory is reset by season to avoid score-scale leakage across different games."
+  ]
+}

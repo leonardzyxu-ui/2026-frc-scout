@@ -1,0 +1,16 @@
+{
+  "name": "current-2026-conditional-tail-risk-winprob",
+  "description": "Full 2026 replay testing stricter TailRiskWinProb gates that require both prior event residual evidence and high-scoring event context.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-conditional-tail-risk-winprob",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future ConditionalTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/S8/F20/MIN",
+    "No-Future ConditionalTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.00 TL=40 TN=24 TC=25 F=PR G=8/R4/S12/F20/MIN"
+  ],
+  "notes": [
+    "The previous TailRiskWinProb run improved 2026 Brier/calibration but did not beat the defended baseline on broad bucket 2.",
+    "This manifest asks whether requiring both high residual evidence and high event score context keeps the calibration gain while reducing cross-event penalty."
+  ]
+}

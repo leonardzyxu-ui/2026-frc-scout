@@ -1,0 +1,25 @@
+{
+  "name": "holdout-2026-bucket4-targeted-conformal-scaled-archetype",
+  "description": "Fresh 2026 holdout test of season and event-progress scoped conformal interval calibration on event-key hash bucket 4 of 5.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [4],
+    "label": "2026 checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket4-targeted-conformal-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.84",
+    "No-Future Season-Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Event-Phase-Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Season-Event-Phase-Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Season-Event-Phase-Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.84"
+  ],
+  "notes": [
+    "Bucket 4 previously favored the base scaled point model, so this tests whether scoped conformal avoids the global-widening regression.",
+    "The replay uses all 2026 matches chronologically; metrics are restricted to event-key hash bucket 4 of 5."
+  ]
+}

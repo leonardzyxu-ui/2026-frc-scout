@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Database, Download, RefreshCw, Search, Shield } from 'lucide-react';
+import { Database, Download, RefreshCw, Search, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PreMatchTeamProfile, QualificationStatus } from '../types';
 import { fetchEventTeamNumbers, fetchPreMatchTeamProfile } from '../utils/preMatchScouting';
 import { getCachedPreMatchSheet, setCachedPreMatchSheet } from '../utils/preMatchCache';
 import { TBA_API_KEY } from '../config';
 import { DEFAULT_EVENT_KEY, getStoredEventKey } from '../utils/sharedEventState';
+import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
 
 type SortField =
   | 'team'
@@ -16,6 +17,7 @@ type SortField =
   | 'districtRank'
   | 'districtPoints'
   | 'qualification';
+type PreScoutWorkspaceKey = 'briefing' | 'priorities' | 'sheet' | 'export';
 
 interface MissingInfoItem {
   label: string;
@@ -91,6 +93,95 @@ const EXPORT_MANUAL_COLUMNS: ExportColumnDefinition[] = [
   { header: 'Manual Driver Quality', key: 'manualDriverQuality', width: 24 },
   { header: 'Manual Reliability Notes', key: 'manualReliabilityNotes', width: 24 }
 ];
+const labelClass = 'text-xs font-black uppercase tracking-widest text-slate-500';
+const inputClass = 'admin-g2-sm border border-slate-800 bg-slate-950 px-4 py-3 text-white outline-none transition-colors focus:border-cyan-500';
+const PRE_SCOUT_WORKSPACES: Array<{
+  key: PreScoutWorkspaceKey;
+  label: string;
+  question: string;
+}> = [
+  {
+    key: 'briefing',
+    label: 'Briefing',
+    question: 'What do we know before local rows exist?'
+  },
+  {
+    key: 'priorities',
+    label: 'Pit Priorities',
+    question: 'Which teams need human verification first?'
+  },
+  {
+    key: 'sheet',
+    label: 'Research Sheet',
+    question: 'What public context did TBA provide?'
+  },
+  {
+    key: 'export',
+    label: 'Export',
+    question: 'How do we hand this to scouts?'
+  }
+];
+
+function PreScoutWorkspaceNav({
+  activeWorkspace,
+  onChange,
+  counts
+}: {
+  activeWorkspace: PreScoutWorkspaceKey;
+  onChange: (workspace: PreScoutWorkspaceKey) => void;
+  counts: Record<PreScoutWorkspaceKey, string>;
+}) {
+  return (
+    <nav className="admin-g2 border border-slate-800 bg-slate-900/70 p-3">
+      <div className="grid auto-cols-[minmax(190px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-4 lg:overflow-visible lg:pb-0">
+        {PRE_SCOUT_WORKSPACES.map(item => {
+          const isActive = activeWorkspace === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onChange(item.key)}
+              className={`admin-g2-sm border p-3 text-left transition ${
+                isActive
+                  ? 'border-violet-300 bg-violet-400/15 text-violet-50 ring-1 ring-violet-300/40'
+                  : 'border-slate-800 bg-slate-950/65 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-black text-white">{item.label}</span>
+                <span className="admin-g2-sm border border-white/10 bg-slate-950/65 px-2 py-1 text-[11px] font-black text-violet-100">
+                  {counts[item.key]}
+                </span>
+              </div>
+              <div className="mt-2 text-xs font-semibold text-slate-400">{item.question}</div>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function PreScoutFrame({
+  title,
+  subtitle,
+  children
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="admin-g2 border border-slate-800 bg-slate-900/60 p-4 sm:p-5">
+      <div className="mb-4">
+        <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Pre Scout</div>
+        <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{title}</h2>
+        <p className="mt-1 text-sm font-semibold text-slate-400">{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 const buildUnavailableFromTba = (profile: PreMatchTeamProfile): MissingInfoItem[] => {
   const items: MissingInfoItem[] = [];
@@ -172,6 +263,16 @@ const buildManualOnlyItems = (teamNumber: string): MissingInfoItem[] => [
   }
 ];
 
+const getPitPriorityRows = (rows: SpreadsheetRow[], limit = 8) =>
+  [...rows]
+    .sort((left, right) => {
+      const leftScore = left.missingFromTba.length + (left.profile.qualificationStatus === 'unknown' ? 2 : 0) + (left.profile.mediaAssets.length === 0 ? 2 : 0);
+      const rightScore = right.missingFromTba.length + (right.profile.qualificationStatus === 'unknown' ? 2 : 0) + (right.profile.mediaAssets.length === 0 ? 2 : 0);
+      if (rightScore !== leftScore) return rightScore - leftScore;
+      return Number(left.profile.teamNumber) - Number(right.profile.teamNumber);
+    })
+    .slice(0, limit);
+
 const compareRows = (a: SpreadsheetRow, b: SpreadsheetRow, sortField: SortField, ascending: boolean) => {
   const direction = ascending ? 1 : -1;
   let result = 0;
@@ -214,7 +315,7 @@ const arrayBufferToBase64 = (buffer: ArrayBuffer) => {
   const bytes = new Uint8Array(buffer);
   let binary = '';
   for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
+    binary += String.fromCharCode(bytes[i] ?? 0);
   }
   return window.btoa(binary);
 };
@@ -263,6 +364,106 @@ const getEmbeddableImage = async (profile: PreMatchTeamProfile) => {
   }
 };
 
+function PreScoutBriefing({
+  rows,
+  loading,
+  showingCachedData,
+  cacheLabel
+}: {
+  rows: SpreadsheetRow[];
+  loading: boolean;
+  showingCachedData: boolean;
+  cacheLabel: string;
+}) {
+  const coveragePercent = rows.length
+    ? Math.round((rows.filter(row => row.profile.mediaAssets.length > 0 || row.profile.robotMetadata.length > 0).length / rows.length) * 100)
+    : 0;
+  const unknownQualification = rows.filter(row => row.profile.qualificationStatus === 'unknown').length;
+  const missingPublicContext = rows.filter(row => row.missingFromTba.length > 0).length;
+  const pitPriorityRows = getPitPriorityRows(rows, 4);
+  const sourceLabel = loading
+    ? 'Refreshing live TBA'
+    : showingCachedData
+      ? `Cache first${cacheLabel ? ` · ${cacheLabel}` : ''}`
+      : rows.length
+        ? 'Live or refreshed'
+        : 'Waiting for event data';
+
+  const cards = [
+    {
+      label: 'Public Coverage',
+      value: `${coveragePercent}%`,
+      detail: 'Media or robot registry exists before pit scouting starts.'
+    },
+    {
+      label: 'Pit Priority',
+      value: String(missingPublicContext),
+      detail: 'Teams with missing public context should be checked first.'
+    },
+    {
+      label: 'Early Confidence',
+      value: String(unknownQualification),
+      detail: 'Unknown qualification status lowers pre-event certainty.'
+    },
+    {
+      label: 'Source Freshness',
+      value: sourceLabel,
+      detail: 'Old cache is shown immediately while new TBA data refreshes.'
+    }
+  ];
+
+  return (
+    <section className="admin-g2 border border-violet-400/25 bg-violet-500/10 p-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-violet-200">Pre Scout Briefing</div>
+          <h2 className="mt-1 text-xl font-black text-white">Know what is public, then assign what humans must verify</h2>
+        </div>
+        <div className="text-sm font-semibold text-violet-50/75">
+          Creates public fallback context, pit priorities, and early confidence guardrails.
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {cards.map(card => (
+          <div key={card.label} className="admin-g2-sm border border-violet-200/10 bg-slate-950/55 px-3 py-3">
+            <div className="text-xs font-black uppercase tracking-wider text-violet-100">{card.label}</div>
+            <div className="mt-2 text-lg font-black text-white">{card.value}</div>
+            <div className="mt-2 text-xs font-semibold text-slate-300">{card.detail}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="admin-g2-sm border border-white/10 bg-slate-950/45 p-4">
+          <div className={labelClass}>Used Next</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {['Pit Scout priority', 'first-match expectations', 'judge/demo context', 'missing-data warnings'].map(item => (
+              <span key={item} className="admin-g2-sm border border-white/10 bg-slate-900/70 px-2 py-1 text-[11px] font-semibold text-slate-100">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="admin-g2-sm border border-white/10 bg-slate-950/45 p-4">
+          <div className={labelClass}>First Pit Targets</div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {pitPriorityRows.length > 0 ? pitPriorityRows.map(row => (
+              <div key={row.profile.teamKey} className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">
+                <div className="font-mono text-sm font-black text-white">{row.profile.teamNumber}</div>
+                <div className="mt-1 text-xs font-semibold text-slate-300">{row.profile.nickname || 'Nickname unavailable'}</div>
+                <div className="mt-1 text-[11px] text-amber-100/85">
+                  {row.missingFromTba.slice(0, 2).map(item => item.label).join(' · ') || 'Public context mostly present'}
+                </div>
+              </div>
+            )) : (
+              <div className="text-sm font-semibold text-slate-400">Load an event to generate pit priorities.</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function PreMatchView({
   isEmbedded = false,
   eventKey: propEventKey
@@ -280,6 +481,7 @@ export default function PreMatchView({
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
   const [showingCachedData, setShowingCachedData] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [activeWorkspace, setActiveWorkspace] = useState<PreScoutWorkspaceKey>('briefing');
 
   const eventKey = propEventKey || getStoredEventKey() || DEFAULT_EVENT_KEY;
 
@@ -373,6 +575,14 @@ export default function PreMatchView({
       missingMedia
     };
   }, [rows]);
+
+  const priorityRows = useMemo(() => getPitPriorityRows(rows, 8), [rows]);
+  const workspaceCounts = useMemo<Record<PreScoutWorkspaceKey, string>>(() => ({
+    briefing: `${summary.total}`,
+    priorities: `${priorityRows.length}`,
+    sheet: `${filteredRows.length}`,
+    export: cacheTimestamp ? 'cached' : 'xlsx'
+  }), [cacheTimestamp, filteredRows.length, priorityRows.length, summary.total]);
 
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
@@ -529,117 +739,207 @@ export default function PreMatchView({
     </button>
   );
 
+  const dataActionBar = (
+    <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="admin-g2-sm border border-blue-800/50 bg-blue-900/30 px-3 py-1 font-bold tracking-widest text-blue-300">
+            {eventKey}
+          </span>
+          <span className="admin-g2-sm border border-slate-800 bg-slate-900/70 px-3 py-1 font-semibold text-slate-300">
+            {summary.total} teams loaded
+          </span>
+          {cacheTimestamp && (
+            <span className="admin-g2-sm inline-flex items-center gap-2 border border-slate-800 bg-slate-900/70 px-3 py-1 font-semibold text-slate-300">
+              <Database className="h-4 w-4 text-cyan-300" />
+              IndexedDB cache {cacheLabel}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="relative min-w-[280px]">
+            <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder="Filter by team, nickname, or location"
+              className={`${inputClass} w-full pl-12 pr-4`}
+            />
+          </div>
+          <button
+            onClick={() => void handleExportWorkbook()}
+            disabled={filteredRows.length === 0 || downloadStatus === 'loading'}
+            className={`admin-g2-sm inline-flex items-center justify-center gap-2 px-5 py-3 font-bold transition-colors disabled:opacity-50 ${
+              downloadStatus === 'success'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-slate-800 text-slate-100 hover:bg-slate-700'
+            }`}
+          >
+            <Download className="h-4 w-4" />
+            {downloadStatus === 'loading'
+              ? 'BUILDING XLSX'
+              : downloadStatus === 'success'
+                ? 'XLSX EXPORTED'
+                : 'EXPORT XLSX'}
+          </button>
+          <button
+            onClick={() => void loadEventSheet()}
+            disabled={loading}
+            className="admin-g2-sm inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 font-bold text-white transition-colors hover:bg-cyan-500 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            REFRESH SHEET
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className={isEmbedded ? 'pb-24' : 'min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24'}>
       <div className={isEmbedded ? 'space-y-8' : 'max-w-[1400px] mx-auto space-y-8'}>
-        <div className="bg-slate-900/50 p-6 md:p-10 rounded-3xl border border-slate-800 shadow-2xl relative">
-          {!isEmbedded && (
-            <button
-              onClick={() => navigate('/')}
-              className="absolute top-6 left-6 p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-6 h-6" />
-            </button>
-          )}
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4 text-center">
-            Pre Match Sheet
-          </h1>
-          <p className="text-slate-400 text-center max-w-4xl mx-auto mb-6">
-            Spreadsheet-style event overview for pre-match prep. Every team in the active event is listed with direct TBA coverage, conservative qualification signals, and explicit scouting gaps.
-          </p>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="px-3 py-1 bg-blue-900/30 text-blue-300 border border-blue-800/50 rounded-full font-bold tracking-widest">
-                {eventKey}
-              </span>
-              <span className="px-3 py-1 bg-slate-900/70 text-slate-300 border border-slate-800 rounded-full font-semibold">
-                {summary.total} teams loaded
-              </span>
-              {cacheTimestamp && (
-                <span className="inline-flex items-center gap-2 px-3 py-1 bg-slate-900/70 text-slate-300 border border-slate-800 rounded-full font-semibold">
-                  <Database className="w-4 h-4 text-cyan-300" />
-                  IndexedDB cache {cacheLabel}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <div className="relative min-w-[280px]">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input
-                  type="text"
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value)}
-                  placeholder="Filter by team, nickname, or location"
-                  className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-cyan-500 transition-colors"
-                />
+        {!isEmbedded && (
+          <ScoutWorkflowHeader
+            missionKey="preScout"
+            title="Pre Scout"
+            subtitle="Build the event spreadsheet, find public context, and expose the gaps pit and match scouts must verify."
+            onBack={() => navigate('/')}
+            metric={(
+              <div className="admin-g2-sm hidden border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-right sm:block">
+                <div className="text-xs font-black uppercase tracking-widest text-violet-200">{eventKey}</div>
+                <div className="mt-1 text-2xl font-black text-white">{summary.total} teams</div>
               </div>
-              <button
-                onClick={() => void handleExportWorkbook()}
-                disabled={filteredRows.length === 0 || downloadStatus === 'loading'}
-                className={`inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold transition-colors disabled:opacity-50 ${
-                  downloadStatus === 'success'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-100'
-                }`}
-              >
-                <Download className="w-4 h-4" />
-                {downloadStatus === 'loading'
-                  ? 'BUILDING XLSX'
-                  : downloadStatus === 'success'
-                    ? 'XLSX EXPORTED'
-                    : 'EXPORT XLSX'}
-              </button>
-              <button
-                onClick={() => void loadEventSheet()}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                REFRESH SHEET
-              </button>
-            </div>
-          </div>
-          {(showingCachedData || loading) && eventKey !== 'TEST' && (
-            <div className="mt-5 rounded-2xl border border-cyan-500/20 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">
-              {showingCachedData
-                ? 'Showing the IndexedDB cache immediately while the newest TBA data refreshes in the background.'
-                : 'Refreshing the live TBA sheet now.'}
-            </div>
-          )}
-        </div>
+            )}
+          />
+        )}
+
+        <PreScoutWorkspaceNav activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} counts={workspaceCounts} />
 
         {eventKey === 'TEST' && (
-          <div className="bg-amber-900/20 border border-amber-500/50 text-amber-300 p-5 rounded-2xl text-center font-medium">
+          <div className="admin-g2 border border-amber-500/50 bg-amber-900/20 p-5 text-center font-medium text-amber-300">
             Pre Match research is unavailable in TEST mode because it depends on a real TBA event feed.
           </div>
         )}
 
         {error && (
-          <div className="bg-red-900/20 border border-red-500/50 text-red-300 p-6 rounded-2xl text-center font-medium">
+          <div className="admin-g2 border border-red-500/50 bg-red-900/20 p-6 text-center font-medium text-red-300">
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Teams In Sheet</div>
-            <div className="text-3xl font-black text-white mt-2">{summary.total}</div>
+        {(showingCachedData || loading) && eventKey !== 'TEST' && (
+          <div className="admin-g2-sm border border-cyan-500/20 bg-cyan-950/20 px-4 py-3 text-sm text-cyan-100">
+            {showingCachedData
+              ? 'Showing the IndexedDB cache immediately while the newest TBA data refreshes in the background.'
+              : 'Refreshing the live TBA sheet now.'}
           </div>
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Teams With Media</div>
-            <div className="text-3xl font-black text-blue-300 mt-2">{summary.teamsWithMedia}</div>
-          </div>
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Likely Qualified</div>
-            <div className="text-3xl font-black text-emerald-300 mt-2">{summary.likelyQualified}</div>
-          </div>
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Missing Media</div>
-            <div className="text-3xl font-black text-amber-300 mt-2">{summary.missingMedia}</div>
-          </div>
-        </div>
+        )}
 
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
+        {activeWorkspace === 'briefing' && (
+          <>
+            <PreScoutBriefing rows={rows} loading={loading} showingCachedData={showingCachedData} cacheLabel={cacheLabel} />
+            <div className="mt-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-5">
+                <div className={labelClass}>Teams In Sheet</div>
+                <div className="mt-2 text-3xl font-black text-white">{summary.total}</div>
+              </div>
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-5">
+                <div className={labelClass}>Teams With Media</div>
+                <div className="mt-2 text-3xl font-black text-blue-300">{summary.teamsWithMedia}</div>
+              </div>
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-5">
+                <div className={labelClass}>Likely Qualified</div>
+                <div className="mt-2 text-3xl font-black text-emerald-300">{summary.likelyQualified}</div>
+              </div>
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-5">
+                <div className={labelClass}>Missing Media</div>
+                <div className="mt-2 text-3xl font-black text-amber-300">{summary.missingMedia}</div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeWorkspace === 'priorities' && (
+          <PreScoutFrame
+            title="Pit Priority Queue"
+            subtitle="These teams need human verification first because public context is thin, ambiguous, or missing."
+          >
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {priorityRows.length > 0 ? priorityRows.map(row => (
+                <div key={row.profile.teamKey} className="admin-g2-sm border border-slate-800 bg-slate-950/65 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-lg font-black text-white">{row.profile.teamNumber}</div>
+                      <div className="mt-1 text-sm font-bold text-slate-200">{row.profile.nickname || 'Nickname unavailable'}</div>
+                    </div>
+                    <div className={`admin-g2-sm border px-2 py-1 text-[10px] font-black uppercase tracking-wider ${QUALIFICATION_STYLES[row.profile.qualificationStatus]}`}>
+                      {QUALIFICATION_LABELS[row.profile.qualificationStatus]}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {row.missingFromTba.slice(0, 3).map(item => (
+                      <div key={item.label} className="admin-g2-sm border border-amber-500/20 bg-amber-950/25 px-3 py-2">
+                        <div className="text-xs font-black text-amber-100">{item.label}</div>
+                        <div className="mt-1 text-[11px] text-amber-100/75">{item.detail}</div>
+                      </div>
+                    ))}
+                    {row.missingFromTba.length === 0 && (
+                      <div className="text-xs font-semibold text-slate-400">Public context mostly present. Use Pit Scout for mechanism/reliability confirmation.</div>
+                    )}
+                  </div>
+                </div>
+              )) : (
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/65 p-6 text-sm font-semibold text-slate-400">
+                  Load an event to generate a priority queue.
+                </div>
+              )}
+            </div>
+          </PreScoutFrame>
+        )}
+
+        {activeWorkspace === 'export' && (
+          <PreScoutFrame
+            title="Export And Refresh"
+            subtitle="Keep the event sheet fresh, then hand scouts a workbook with public context and manual verification columns."
+          >
+            {dataActionBar}
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
+                <div className={labelClass}>Workbook Includes</div>
+                <div className="mt-3 space-y-2 text-sm font-semibold text-slate-300">
+                  <div>Public TBA media, robot registry, awards, event results</div>
+                  <div>District rank/points and qualification estimate</div>
+                  <div>Manual verification columns for pit and strategy notes</div>
+                </div>
+              </div>
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
+                <div className={labelClass}>Model Use</div>
+                <div className="mt-3 text-sm font-semibold text-slate-300">
+                  This creates the public fallback and tells PPA where confidence is thin before local scouting rows arrive.
+                </div>
+              </div>
+              <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
+                <div className={labelClass}>Source State</div>
+                <div className="mt-3 text-sm font-semibold text-slate-300">
+                  {loading
+                    ? 'Refreshing live TBA now.'
+                    : cacheTimestamp
+                      ? `IndexedDB cache from ${cacheLabel}.`
+                      : 'No local pre-match cache yet.'}
+                </div>
+              </div>
+            </div>
+          </PreScoutFrame>
+        )}
+
+        {activeWorkspace === 'sheet' && (
+          <PreScoutFrame
+            title="Research Sheet"
+            subtitle="Use this when you need the full row-by-row public context. Sort columns and filter by team, nickname, or location."
+          >
+        {dataActionBar}
+        <div className="admin-g2 mt-4 overflow-hidden border border-slate-800 bg-slate-900/50">
           <div className="p-5 border-b border-slate-800 flex items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-black text-white">Event Pre-Match Spreadsheet</h3>
@@ -687,7 +987,7 @@ export default function PreMatchView({
                               href={asset.viewUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 text-[11px] font-semibold text-blue-200 hover:border-blue-500/40"
+                              className="admin-g2-sm inline-flex items-center gap-1 border border-slate-700 bg-slate-950/70 px-2 py-1 text-[11px] font-semibold text-blue-200 hover:border-blue-500/40"
                             >
                               {asset.label}
                             </a>
@@ -733,7 +1033,7 @@ export default function PreMatchView({
                       {profile.districtStanding?.totalPoints != null ? profile.districtStanding.totalPoints : '--'}
                     </td>
                     <td className="px-4 py-4">
-                      <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black uppercase tracking-widest ${QUALIFICATION_STYLES[profile.qualificationStatus]}`}>
+                      <div className={`admin-g2-sm inline-flex items-center gap-2 border px-3 py-1 text-xs font-black uppercase tracking-widest ${QUALIFICATION_STYLES[profile.qualificationStatus]}`}>
                         <Shield className="w-3.5 h-3.5" />
                         {QUALIFICATION_LABELS[profile.qualificationStatus]}
                       </div>
@@ -745,14 +1045,14 @@ export default function PreMatchView({
                       {missingFromTba.length > 0 ? (
                         <div className="space-y-2">
                           {missingFromTba.map(item => (
-                            <div key={item.label} className="rounded-xl border border-amber-500/20 bg-amber-950/20 px-3 py-2">
+                            <div key={item.label} className="admin-g2-sm border border-amber-500/20 bg-amber-950/20 px-3 py-2">
                               <div className="text-xs font-black text-amber-100">{item.label}</div>
                               <div className="text-[11px] text-amber-100/80 mt-1">{item.detail}</div>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 text-xs font-semibold text-emerald-200">
+                        <div className="admin-g2-sm border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 text-xs font-semibold text-emerald-200">
                           Main tracked TBA fields available
                         </div>
                       )}
@@ -760,7 +1060,7 @@ export default function PreMatchView({
                     <td className="px-4 py-4">
                       <div className="space-y-2">
                         {manualRequired.map(item => (
-                          <div key={item.label} className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
+                          <div key={item.label} className="admin-g2-sm border border-emerald-500/20 bg-emerald-950/20 px-3 py-2">
                             <div className="text-xs font-black text-emerald-100">{item.label}</div>
                             <div className="text-[11px] text-emerald-100/80 mt-1">{item.detail}</div>
                           </div>
@@ -773,6 +1073,8 @@ export default function PreMatchView({
             </table>
           </div>
         </div>
+          </PreScoutFrame>
+        )}
       </div>
     </div>
   );

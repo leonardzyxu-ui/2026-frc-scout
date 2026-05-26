@@ -1533,16 +1533,27 @@ export const buildAlliancePickRecommendations = (
     .filter(profile => profile.teamNumber !== ownTeamNumber)
     .map(profile => {
       const status = pickedTeamStatuses[profile.teamNumber]?.status || 'available';
-      const highFloorScore = (profile.lowestNonZeroScore ?? profile.averageScore) + profile.averageScore - profile.standardDeviation;
-      const upsetScore = profile.peakScore + profile.volatility * 20 + (profile.defenseImpact ?? 0);
-      const score = highFloorScore * (1 - seedRisk) + upsetScore * seedRisk + profile.reliability * 10;
+      const expectedPpa = profile.ppa ?? profile.projectedNextScore ?? profile.averageScore;
+      const floorPpa = Math.min(profile.floorScore, expectedPpa);
+      const ceilingPpa = Math.max(profile.ceilingScore, expectedPpa, profile.peakScore);
+      const defenseValue = profile.defenseImpact ?? 0;
+      const reliabilityBonus = profile.reliability * 14;
+      const volatilityPenalty = profile.volatility * 12 + profile.zeroRate * 18;
+      const highFloorScore = floorPpa * 0.52 + expectedPpa * 0.34 + defenseValue * 0.16 + reliabilityBonus - volatilityPenalty;
+      const upsetScore = ceilingPpa * 0.46 + expectedPpa * 0.24 + profile.upsetPotential * 18 + defenseValue * 0.34 - profile.zeroRate * 10;
+      const balancedScore = expectedPpa * 0.42 + floorPpa * 0.22 + ceilingPpa * 0.18 + defenseValue * 0.24 + reliabilityBonus * 0.55 - volatilityPenalty * 0.55;
+      const score = allianceSeed <= 2
+        ? highFloorScore
+        : allianceSeed >= 7
+          ? upsetScore
+          : balancedScore * (1 - Math.abs(seedRisk - 0.5)) + ((highFloorScore + upsetScore) / 2) * Math.abs(seedRisk - 0.5);
 
       return {
         teamNumber: profile.teamNumber,
         score,
-        seedFit: allianceSeed <= 2 ? 'Floor + reliability' : allianceSeed >= 7 ? 'Upset peak + volatility' : 'Balanced value',
-        roleFit: (profile.defenseImpact ?? 0) > profile.averageScore * 0.25 ? 'Defense/specialist upside' : 'Primary scoring fit',
-        rationale: `Avg ${profile.averageScore.toFixed(1)}, Peak ${profile.peakScore.toFixed(1)}, SD ${profile.standardDeviation.toFixed(1)}, Defense ${(profile.defenseImpact ?? 0).toFixed(1)}.`,
+        seedFit: allianceSeed <= 2 ? 'Protect floor' : allianceSeed >= 7 ? 'Hunt ceiling' : 'Balance role + value',
+        roleFit: defenseValue > expectedPpa * 0.25 ? 'Defense/flex pick' : ceilingPpa - floorPpa > 18 ? 'High-upside scorer' : 'Primary scoring fit',
+        rationale: `PPA exp ${expectedPpa.toFixed(1)}, floor ${floorPpa.toFixed(1)}, ceiling ${ceilingPpa.toFixed(1)}, defense ${defenseValue.toFixed(1)}, reliability ${(profile.reliability * 100).toFixed(0)}%.`,
         status,
         pickedBy: pickedTeamStatuses[profile.teamNumber]?.pickedBy
       };

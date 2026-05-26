@@ -1,0 +1,20 @@
+{
+  "name": "current-2024-archetype-check",
+  "description": "Exact 2024-only check for whether the defended archetype ensemble generalizes to the earlier lower-scoring season.",
+  "year": 2024,
+  "outputDir": "modeling/artifacts/runs/manifest-current-2024-archetype-check",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Season-Reset EPA K=1.10",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=8 D=4",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=16 D=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10"
+  ],
+  "notes": [
+    "This is a season-specific validation check, not a tuning manifest.",
+    "Prior substring-filter validation found 2024 prefers the simpler EPA-MC ensemble."
+  ]
+}

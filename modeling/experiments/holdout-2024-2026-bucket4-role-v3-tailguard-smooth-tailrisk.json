@@ -1,0 +1,22 @@
+{
+  "name": "holdout-2024-2026-bucket4-role-v3-tailguard-smooth-tailrisk",
+  "description": "Broad 2024-2026 holdout for the TailGuard plus smooth TailRisk probability overlay: replay all cached matches, but score only event-key hash bucket 4 of 5.",
+  "years": [2024, 2025, 2026],
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [4],
+    "label": "2024-2026 RoleV3 TailGuard smooth TailRisk holdout bucket 4"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket4-role-v3-tailguard-smooth-tailrisk",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+SmoothTailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 MR=35 PR=0.25 SF=0.50",
+    "No-Future TailGuard+SmoothTailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=1.25 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 MR=35 PR=0.25 SF=0.50"
+  ],
+  "notes": [
+    "This is a holdout confirmation check for a probability-only challenger, not a new score-mean source.",
+    "Walk-forward state updates use all prior cached matches; metrics are restricted to this event-key bucket."
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "holdout-2024-2026-bucket4-role-v3-selective-tailguard",
+  "description": "Broad 2024-2026 holdout for SelectiveTailGuarded RoleV3: score only event-key hash bucket 4 of 5, the easy slice where universal stronger TailGuard lost to plain Strong RoleV3.",
+  "years": [2024, 2025, 2026],
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [4],
+    "label": "2024-2026 RoleV3 selective-tailguard bucket-4 holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket4-role-v3-selective-tailguard",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future SelectiveTailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=12/R8/S10/MIN/F28",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "This is the first failure-mode holdout for SelectiveTailGuard.",
+    "A useful selective gate should avoid unnecessary correction on this low-error bucket."
+  ]
+}

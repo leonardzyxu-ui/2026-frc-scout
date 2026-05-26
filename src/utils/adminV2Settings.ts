@@ -21,7 +21,7 @@ const sanitizeTeamNumber = (value: string) => value.replace(/[^\d]/g, '');
 export const getDefaultAdminV2Settings = (): AdminV2Settings => ({
   eventKey: DEFAULT_EVENT_KEY,
   ownTeamNumber: '',
-  selectedMetric: 'ppc',
+  selectedMetric: 'ppa',
   searchedTeamNumber: ''
 });
 
@@ -44,7 +44,7 @@ export const loadAdminV2Settings = (): AdminV2Settings => {
         parsed.selectedMetric === 'ppc' ||
         parsed.selectedMetric === 'ppa'
           ? parsed.selectedMetric
-          : 'ppc',
+          : 'ppa',
       searchedTeamNumber: sanitizeTeamNumber(parsed.searchedTeamNumber || '')
     };
   } catch (error) {

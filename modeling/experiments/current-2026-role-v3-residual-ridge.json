@@ -1,0 +1,18 @@
+{
+  "name": "current-2026-role-v3-residual-ridge",
+  "description": "Full 2026 replay for RoleV3 separated suppression/foul-risk/offense-cost/confidence features inside no-future residual-ridge.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-role-v3-residual-ridge",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35"
+  ],
+  "notes": [
+    "RoleV3 keeps RoleV2's all-attempt discipline but separates suppression magnitude, consistency, foul exposure, offense opportunity cost, and role-choice confidence.",
+    "Promotion requires a cleaner stability story than RoleV2; near-tie wins alone are not enough."
+  ]
+}

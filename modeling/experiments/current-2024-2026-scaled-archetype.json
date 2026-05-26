@@ -1,0 +1,19 @@
+{
+  "name": "current-2024-2026-scaled-archetype",
+  "description": "Exact broad 2024-2026 test of season-score-scaled championship archetype shifts against fixed-point archetype shifts.",
+  "outputDir": "modeling/artifacts/runs/manifest-current-2024-2026-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.055 DR=0.0275",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.075 DR=0.0375",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050"
+  ],
+  "notes": [
+    "This manifest intentionally has no year filter; it replays all cached official matches, currently the 2024-2026 cache.",
+    "It checks whether a ratio-based championship lift is better as a broad historical model than fixed point lifts."
+  ]
+}

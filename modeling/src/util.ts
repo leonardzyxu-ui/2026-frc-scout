@@ -39,6 +39,15 @@ export const normalizeTeamKey = (value: unknown) => {
 
 export const normalizeEventKey = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, '').toLowerCase();
 
+export const stableStringHash = (value: string) => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+};
+
 export const seasonFromEventKey = (eventKey: string) => {
   const parsed = Number.parseInt(eventKey.slice(0, 4), 10);
   return Number.isFinite(parsed) ? parsed : new Date().getFullYear();

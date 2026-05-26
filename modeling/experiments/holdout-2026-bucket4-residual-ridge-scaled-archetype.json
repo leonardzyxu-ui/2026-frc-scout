@@ -1,0 +1,21 @@
+{
+  "name": "holdout-2026-bucket4-residual-ridge-scaled-archetype",
+  "description": "Checkpointed 2026 confirmation run for no-future residual-ridge scaled-archetype candidates: replay all 2026 matches, but score only event-key hash bucket 4 of 5.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [4],
+    "label": "2026 residual-ridge checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket4-residual-ridge-scaled-archetype",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Residual-Ridge Component Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35 CP=0.10 CM=4"
+  ],
+  "notes": [
+    "This checks whether the full-2026 residual-ridge near-tie survives deterministic event-key holdout bucket 4.",
+    "The residual model trains only on prior prediction errors; the replay still updates on all 2026 matches in chronological order, with metrics restricted to the held-out bucket."
+  ]
+}

@@ -26,6 +26,7 @@ const SCOUT_PLANS_STORE = 'scoutAssignmentPlans';
 const MODEL_SNAPSHOTS_STORE = 'modelSnapshots';
 const MODEL_FEATURE_SNAPSHOTS_STORE = 'modelFeatureSnapshots';
 const FIRST_CREDENTIALS_KEY = 'first_events_credentials';
+const TBA_API_KEY_SETTINGS_KEY = 'tba_api_key';
 const STARTING_POWERCOINS = 1000;
 
 const openDb = async (): Promise<IDBDatabase | null> => {
@@ -117,6 +118,30 @@ export const clearFirstEventsCredentials = async () =>
 
 export const buildFirstEventsAuthHeader = (credentials: Pick<FirstEventsCredentials, 'username' | 'token'>) =>
   `Basic ${btoa(`${credentials.username}:${credentials.token}`)}`;
+
+export const saveTbaApiKey = async (apiKey: string) => {
+  const value = apiKey.trim();
+  await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.put({ key: TBA_API_KEY_SETTINGS_KEY, value });
+    request.onerror = () => reject(request.error ?? new Error('Failed to save TBA API key.'));
+    request.onsuccess = () => resolve();
+  });
+  return value;
+};
+
+export const loadTbaApiKey = async () =>
+  await withStore<string | null>(SETTINGS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.get(TBA_API_KEY_SETTINGS_KEY);
+    request.onerror = () => reject(request.error ?? new Error('Failed to load TBA API key.'));
+    request.onsuccess = () => resolve((request.result?.value as string | undefined) ?? null);
+  });
+
+export const clearTbaApiKey = async () =>
+  await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.delete(TBA_API_KEY_SETTINGS_KEY);
+    request.onerror = () => reject(request.error ?? new Error('Failed to clear TBA API key.'));
+    request.onsuccess = () => resolve();
+  });
 
 export const putAdminV2CacheEntry = async <T>(entry: Omit<AdminV2CacheEntry<T>, 'id' | 'timestamp'>) => {
   const cacheEntry: AdminV2CacheEntry<T> = {

@@ -1,0 +1,22 @@
+{
+  "name": "current-2024-2026-residual-vs-event-type",
+  "description": "Direct broad 2024-2026 comparison of the residual-ridge family against the earlier event-type residual and archetype winners in one exact candidate set.",
+  "outputDir": "modeling/artifacts/runs/residual-vs-event-type-2024-2026",
+  "modelNames": [
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.05 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.10 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.15 M=60",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Residual-Ridge Component Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35 CP=0.10 CM=4"
+  ],
+  "notes": [
+    "This manifest intentionally has no year filter; it replays all cached official matches, currently the 2024-2026 cache.",
+    "It compares residual-ridge against the earlier event-type residual and archetype candidates in one candidate set instead of comparing separate reports.",
+    "All candidates are no-future/promotable; published Statbotics predictions are deliberately omitted from this promotion manifest because prediction timestamp provenance is not established."
+  ]
+}

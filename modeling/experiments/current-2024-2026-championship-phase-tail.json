@@ -1,0 +1,18 @@
+{
+  "name": "current-2024-2026-championship-phase-tail",
+  "description": "Broad 2024-2026 sweep for no-future championship phase score shifts suggested by residual diagnostics.",
+  "startYear": 2024,
+  "endYear": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-championship-phase-tail",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Champs-Phase Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 E=4 M=8 LATE=0 R=72/180",
+    "No-Future Champs-Phase Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 E=6 M=10 LATE=0 R=72/180",
+    "No-Future Champs-Phase Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 E=8 M=12 LATE=0 R=72/180"
+  ],
+  "notes": [
+    "This checks whether the 2026 championship phase clue generalizes across recent seasons.",
+    "The model must beat the defended residual-ridge default on the full metric bundle before promotion."
+  ]
+}

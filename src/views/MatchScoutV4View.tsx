@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Coins, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Coins, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
 import { MatchScoutingV4, MatchScoutingV4Role, initialMatchScoutingV4 } from '../types';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { SCOUT_ASSIGNMENTS, getScoutAssignmentByName } from '../utils/scoutAssignments';
@@ -18,11 +18,64 @@ import { compressMatchDataV4 } from '../utils/qrCompression';
 import { getPowerCoinBalance, listPowerCoinBets, upsertPowerCoinBet } from '../utils/adminV2LocalStore';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
+import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
 const SUBSTITUTES = ['Charlotte', 'Scarlett'] as const;
 const ROLE_OPTIONS: MatchScoutingV4Role[] = ['Offense', 'Defense', 'Mixed', 'Support', 'Disabled'];
+type MatchScoutStepKey = 'setup' | 'score' | 'role' | 'risk' | 'handoff';
+const MATCH_SCOUT_STEPS: Array<{
+  key: MatchScoutStepKey;
+  label: string;
+  question: string;
+  output: string;
+}> = [
+  {
+    key: 'setup',
+    label: 'Setup',
+    question: 'Which robot am I responsible for?',
+    output: 'match, scout slot, alliance, team'
+  },
+  {
+    key: 'score',
+    label: 'Score Signal',
+    question: 'What points and cycles did this robot create?',
+    output: 'PPA expected value and repeatability'
+  },
+  {
+    key: 'role',
+    label: 'Role Context',
+    question: 'Why did that number happen?',
+    output: 'scorer, defender, support, or disabled context'
+  },
+  {
+    key: 'risk',
+    label: 'Floor Risk',
+    question: 'Can strategy trust the ceiling?',
+    output: 'reliability, failures, and tail risk'
+  },
+  {
+    key: 'handoff',
+    label: 'Handoff',
+    question: 'What should the head scout do with this?',
+    output: 'notes, QR backup, local-first submit'
+  }
+];
+const FAILURE_TOGGLES: Array<{ key: 'robotDied' | 'commsLost' | 'mechanismBroke' | 'tippedOver'; label: string }> = [
+  { key: 'robotDied', label: 'Robot Died' },
+  { key: 'commsLost', label: 'Comms Lost' },
+  { key: 'mechanismBroke', label: 'Mechanism Broke' },
+  { key: 'tippedOver', label: 'Tipped Over' }
+];
+const PPA_SIGNAL_STEPS = [
+  { key: 'expected', label: 'Expected Value', detail: 'Auto, teleop, and endgame points set the central PPA estimate.' },
+  { key: 'repeatability', label: 'Repeatability', detail: 'Cycles explain whether the score was stable or a one-off spike.' },
+  { key: 'role', label: 'Role Context', detail: 'Role and defense fields prevent the model from confusing strategy with weakness.' },
+  { key: 'floor', label: 'Floor Risk', detail: 'Reliability and failures define how low the team can realistically fall.' }
+];
+const inputClass = 'admin-g2-sm w-full border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400';
+const fieldLabelClass = 'text-xs font-black uppercase tracking-widest text-slate-500';
 const sanitizeScheduleEventKey = (value: string) => value.toUpperCase().replace(/\s+/g, '');
 const getShortMatchKey = (match: TBAMatch) => match.key.split('_')[1]?.toLowerCase() || '';
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
@@ -37,11 +90,13 @@ const getDefaultData = (deviceId: string, scoutName = '') =>
 
 const NumberCounter = ({
   label,
+  description,
   value,
   onChange,
   steps = [1, 3, 5, 10]
 }: {
   label: string;
+  description: string;
   value: number;
   onChange: (value: number) => void;
   steps?: number[];
@@ -53,13 +108,13 @@ const NumberCounter = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+    <div className="admin-g2 border border-slate-800 bg-slate-900/80 p-5">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="text-lg font-black text-white">{label}</h3>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Counted robot output</p>
+          <p className="mt-1 text-xs font-bold uppercase tracking-widest text-slate-500">{description}</p>
         </div>
-        <div className="rounded-2xl bg-slate-950 px-5 py-3 text-3xl font-black text-cyan-200">{value}</div>
+        <div className="admin-g2-sm border border-cyan-400/20 bg-slate-950 px-5 py-3 text-3xl font-black text-cyan-200">{value}</div>
       </div>
       <div className="grid grid-cols-4 gap-2">
         {steps.map(step => (
@@ -67,7 +122,7 @@ const NumberCounter = ({
             key={step}
             type="button"
             onClick={() => commitChange(value + step)}
-            className="rounded-2xl bg-cyan-600 px-3 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-500 active:scale-95"
+            className="admin-g2-sm bg-cyan-600 px-3 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-500 active:scale-95"
           >
             +{step}
           </button>
@@ -77,14 +132,14 @@ const NumberCounter = ({
         <button
           type="button"
           onClick={() => commitChange(Math.max(0, value - 1))}
-          className="rounded-xl bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700"
+          className="admin-g2-sm bg-slate-800 px-3 py-2 text-sm font-bold text-slate-200 hover:bg-slate-700"
         >
           -1
         </button>
         <button
           type="button"
           onClick={() => commitChange(0)}
-          className="rounded-xl bg-rose-950 px-3 py-2 text-sm font-bold text-rose-200 hover:bg-rose-900"
+          className="admin-g2-sm bg-rose-950 px-3 py-2 text-sm font-bold text-rose-200 hover:bg-rose-900"
         >
           Reset
         </button>
@@ -96,7 +151,7 @@ const NumberCounter = ({
             setLastValue(null);
           }}
           disabled={lastValue == null}
-          className="rounded-xl bg-amber-500/10 px-3 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-600"
+          className="admin-g2-sm bg-amber-500/10 px-3 py-2 text-sm font-bold text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-600"
         >
           Revert Last
         </button>
@@ -104,6 +159,172 @@ const NumberCounter = ({
     </div>
   );
 };
+
+const getStepReadiness = (step: MatchScoutStepKey, data: MatchScoutingV4, canOpenForm: boolean) => {
+  const totalCycles = data.autoCycles + data.teleopCycles;
+  const activeFailures = FAILURE_TOGGLES.some(({ key }) => data[key]);
+  switch (step) {
+    case 'setup':
+      return Boolean(data.teamNumber && data.assignedScoutName && data.alliance && canOpenForm);
+    case 'score':
+      return data.totalMatchPoints > 0 || totalCycles > 0;
+    case 'role':
+      return Boolean(data.rolePlayed || data.defendedTeamNumber || data.defenderFacedTeamNumber || data.defenseDurationSeconds > 0 || data.defenseIntensity > 0);
+    case 'risk':
+      return data.reliabilityScore < 1 || data.fouls > 0 || data.techFouls > 0 || activeFailures || Boolean(data.failureReason.trim());
+    case 'handoff':
+      return Boolean(data.notes.trim() || data.strategyNotes.trim());
+  }
+};
+
+function MatchScoutStepNav({
+  activeStep,
+  data,
+  canOpenForm,
+  onChange
+}: {
+  activeStep: MatchScoutStepKey;
+  data: MatchScoutingV4;
+  canOpenForm: boolean;
+  onChange: (step: MatchScoutStepKey) => void;
+}) {
+  return (
+    <nav className="admin-g2 border border-slate-800 bg-slate-900/70 p-3">
+      <div className="grid auto-cols-[minmax(180px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+        {MATCH_SCOUT_STEPS.map((step, index) => {
+          const isActive = activeStep === step.key;
+          const locked = !canOpenForm && step.key !== 'setup';
+          const ready = getStepReadiness(step.key, data, canOpenForm);
+          return (
+            <button
+              key={step.key}
+              type="button"
+              disabled={locked}
+              onClick={() => onChange(step.key)}
+              className={`admin-g2-sm border p-3 text-left transition ${
+                isActive
+                  ? 'border-cyan-300 bg-cyan-400/15 text-cyan-50 ring-1 ring-cyan-300/40'
+                  : locked
+                    ? 'cursor-not-allowed border-slate-800 bg-slate-950/50 text-slate-600'
+                    : 'border-slate-800 bg-slate-950/65 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  {index + 1}
+                </span>
+                {ready ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                ) : (
+                  <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-cyan-300' : 'bg-slate-700'}`} />
+                )}
+              </div>
+              <div className="mt-2 text-sm font-black text-white">{step.label}</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">{step.question}</div>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function StepFrame({
+  step,
+  children
+}: {
+  step: MatchScoutStepKey;
+  children: React.ReactNode;
+}) {
+  const currentStep = MATCH_SCOUT_STEPS.find(item => item.key === step) || MATCH_SCOUT_STEPS[0];
+  return (
+    <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">{currentStep.label}</div>
+          <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{currentStep.question}</h2>
+        </div>
+        <div className="admin-g2-sm hidden border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50 sm:block">
+          Creates: {currentStep.output}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function MatchScoutStepFooter({
+  activeStep,
+  canOpenForm,
+  onChange
+}: {
+  activeStep: MatchScoutStepKey;
+  canOpenForm: boolean;
+  onChange: (step: MatchScoutStepKey) => void;
+}) {
+  const activeIndex = MATCH_SCOUT_STEPS.findIndex(step => step.key === activeStep);
+  const previousStep = MATCH_SCOUT_STEPS[activeIndex - 1];
+  const nextStep = MATCH_SCOUT_STEPS[activeIndex + 1];
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <button
+        type="button"
+        disabled={!previousStep}
+        onClick={() => previousStep && onChange(previousStep.key)}
+        className="admin-g2-sm inline-flex items-center gap-2 border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back Step
+      </button>
+      {nextStep && (
+        <button
+          type="button"
+          disabled={!canOpenForm && nextStep.key !== 'setup'}
+          onClick={() => onChange(nextStep.key)}
+          className="admin-g2-sm inline-flex items-center gap-2 bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+        >
+          Next: {nextStep.label}
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
+  const totalCycles = data.autoCycles + data.teleopCycles;
+  const activeFailures = FAILURE_TOGGLES.filter(({ key }) => data[key]).length;
+  const signalValues: Record<string, string> = {
+    expected: `${data.totalMatchPoints} pts`,
+    repeatability: `${totalCycles} cycles`,
+    role: data.rolePlayed || 'Choose role',
+    floor: `${(data.reliabilityScore * 100).toFixed(0)}% / ${activeFailures} flags`
+  };
+
+  return (
+    <section className="admin-g2 border border-cyan-400/25 bg-cyan-500/10 p-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">PPA Capture Path</div>
+          <h2 className="mt-1 text-xl font-black text-white">Collect the shape, not just the score</h2>
+        </div>
+        <div className="text-sm font-semibold text-cyan-50/75">
+          {data.totalMatchPoints} pts · {totalCycles} cycles · {data.rolePlayed || 'role pending'} · {(data.reliabilityScore * 100).toFixed(0)}% reliability
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {PPA_SIGNAL_STEPS.map(item => (
+          <div key={item.label} className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-3 py-3">
+            <div className="text-xs font-black uppercase tracking-wider text-cyan-100">{item.label}</div>
+            <div className="mt-2 text-2xl font-black text-white">{signalValues[item.key]}</div>
+            <div className="mt-2 text-xs font-semibold text-slate-300">{item.detail}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 export default function MatchScoutV4View() {
   const navigate = useNavigate();
@@ -128,6 +349,9 @@ export default function MatchScoutV4View() {
   const [teamWarning, setTeamWarning] = useState('');
   const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
   const [teamManuallyEdited, setTeamManuallyEdited] = useState(false);
+  const [activeStep, setActiveStep] = useState<MatchScoutStepKey>('setup');
+  const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
+  const activeStepRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
   const totalPoints = normalizedData.totalMatchPoints;
@@ -139,6 +363,7 @@ export default function MatchScoutV4View() {
     () => getScoutAssignmentByName(normalizedData.assignedScoutName),
     [normalizedData.assignedScoutName]
   );
+  const canOpenForm = (betGateOpen || betSkipped) && betLockedMatchKey === currentMatchKey;
 
   useEffect(() => {
     let cancelled = false;
@@ -357,8 +582,26 @@ export default function MatchScoutV4View() {
     setTeamWarning('');
   }, [normalizedData.eventKey, normalizedData.teamNumber, scheduledTeams]);
 
+  useEffect(() => {
+    if (!canOpenForm && activeStep !== 'setup') {
+      setActiveStep('setup');
+    }
+  }, [activeStep, canOpenForm]);
+
+  useEffect(() => {
+    if (!hasUsedStepNav) return;
+    window.setTimeout(() => {
+      activeStepRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 0);
+  }, [activeStep, hasUsedStepNav]);
+
   const updateData = (patch: Partial<MatchScoutingV4>) => {
     setData(previous => normalizeMatchScoutingV4({ ...previous, ...patch }));
+  };
+
+  const handleStepChange = (step: MatchScoutStepKey) => {
+    setHasUsedStepNav(true);
+    setActiveStep(step);
   };
 
   const handleUsernameSave = async () => {
@@ -527,7 +770,6 @@ export default function MatchScoutV4View() {
     }
   };
 
-  const canOpenForm = (betGateOpen || betSkipped) && betLockedMatchKey === currentMatchKey;
   const showUsernameGate = isUsernameResolved && !archiveUsername;
 
   return (
@@ -544,52 +786,56 @@ export default function MatchScoutV4View() {
         aria-hidden={showUsernameGate}
         className={`mx-auto max-w-6xl space-y-6 pb-24 ${showUsernameGate ? 'pointer-events-none select-none blur-sm' : ''}`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
-          <div>
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="mb-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-slate-300 hover:bg-slate-800"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </button>
-            <h1 className="text-4xl font-black tracking-tight text-white">Match Scout V4</h1>
-            <p className="mt-1 text-sm font-semibold text-slate-400">
-              Full offense, defense, reliability, and strategy notes. Local-first before Firebase.
-            </p>
-            {isEditingExistingRecord && (
-              <div className="mt-3 inline-flex rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-100">
-                Editing existing V4 dataset
-              </div>
-            )}
-          </div>
-          <div className="rounded-3xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-4 text-right">
-            <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Total Match Points</div>
-            <div className="text-5xl font-black text-cyan-100">{totalPoints}</div>
-          </div>
-        </div>
+        <ScoutWorkflowHeader
+          missionKey="matchScout"
+          title="Match Scout"
+          subtitle="Capture what the robot actually contributed, plus the role and reliability context PPA needs."
+          onBack={() => navigate('/')}
+          status={isEditingExistingRecord && (
+            <div className="admin-g2-sm inline-flex border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-100">
+              Editing existing V4 dataset
+            </div>
+          )}
+          metric={(
+            <div className="admin-g2-sm border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-right sm:px-5 sm:py-4">
+              <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Total Points</div>
+              <div className="text-3xl font-black text-cyan-100 sm:text-5xl">{totalPoints}</div>
+            </div>
+          )}
+        />
 
         {statusMessage && (
-          <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
+          <div className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
             {statusMessage}
           </div>
         )}
 
-        <section className="grid gap-4 rounded-3xl border border-slate-800 bg-slate-900/70 p-5 md:grid-cols-3">
+        <MatchScoutStepNav
+          activeStep={activeStep}
+          data={normalizedData}
+          canOpenForm={canOpenForm}
+          onChange={handleStepChange}
+        />
+
+        {canOpenForm && <PpaSignalStrip data={normalizedData} />}
+
+        <div ref={activeStepRef} className="scroll-mt-4">
+        {activeStep === 'setup' && (
+          <StepFrame step="setup">
+        <div className="grid gap-4 md:grid-cols-3">
           <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Event</span>
+            <span className={fieldLabelClass}>Event</span>
             <input
               value={normalizedData.eventKey}
               readOnly
-              className="w-full rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
+              className="admin-g2-sm w-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
             />
             <span className="block text-[11px] font-semibold text-slate-500">
               Scout event is locked locally; Admin V4 settings do not change scout submissions.
             </span>
           </label>
           <div className="space-y-2">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Match Type</div>
+            <div className={fieldLabelClass}>Match Type</div>
             <div className="grid grid-cols-2 gap-2">
               {(['Practice', 'Qualification'] as const).map(matchType => (
                 <button
@@ -599,7 +845,7 @@ export default function MatchScoutV4View() {
                     setTeamManuallyEdited(false);
                     updateData({ matchType, matchKey: buildMatchKeyV4(matchType, normalizedData.matchNumber) });
                   }}
-                  className={`rounded-2xl px-4 py-3 font-black ${normalizedData.matchType === matchType ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.matchType === matchType ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {matchType}
                 </button>
@@ -607,7 +853,7 @@ export default function MatchScoutV4View() {
             </div>
           </div>
           <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Match Number</span>
+            <span className={fieldLabelClass}>Match Number</span>
             <input
               type="number"
               min={1}
@@ -616,11 +862,11 @@ export default function MatchScoutV4View() {
                 setTeamManuallyEdited(false);
                 updateData({ matchNumber: Number(event.target.value), matchKey: buildMatchKeyV4(normalizedData.matchType, Number(event.target.value)) });
               }}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-cyan-400"
+              className={`${inputClass} font-mono font-bold`}
             />
           </label>
           <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Scout Username</span>
+            <span className={fieldLabelClass}>Scout Username</span>
             <input
               value={archiveUsername}
               onChange={event => {
@@ -629,41 +875,52 @@ export default function MatchScoutV4View() {
                 updateData({ scoutName: event.target.value });
               }}
               onBlur={() => void handleUsernameSave()}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-bold text-white outline-none focus:border-cyan-400"
+              className={`${inputClass} font-bold`}
             />
           </label>
           <label className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-500">Team Number</span>
+            <span className={fieldLabelClass}>Team Number</span>
             <input
               value={normalizedData.teamNumber}
               onChange={event => {
                 setTeamManuallyEdited(true);
                 updateData({ teamNumber: event.target.value.replace(/[^\d]/g, '') });
               }}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-xl font-black text-white outline-none focus:border-cyan-400"
+              className={`${inputClass} font-mono text-xl font-black`}
             />
           </label>
           <div className="space-y-2">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-500">Alliance</div>
+            <div className={fieldLabelClass}>Alliance</div>
             <div className="grid grid-cols-2 gap-2">
               {(['Red', 'Blue'] as const).map(alliance => (
                 <button
                   key={alliance}
                   type="button"
                   onClick={() => updateData({ alliance })}
-                  className={`rounded-2xl px-4 py-3 font-black ${normalizedData.alliance === alliance ? (alliance === 'Red' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white') : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.alliance === alliance ? (alliance === 'Red' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white') : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {alliance}
                 </button>
               ))}
             </div>
           </div>
-        </section>
+        </div>
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <Target className="h-5 w-5 text-cyan-300" />
-            <h2 className="text-xl font-black text-white">Fixed Scout Assignment</h2>
+        <div className="admin-g2-sm mt-5 border border-slate-800 bg-slate-950/45 p-4">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <Target className="h-5 w-5 text-cyan-300" />
+              <div>
+                <h2 className="text-xl font-black text-white">Scout Slot</h2>
+                <p className="text-sm font-semibold text-slate-400">Choose the assigned robot slot first so the team can autofill from the match schedule.</p>
+              </div>
+            </div>
+            {isLoadingSchedule && (
+              <span className="admin-g2-sm inline-flex items-center gap-2 border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-200">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Loading schedule
+              </span>
+            )}
           </div>
           <div className="grid gap-2 md:grid-cols-6">
             {SCOUT_ASSIGNMENTS.map(assignment => (
@@ -671,7 +928,7 @@ export default function MatchScoutV4View() {
                 key={assignment.name}
                 type="button"
                 onClick={() => handleScoutSelection(assignment.name)}
-                className={`rounded-2xl px-3 py-4 text-center font-black transition active:scale-95 ${
+                className={`admin-g2-sm px-3 py-4 text-center font-black transition active:scale-95 ${
                   normalizedData.assignedScoutName === assignment.name
                     ? assignment.alliance === 'Red'
                       ? 'bg-red-500 text-white'
@@ -685,13 +942,13 @@ export default function MatchScoutV4View() {
             ))}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="mr-2 self-center text-xs font-black uppercase tracking-widest text-slate-500">Substitute</span>
+            <span className={`mr-2 self-center ${fieldLabelClass}`}>Substitute</span>
             {SUBSTITUTES.map(name => (
               <button
                 key={name}
                 type="button"
                 onClick={() => updateData({ substituteScoutName: normalizedData.substituteScoutName === name ? '' : name })}
-                className={`rounded-full px-4 py-2 text-sm font-black ${
+                className={`admin-g2-sm px-4 py-2 text-sm font-black ${
                   normalizedData.substituteScoutName === name ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
@@ -699,56 +956,53 @@ export default function MatchScoutV4View() {
               </button>
             ))}
           </div>
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+          <div className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
             Assigned slot: <span className="font-black text-white">{normalizedData.assignedSlot || 'Select scout'}</span>
             {' • '}
             Actual scout: <span className="font-black text-white">{normalizedData.substituteScoutName || archiveUsername || normalizedData.scoutName || 'Unassigned'}</span>
-            {isLoadingSchedule && (
-              <span className="ml-3 inline-flex items-center gap-2 font-black text-cyan-300">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Loading schedule...
-              </span>
-            )}
           </div>
           {(assignmentWarning || teamWarning) && (
             <div className="mt-4 space-y-2">
               {assignmentWarning && (
-                <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                <div className="admin-g2-sm flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   {assignmentWarning}
                 </div>
               )}
               {teamWarning && (
-                <div className="flex items-start gap-2 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
+                <div className="admin-g2-sm flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   {teamWarning}
                 </div>
               )}
             </div>
           )}
-        </section>
+        </div>
 
         {!canOpenForm && (
-          <section className="rounded-3xl border border-yellow-400/30 bg-yellow-500/10 p-6">
-            <div className="mb-4 flex items-center gap-3">
+          <div className="admin-g2 mt-5 border border-yellow-400/30 bg-yellow-500/10 p-6">
+            <div className="mb-4 flex items-start gap-3">
               <Coins className="h-6 w-6 text-yellow-300" />
               <div>
-                <h2 className="text-2xl font-black text-white">PowerCoins Gate</h2>
-                <p className="text-sm font-semibold text-yellow-100/80">Bet before scouting, or skip. Current balance: {powerCoinBalance.toFixed(0)} coins.</p>
+                <h2 className="text-2xl font-black text-white">Optional Prediction Bet</h2>
+                <p className="text-sm font-semibold text-yellow-100/80">
+                  This is separate from scouting. Lock a PowerCoins prediction or skip directly into data capture.
+                  Current balance: {powerCoinBalance.toFixed(0)} coins.
+                </p>
               </div>
             </div>
             <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
               <button
                 type="button"
                 onClick={() => setBetSide('Red')}
-                className={`rounded-2xl px-4 py-4 font-black ${betSide === 'Red' ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}
+                className={`admin-g2-sm px-4 py-4 font-black ${betSide === 'Red' ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}
               >
                 Bet Red
               </button>
               <button
                 type="button"
                 onClick={() => setBetSide('Blue')}
-                className={`rounded-2xl px-4 py-4 font-black ${betSide === 'Blue' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300'}`}
+                className={`admin-g2-sm px-4 py-4 font-black ${betSide === 'Blue' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300'}`}
               >
                 Bet Blue
               </button>
@@ -758,12 +1012,12 @@ export default function MatchScoutV4View() {
                 max={Math.max(1, powerCoinBalance)}
                 value={betAmount}
                 onChange={event => setBetAmount(Number(event.target.value))}
-                className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-4 font-mono font-black text-white outline-none focus:border-yellow-300"
+                className="admin-g2-sm border border-slate-700 bg-slate-950 px-4 py-4 font-mono font-black text-white outline-none focus:border-yellow-300"
               />
               <button
                 type="button"
                 onClick={() => void handleBetSubmit()}
-                className="rounded-2xl bg-yellow-400 px-6 py-4 font-black text-slate-950 hover:bg-yellow-300"
+                className="admin-g2-sm bg-yellow-400 px-6 py-4 font-black text-slate-950 hover:bg-yellow-300"
               >
                 Place Bet
               </button>
@@ -776,30 +1030,52 @@ export default function MatchScoutV4View() {
                 setBetLockedMatchKey(currentMatchKey);
                 setStatusMessage('PowerCoins skipped for this form.');
               }}
-              className="mt-3 rounded-xl bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700"
+              className="admin-g2-sm mt-3 bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700"
             >
-              Skip betting and open form
+              Skip and scout this match
             </button>
-          </section>
+          </div>
+        )}
+        {canOpenForm && (
+          <div className="admin-g2-sm mt-5 border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-100">
+            Setup is ready. Move to Score Signal when the match starts.
+          </div>
+        )}
+        <div className="mt-5">
+          <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
+        </div>
+          </StepFrame>
         )}
 
-        {canOpenForm && (
+        {canOpenForm && activeStep === 'score' && (
           <>
+            <StepFrame step="score">
             <section className="grid gap-4 md:grid-cols-3">
-              <NumberCounter label="Auto Points" value={normalizedData.autoPoints} onChange={value => updateData({ autoPoints: value })} />
-              <NumberCounter label="Teleop Points" value={normalizedData.teleopPoints} onChange={value => updateData({ teleopPoints: value })} />
-              <NumberCounter label="Endgame Points" value={normalizedData.endgamePoints} onChange={value => updateData({ endgamePoints: value })} steps={[1, 5, 10, 15]} />
+              <NumberCounter label="Auto Points" description="Starts the expected-value signal before teleop noise." value={normalizedData.autoPoints} onChange={value => updateData({ autoPoints: value })} />
+              <NumberCounter label="Teleop Points" description="Main scoring contribution for expected PPA." value={normalizedData.teleopPoints} onChange={value => updateData({ teleopPoints: value })} />
+              <NumberCounter label="Endgame Points" description="Late-match contribution and role completeness." value={normalizedData.endgamePoints} onChange={value => updateData({ endgamePoints: value })} steps={[1, 5, 10, 15]} />
             </section>
 
             <section className="grid gap-4 md:grid-cols-2">
-              <NumberCounter label="Auto Cycles" value={normalizedData.autoCycles} onChange={value => updateData({ autoCycles: value })} steps={[1]} />
-              <NumberCounter label="Teleop Cycles" value={normalizedData.teleopCycles} onChange={value => updateData({ teleopCycles: value })} steps={[1]} />
+              <NumberCounter label="Auto Cycles" description="Repeatability signal for autonomous scoring." value={normalizedData.autoCycles} onChange={value => updateData({ autoCycles: value })} steps={[1]} />
+              <NumberCounter label="Teleop Cycles" description="Repeatability signal behind teleop points." value={normalizedData.teleopCycles} onChange={value => updateData({ teleopCycles: value })} steps={[1]} />
             </section>
+            <div className="mt-5">
+              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
+            </div>
+            </StepFrame>
+          </>
+        )}
 
-            <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5">
-              <div className="mb-4 flex items-center gap-3">
+        {canOpenForm && activeStep === 'role' && (
+          <StepFrame step="role">
+            <section>
+              <div className="mb-4 flex items-start gap-3">
                 <Shield className="h-5 w-5 text-emerald-300" />
-                <h2 className="text-xl font-black text-white">Defense and Role</h2>
+                <div>
+                  <h2 className="text-xl font-black text-white">Role + Defense Context</h2>
+                  <p className="text-sm font-semibold text-slate-400">Tell PPA why the number happened, especially when a robot traded scoring for defense or support.</p>
+                </div>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="md:col-span-3 grid gap-2 md:grid-cols-5">
@@ -808,40 +1084,40 @@ export default function MatchScoutV4View() {
                       key={role}
                       type="button"
                       onClick={() => updateData({ rolePlayed: role })}
-                      className={`rounded-2xl px-3 py-3 font-black ${normalizedData.rolePlayed === role ? 'bg-emerald-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                      className={`admin-g2-sm px-3 py-3 font-black ${normalizedData.rolePlayed === role ? 'bg-emerald-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                     >
                       {role}
                     </button>
                   ))}
                 </div>
                 <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Team they defended</span>
+                  <span className={fieldLabelClass}>Team they defended</span>
                   <input
                     value={normalizedData.defendedTeamNumber}
                     onChange={event => updateData({ defendedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-emerald-400"
+                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Defender faced</span>
+                  <span className={fieldLabelClass}>Defender faced</span>
                   <input
                     value={normalizedData.defenderFacedTeamNumber}
                     onChange={event => updateData({ defenderFacedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-emerald-400"
+                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
                   />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Defense duration seconds</span>
+                  <span className={fieldLabelClass}>Defense duration seconds</span>
                   <input
                     type="number"
                     min={0}
                     value={normalizedData.defenseDurationSeconds}
                     onChange={event => updateData({ defenseDurationSeconds: Number(event.target.value) })}
-                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-emerald-400"
+                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
                   />
                 </label>
                 <label className="space-y-2 md:col-span-3">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                  <span className={fieldLabelClass}>
                     Defense Intensity: {(normalizedData.defenseIntensity * 100).toFixed(2)}%
                   </span>
                   <input
@@ -856,65 +1132,78 @@ export default function MatchScoutV4View() {
                 </label>
               </div>
             </section>
+            <div className="mt-5">
+              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
+            </div>
+          </StepFrame>
+        )}
 
-            <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5">
-              <div className="mb-4 flex items-center gap-3">
+        {canOpenForm && activeStep === 'risk' && (
+          <StepFrame step="risk">
+            <section>
+              <div className="mb-4 flex items-start gap-3">
                 <Trophy className="h-5 w-5 text-rose-300" />
-                <h2 className="text-xl font-black text-white">Reliability, Fouls, and Failures</h2>
+                <div>
+                  <h2 className="text-xl font-black text-white">Floor Risk + Reliability</h2>
+                  <p className="text-sm font-semibold text-slate-400">These fields protect strategy from trusting a ceiling when the robot had foul leakage, disconnects, or mechanical risk.</p>
+                </div>
               </div>
               <div className="grid gap-4 md:grid-cols-4">
                 <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Fouls</span>
-                  <input type="number" min={0} value={normalizedData.fouls} onChange={event => updateData({ fouls: Number(event.target.value) })} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-rose-400" />
+                  <span className={fieldLabelClass}>Fouls</span>
+                  <input type="number" min={0} value={normalizedData.fouls} onChange={event => updateData({ fouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
                 </label>
                 <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Tech Fouls</span>
-                  <input type="number" min={0} value={normalizedData.techFouls} onChange={event => updateData({ techFouls: Number(event.target.value) })} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono font-bold text-white outline-none focus:border-rose-400" />
+                  <span className={fieldLabelClass}>Tech Fouls</span>
+                  <input type="number" min={0} value={normalizedData.techFouls} onChange={event => updateData({ techFouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
                 </label>
                 <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">Reliability: {(normalizedData.reliabilityScore * 100).toFixed(2)}%</span>
+                  <span className={fieldLabelClass}>Reliability: {(normalizedData.reliabilityScore * 100).toFixed(2)}%</span>
                   <input type="range" min={0} max={1} step={0.0001} value={normalizedData.reliabilityScore} onChange={event => updateData({ reliabilityScore: Number(event.target.value) })} className="w-full accent-rose-400" />
                 </label>
               </div>
               <div className="mt-4 grid gap-2 md:grid-cols-4">
-                {[
-                  ['robotDied', 'Robot Died'],
-                  ['commsLost', 'Comms Lost'],
-                  ['mechanismBroke', 'Mechanism Broke'],
-                  ['tippedOver', 'Tipped Over']
-                ].map(([key, label]) => (
+                {FAILURE_TOGGLES.map(({ key, label }) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => updateData({ [key]: !normalizedData[key as keyof MatchScoutingV4] } as Partial<MatchScoutingV4>)}
-                    className={`rounded-2xl px-3 py-3 font-black ${normalizedData[key as keyof MatchScoutingV4] ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                    onClick={() => updateData({ [key]: !normalizedData[key] })}
+                    className={`admin-g2-sm px-3 py-3 font-black ${normalizedData[key] ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
               <label className="mt-4 block space-y-2">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500">Failure Reason</span>
-                <input value={normalizedData.failureReason} onChange={event => updateData({ failureReason: event.target.value })} className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-rose-400" />
+                <span className={fieldLabelClass}>Failure Reason</span>
+                <input value={normalizedData.failureReason} onChange={event => updateData({ failureReason: event.target.value })} className={`${inputClass} focus:border-rose-400`} />
               </label>
             </section>
+            <div className="mt-5">
+              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
+            </div>
+          </StepFrame>
+        )}
 
+        {canOpenForm && activeStep === 'handoff' && (
+          <>
+            <StepFrame step="handoff">
             <section className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500">Qualitative Notes</span>
-                <textarea value={normalizedData.notes} onChange={event => updateData({ notes: event.target.value })} rows={7} className="w-full rounded-3xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400" />
+                <span className={fieldLabelClass}>What changed the number?</span>
+                <textarea value={normalizedData.notes} onChange={event => updateData({ notes: event.target.value })} rows={7} className={`${inputClass} min-h-36`} />
               </label>
               <label className="space-y-2">
-                <span className="text-xs font-black uppercase tracking-widest text-slate-500">Strategy Notes</span>
-                <textarea value={normalizedData.strategyNotes} onChange={event => updateData({ strategyNotes: event.target.value })} rows={7} className="w-full rounded-3xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400" />
+                <span className={fieldLabelClass}>What should strategy know?</span>
+                <textarea value={normalizedData.strategyNotes} onChange={event => updateData({ strategyNotes: event.target.value })} rows={7} className={`${inputClass} min-h-36`} />
               </label>
             </section>
 
-            <div className="flex flex-wrap items-center justify-end gap-3">
+            <div className="admin-g2 flex flex-wrap items-center justify-end gap-3 border border-slate-800 bg-slate-900/70 p-4">
               <button
                 type="button"
                 onClick={() => setShowQr(value => !value)}
-                className="inline-flex items-center gap-2 rounded-2xl bg-slate-800 px-5 py-3 font-black text-slate-200 hover:bg-slate-700"
+                className="admin-g2-sm inline-flex items-center gap-2 bg-slate-800 px-5 py-3 font-black text-slate-200 hover:bg-slate-700"
               >
                 <QrCode className="h-5 w-5" />
                 QR Export
@@ -923,16 +1212,20 @@ export default function MatchScoutV4View() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={isSubmitting}
-                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-8 py-3 text-lg font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                className="admin-g2-sm inline-flex items-center gap-2 bg-emerald-500 px-8 py-3 text-lg font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
               >
                 <Save className="h-5 w-5" />
                 Submit Local First
               </button>
             </div>
+            <div className="mt-5">
+              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
+            </div>
+            </StepFrame>
 
             {showQr && (
-              <div className="rounded-3xl border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
-                <div className="mx-auto inline-block rounded-3xl bg-white p-4">
+              <div className="admin-g2 border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
+                <div className="admin-g2 mx-auto inline-block bg-white p-4">
                   <QRCodeSVG value={compressMatchDataV4(buildCurrentPayload())} size={260} level="M" />
                 </div>
                 <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
@@ -943,6 +1236,7 @@ export default function MatchScoutV4View() {
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );

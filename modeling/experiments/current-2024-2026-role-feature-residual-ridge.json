@@ -1,0 +1,16 @@
+{
+  "name": "current-2024-2026-role-feature-residual-ridge",
+  "description": "Broad 2024-2026 test of using inferred role, defense, and foul-risk features only inside the residual-ridge correction layer.",
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-role-feature-residual-ridge",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35",
+    "No-Future Strong Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35"
+  ],
+  "notes": [
+    "This checks whether role/foul features become useful when learned as residual corrections across multiple scoring environments.",
+    "The candidate is still not scout-enriched; all role values come from official-score residual proxies and official foul points."
+  ]
+}

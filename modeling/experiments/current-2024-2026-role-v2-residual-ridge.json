@@ -1,0 +1,16 @@
+{
+  "name": "current-2024-2026-role-v2-residual-ridge",
+  "description": "Broad 2024-2026 test of conservative RoleV2 suppression/foul-risk features inside the no-future residual-ridge correction layer.",
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-role-v2-residual-ridge",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35",
+    "No-Future RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=50 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "This is the broad replay check for RoleV2. It should not be promoted unless it improves score/margin/Brier without obvious overfit or slice instability.",
+    "The candidate is still not scout-enriched; RoleV2 uses official-score suppression/foul proxies only."
+  ]
+}

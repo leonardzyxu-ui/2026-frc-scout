@@ -1,0 +1,20 @@
+{
+  "name": "event-2026mnum-scoutgate",
+  "description": "Focused 2026mnum replay testing whether coverage-aware scout-gated features help at the event where Firebase scout coverage is densest.",
+  "eventKey": "2026mnum",
+  "outputDir": "modeling/artifacts/runs/event-2026mnum-scoutgate",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future ScoutGate Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 SG=E2/S6",
+    "No-Future ScoutGate TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 SG=E2/S6",
+    "No-Future Compact Ridge L2=10",
+    "No-Future Compact Robust Ridge L2=10",
+    "No-Future ScoutGate Compact Ridge L2=10 SG=E2/S6",
+    "No-Future ScoutGate Compact Robust Ridge L2=10 SG=E2/S6"
+  ],
+  "notes": [
+    "A focused-event win is not enough for promotion, but it tells us whether the gate can use dense scout evidence at all.",
+    "The event-specific run is paired with full-year and bucket holdouts before any model card language changes."
+  ]
+}

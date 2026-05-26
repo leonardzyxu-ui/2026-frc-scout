@@ -1,0 +1,17 @@
+{
+  "name": "current-2026-margin-confidence-tail-risk-winprob",
+  "description": "Full 2026 replay testing TailRiskWinProb only on wide-margin, high-confidence baseline predictions.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-margin-confidence-tail-risk-winprob",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future MarginConfidenceTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 MG=25 CG=0.25",
+    "No-Future MarginConfidenceTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 MG=25 CG=0.25"
+  ],
+  "notes": [
+    "The comparison-slice artifact showed 2026 TailRiskWinProb Brier gains concentrated in wide-margin and high-confidence predictions.",
+    "This run tests whether applying the probability overlay only in that regime keeps the gain and avoids medium/low-confidence over-softening."
+  ]
+}

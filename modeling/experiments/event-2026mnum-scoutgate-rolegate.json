@@ -1,0 +1,24 @@
+{
+  "name": "event-2026mnum-scoutgate-rolegate",
+  "description": "Focused 2026mnum replay testing whether coverage-aware scout-gated features help at the event where Firebase scout coverage is densest. RoleGate adds a stricter RoleV3Gated feature family: scout defense enters role reasoning through confidence-shrunk ScoutGate values, and gated role selection requires confidence >= 0.35.",
+  "eventKey": "2026mnum",
+  "outputDir": "modeling/artifacts/runs/event-2026mnum-scoutgate-rolegate",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future ScoutGate Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 SG=E2/S6",
+    "No-Future ScoutGate RoleGate Strong RoleV3Gated Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 SG=E2/S6 RG=C0.35",
+    "No-Future ScoutGate TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 SG=E2/S6",
+    "No-Future ScoutGate RoleGate TailGuarded Strong RoleV3Gated Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 SG=E2/S6 RG=C0.35",
+    "No-Future Compact Ridge L2=10",
+    "No-Future Compact Robust Ridge L2=10",
+    "No-Future ScoutGate Compact Ridge L2=10 SG=E2/S6",
+    "No-Future ScoutGate Compact Robust Ridge L2=10 SG=E2/S6"
+  ],
+  "notes": [
+    "A focused-event win is not enough for promotion, but it tells us whether the gate can use dense scout evidence at all.",
+    "The event-specific run is paired with full-year and bucket holdouts before any model card language changes.",
+    "RoleGate is a role-feature leakage/overfit pressure test: it should win only if confidence-shrunk scout role evidence improves held-out replay, not merely because raw scout defense sneaks through role features.",
+    "RG=C0.35 means the gated role summary records all role signals but only selects a defender when the pre-match role confidence reaches 0.35."
+  ]
+}

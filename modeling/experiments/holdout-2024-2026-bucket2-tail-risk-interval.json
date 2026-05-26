@@ -1,0 +1,19 @@
+{
+  "name": "holdout-2024-2026-bucket2-tail-risk-interval",
+  "description": "Broad 2024-2026 bucket-2 holdout testing learned-tail as asymmetric interval widening.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [2],
+    "label": "2024-2026 tail-risk interval bucket 2 holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket2-tail-risk-interval",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskInterval Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TU=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskInterval Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TU=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "Bucket 2 previously resisted several tail mean corrections, so this is a strong check for interval-only safety.",
+    "The replay updates on all cached 2024-2026 matches chronologically; only reported metrics are restricted to bucket 2."
+  ]
+}
