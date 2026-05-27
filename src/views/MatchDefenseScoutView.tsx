@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteDoc, doc } from 'firebase/firestore';
-import { AlertTriangle, ArrowLeft, Download, QrCode } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { db } from '../firebase';
 import { MatchDefenseScoutingV1, initialMatchDefenseScoutingV1 } from '../types';
 import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventState';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
+import { loadTbaApiKey } from '../utils/adminV2LocalStore';
 import {
   buildMatchKeyV3
 } from '../utils/matchScoutingV3';
@@ -25,6 +26,9 @@ import {
 import { getMatchDefenseDocId, writeMatchDefenseScoutingRecord } from '../utils/scoutingWrites';
 import { SCOUT_ASSIGNMENTS } from '../utils/scoutAssignments';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
+import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
 
 export const MATCH_DEFENSE_EDIT_STORAGE_KEY = 'edit_match_defense_data_v1';
 
@@ -35,6 +39,45 @@ const MATCH_DEFENSE_MATCH_NUMBER_STORAGE = 'match_defense_match_number';
 const MATCH_DEFENSE_TEAM_STORAGE = 'match_defense_team';
 const SUBSTITUTE_SCOUTS = ['Charlotte', 'Scarlett'] as const;
 const MATCH_TYPES: MatchDefenseScoutingV1['matchType'][] = ['Practice', 'Qualification'];
+type DefenseScoutStepKey = 'match' | 'target' | 'impact' | 'evidence' | 'handoff';
+
+const DEFENSE_SCOUT_STEPS: Array<{
+  key: DefenseScoutStepKey;
+  label: string;
+  question: string;
+  output: string;
+}> = [
+  {
+    key: 'match',
+    label: 'Match',
+    question: 'Which match and scout slot is this?',
+    output: 'scheduled context'
+  },
+  {
+    key: 'target',
+    label: 'Target',
+    question: 'Which robot produced the defense?',
+    output: 'team and alliance attribution'
+  },
+  {
+    key: 'impact',
+    label: 'Impact',
+    question: 'How much did the defense deny?',
+    output: 'defense metric for PPA role context'
+  },
+  {
+    key: 'evidence',
+    label: 'Evidence',
+    question: 'What proof explains the number?',
+    output: 'denial notes and strategy use'
+  },
+  {
+    key: 'handoff',
+    label: 'Handoff',
+    question: 'How should strategy use this?',
+    output: 'role recommendation, QR, submit'
+  }
+];
 
 interface MatchDefenseDraftPayload {
   data: MatchDefenseScoutingV1;
@@ -61,26 +104,29 @@ const toPositiveInt = (value: string) => {
 };
 
 const formatDefensePercent = (value: number) => `${(value * 100).toFixed(2)}%`;
+const inputClass = 'admin-g2-sm w-full border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500';
+const labelClass = 'text-xs font-black uppercase tracking-wider text-slate-500';
 
-function SectionCard({
-  title,
-  subtitle,
-  children
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 md:p-6">
-      <div className="mb-5 border-b border-slate-800 pb-3">
-        <h2 className="text-xl font-black text-white">{title}</h2>
-        {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
-      </div>
-      <div className="space-y-5">{children}</div>
-    </div>
-  );
-}
+const getDefenseRoleLabel = (value: number) => {
+  if (value >= 0.75) return 'Primary defender';
+  if (value >= 0.55) return 'Useful disruptor';
+  if (value >= 0.35) return 'Situational pressure';
+  return 'Not a defense role';
+};
+
+const getDefenseStrategyNote = (value: number) => {
+  if (value >= 0.75) return 'Plan around opponent denial; verify foul risk before assigning.';
+  if (value >= 0.55) return 'Useful when the match plan needs a targeted slowdown.';
+  if (value >= 0.35) return 'Only assign if the offensive opportunity cost is low.';
+  return 'Do not let weak scoring be excused as defense without evidence.';
+};
+
+const getPpaDefenseGuardrail = (value: number) => {
+  if (value >= 0.75) return 'Strong role correction';
+  if (value >= 0.55) return 'Use as defense prior';
+  if (value >= 0.35) return 'Flag as situational defense';
+  return 'No PPA role correction yet';
+};
 
 function ChoiceButton({
   active,
@@ -98,7 +144,7 @@ function ChoiceButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl px-3 py-3 text-sm font-black transition-all ${
+      className={`admin-g2-sm px-3 py-3 text-sm font-black transition-all ${
         active
           ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/20'
           : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
@@ -106,6 +152,122 @@ function ChoiceButton({
     >
       {label}
     </button>
+  );
+}
+
+const getDefenseStepReadiness = (step: DefenseScoutStepKey, data: MatchDefenseScoutingV1) => {
+  const commentSignal = [data.defenseComments, data.generalComments].join(' ').trim();
+  switch (step) {
+    case 'match':
+      return Boolean(data.eventKey && data.matchNumber && data.assignedScoutName);
+    case 'target':
+      return Boolean(data.teamNumber && data.alliance);
+    case 'impact':
+      return data.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric;
+    case 'evidence':
+      return commentSignal.length >= 40;
+    case 'handoff':
+      return Boolean(data.teamNumber && data.alliance && commentSignal.length >= 40);
+  }
+};
+
+function DefenseStepNav({
+  activeStep,
+  data,
+  onChange
+}: {
+  activeStep: DefenseScoutStepKey;
+  data: MatchDefenseScoutingV1;
+  onChange: (step: DefenseScoutStepKey) => void;
+}) {
+  return (
+    <nav className="admin-g2 border border-slate-800 bg-slate-900/70 p-3">
+      <div className="grid auto-cols-[minmax(180px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-5 lg:overflow-visible lg:pb-0">
+        {DEFENSE_SCOUT_STEPS.map((step, index) => {
+          const isActive = activeStep === step.key;
+          const ready = getDefenseStepReadiness(step.key, data);
+          return (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => onChange(step.key)}
+              className={`admin-g2-sm border p-3 text-left transition ${
+                isActive
+                  ? 'border-rose-300 bg-rose-400/15 text-rose-50 ring-1 ring-rose-300/40'
+                  : 'border-slate-800 bg-slate-950/65 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{index + 1}</span>
+                {ready ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-rose-300' : 'bg-slate-700'}`} />}
+              </div>
+              <div className="mt-2 text-sm font-black text-white">{step.label}</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">{step.question}</div>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+function DefenseStepFrame({
+  step,
+  children
+}: {
+  step: DefenseScoutStepKey;
+  children: React.ReactNode;
+}) {
+  const currentStep = DEFENSE_SCOUT_STEPS.find(item => item.key === step) || DEFENSE_SCOUT_STEPS[0]!;
+  return (
+    <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">{currentStep.label}</div>
+          <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{currentStep.question}</h2>
+        </div>
+        <div className="admin-g2-sm hidden border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-50 sm:block">
+          Creates: {currentStep.output}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function DefenseStepFooter({
+  activeStep,
+  onChange
+}: {
+  activeStep: DefenseScoutStepKey;
+  onChange: (step: DefenseScoutStepKey) => void;
+}) {
+  const activeIndex = DEFENSE_SCOUT_STEPS.findIndex(step => step.key === activeStep);
+  const previousStep = DEFENSE_SCOUT_STEPS[activeIndex - 1];
+  const nextStep = DEFENSE_SCOUT_STEPS[activeIndex + 1];
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <button
+        type="button"
+        disabled={!previousStep}
+        onClick={() => previousStep && onChange(previousStep.key)}
+        className="admin-g2-sm inline-flex items-center gap-2 border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back Step
+      </button>
+      {nextStep && (
+        <button
+          type="button"
+          onClick={() => onChange(nextStep.key)}
+          className="admin-g2-sm inline-flex items-center gap-2 bg-rose-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-rose-300"
+        >
+          Next: {nextStep.label}
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -117,9 +279,9 @@ function DefenseMetricSlider({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+    <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 p-4">
       <div className="mb-2 flex items-center justify-between">
-        <label className="text-xs font-black uppercase tracking-wider text-slate-500">Defense Metric</label>
+        <label className={labelClass}>Defense Metric</label>
         <span className="font-mono text-sm font-black text-emerald-300">{formatDefensePercent(value)}</span>
       </div>
       <input
@@ -140,13 +302,99 @@ function DefenseMetricSlider({
   );
 }
 
+function DefenseImpactStrip({ data }: { data: MatchDefenseScoutingV1 }) {
+  const roleLabel = getDefenseRoleLabel(data.defenseMetric);
+  const strategyNote = getDefenseStrategyNote(data.defenseMetric);
+  const commentSignal = [data.defenseComments, data.generalComments].join(' ').trim();
+  const hasTargetTeam = Boolean(data.teamNumber.trim());
+  const hasDeniedAction = /(deny|denied|slow|slowed|block|blocked|stop|stopped|cycle|cycles|score|scoring|reef|coral|algae|station|route)/i.test(commentSignal);
+  const hasRiskNote = /(foul|fouls|penalty|pin|card|traffic|risk|contact|danger|avoid|safe)/i.test(commentSignal);
+  const evidenceLabel = commentSignal.length >= 120
+    ? 'Strong notes'
+    : commentSignal.length >= 40
+      ? 'Usable notes'
+      : 'Needs evidence';
+  const proofChecklist = [
+    hasTargetTeam ? `Team ${data.teamNumber}` : 'team pending',
+    hasDeniedAction ? 'denial named' : 'denial missing',
+    hasRiskNote ? 'risk named' : 'risk missing'
+  ].join(' / ');
+  const cards = [
+    {
+      label: 'Denied Output',
+      value: formatDefensePercent(data.defenseMetric),
+      detail: 'Observable scoring or cycle suppression, not a vague excuse for low offense.'
+    },
+    {
+      label: 'PPA Role Guard',
+      value: getPpaDefenseGuardrail(data.defenseMetric),
+      detail: 'Protects PPA from punishing a robot whose job was targeted defense.'
+    },
+    {
+      label: 'Role Read',
+      value: roleLabel,
+      detail: strategyNote
+    },
+    {
+      label: 'Admin Uses',
+      value: hasTargetTeam ? `${data.alliance || 'Alliance'} ${data.teamNumber}` : 'Target pending',
+      detail: 'Feeds match plans, Pick List role fit, and opponent risk notes.'
+    },
+    {
+      label: 'Proof Status',
+      value: evidenceLabel,
+      detail: proofChecklist
+    }
+  ];
+
+  return (
+    <section className="admin-g2 border border-rose-400/25 bg-rose-500/10 p-5">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">Defense PPA Evidence Map</div>
+          <h2 className="mt-1 text-xl font-black text-white">Separate real denial from low scoring</h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold text-rose-50/75">
+            This row becomes a role correction for Admin V4: it can raise trust in a defender, lower risk in future-match plans, and stop the model from treating defensive sacrifice as bad scoring.
+          </p>
+        </div>
+        <div className="text-sm font-semibold text-rose-50/75">
+          {data.matchKey.toUpperCase()} · {data.alliance || 'alliance pending'} · {roleLabel}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {cards.map(card => (
+          <div key={card.label} className="admin-g2-sm border border-rose-200/10 bg-slate-950/55 px-3 py-3">
+            <div className="text-xs font-black uppercase tracking-wider text-rose-100">{card.label}</div>
+            <div className="mt-2 text-lg font-black text-white">{card.value}</div>
+            <div className="mt-2 text-xs font-semibold text-slate-300">{card.detail}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function MatchDefenseScoutView() {
   const navigate = useNavigate();
-  const storedEventKey = sanitizeEventKey(localStorage.getItem(MATCH_DEFENSE_EVENT_KEY_STORAGE) || DEFAULT_EVENT_KEY);
+  const location = useLocation();
+  const taskHandoff = useMemo(() => getScoutTaskHandoff('defenseScout', location.search), [location.search]);
+  const taskHandoffKey = taskHandoff
+    ? [
+        taskHandoff.teamNumber,
+        taskHandoff.eventKey,
+        taskHandoff.matchType,
+        taskHandoff.matchNumber,
+        taskHandoff.alliance,
+        taskHandoff.reason
+      ].join(':')
+    : '';
+  const [completedAdminTaskKey, setCompletedAdminTaskKey] = useState('');
+  const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
+  const storedEventKey = sanitizeEventKey(activeTaskHandoff?.eventKey || localStorage.getItem(MATCH_DEFENSE_EVENT_KEY_STORAGE) || DEFAULT_EVENT_KEY);
   const storedAssignedScout = getStoredAssignedScout();
-  const storedMatchType = getStoredMatchType();
-  const storedMatchNumber = getStoredMatchNumber();
-  const storedTeamNumber = getStoredTeamNumber();
+  const storedMatchType = activeTaskHandoff?.matchType || getStoredMatchType();
+  const storedMatchNumber = activeTaskHandoff?.matchNumber || getStoredMatchNumber();
+  const storedTeamNumber = activeTaskHandoff?.teamNumber || getStoredTeamNumber();
   const persistentDeviceId = useMemo(() => getPersistentDeviceId(), []);
   const storedAssignment = useMemo(
     () => SCOUT_ASSIGNMENTS.find(assignment => assignment.name === storedAssignedScout) || null,
@@ -164,7 +412,7 @@ export default function MatchDefenseScoutView() {
       scoutName: storedAssignedScout,
       assignedScoutName: storedAssignedScout,
       assignedSlot: storedAssignment?.slotLabel || '',
-      alliance: storedAssignment?.alliance || '',
+      alliance: activeTaskHandoff?.alliance || storedAssignment?.alliance || '',
       deviceId: persistentDeviceId
     })
   );
@@ -183,7 +431,18 @@ export default function MatchDefenseScoutView() {
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [assignmentWarning, setAssignmentWarning] = useState('');
   const [teamWarning, setTeamWarning] = useState('');
+  const [activeStep, setActiveStep] = useState<DefenseScoutStepKey>('match');
+  const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
+  const activeStepRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftSaveRef = useRef(false);
+  const shouldShowDefenseMap =
+    activeStep !== 'match' ||
+    Boolean(
+      data.teamNumber.trim() ||
+      data.defenseComments.trim() ||
+      data.generalComments.trim() ||
+      data.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric
+    );
 
   const selectedAssignment = useMemo(
     () => SCOUT_ASSIGNMENTS.find(assignment => assignment.name === data.assignedScoutName) || null,
@@ -201,6 +460,34 @@ export default function MatchDefenseScoutView() {
   const updateData = (updates: Partial<MatchDefenseScoutingV1>) => {
     setData(prev => normalizeMatchDefenseScoutingV1({ ...prev, ...updates }));
   };
+
+  const handleStepChange = (step: DefenseScoutStepKey) => {
+    setHasUsedStepNav(true);
+    setActiveStep(step);
+  };
+
+  useEffect(() => {
+    if (!bootResolved || !isDraftHydrated || !activeTaskHandoff || isEditing) return;
+    setActiveStep('match');
+    updateData({
+      eventKey: activeTaskHandoff.eventKey || data.eventKey,
+      matchType: activeTaskHandoff.matchType || data.matchType,
+      matchNumber: activeTaskHandoff.matchNumber || data.matchNumber,
+      teamNumber: activeTaskHandoff.teamNumber || data.teamNumber,
+      alliance: activeTaskHandoff.alliance || data.alliance
+    });
+    setNotification({
+      type: 'success',
+      message: `Admin task loaded: ${activeTaskHandoff.reason || 'collect defense read'} for Team ${activeTaskHandoff.teamNumber}.`
+    });
+  }, [activeTaskHandoff, bootResolved, isDraftHydrated, isEditing, taskHandoffKey]);
+
+  useEffect(() => {
+    if (!hasUsedStepNav) return;
+    window.setTimeout(() => {
+      activeStepRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 0);
+  }, [activeStep, hasUsedStepNav]);
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
@@ -351,14 +638,20 @@ export default function MatchDefenseScoutView() {
         }
       }
 
-      if (!TBA_API_KEY) {
-        setAssignmentWarning('TBA API key missing. Schedule auto-fill is unavailable; team and alliance remain manual.');
+      const localTbaApiKey = await loadTbaApiKey().catch(() => null);
+      const effectiveTbaApiKey = localTbaApiKey || TBA_API_KEY;
+      if (!effectiveTbaApiKey) {
+        setAssignmentWarning(
+          cachedMatches
+            ? 'Using cached schedule. Upload a local TBA key in Admin V4 Settings to refresh live auto-fill.'
+            : 'Schedule auto-fill needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
+        );
         return;
       }
 
       setIsLoadingSchedule(true);
       try {
-        const engine = new MathEngine(TBA_API_KEY);
+        const engine = new MathEngine(effectiveTbaApiKey);
         const matches = await engine.fetchEventMatches(data.eventKey, { includeUnplayed: true });
         setEventMatches(matches);
         localStorage.setItem(cacheKey, JSON.stringify(matches));
@@ -522,7 +815,8 @@ export default function MatchDefenseScoutView() {
         scoutName: data.substituteScoutName || data.assignedScoutName,
         deviceId: data.deviceId || persistentDeviceId,
         timestamp: Date.now(),
-        matchKey: buildMatchKeyV3(data.matchType, data.matchNumber)
+        matchKey: buildMatchKeyV3(data.matchType, data.matchNumber),
+        adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
       });
 
       const docId = getMatchDefenseDocId(payload);
@@ -532,6 +826,10 @@ export default function MatchDefenseScoutView() {
         lastFirebaseAttemptAt: Date.now(),
         lastFirebaseError: ''
       });
+      if (activeTaskHandoff) {
+        setCompletedAdminTaskKey(taskHandoffKey);
+        clearScoutTaskHandoff('defenseScout');
+      }
       await deleteScoutDraft(activeDraftKey);
       skipNextDraftSaveRef.current = true;
       let syncMessage = isEditing ? 'Defense record updated successfully.' : 'Defense record submitted successfully.';
@@ -612,7 +910,7 @@ export default function MatchDefenseScoutView() {
     <div className="flex h-full flex-col overflow-y-auto bg-slate-950 p-4 pb-24 text-white md:p-6">
       {notification && (
         <div
-          className={`fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-full px-6 py-3 font-bold shadow-2xl ${
+          className={`admin-g2-sm fixed left-1/2 top-4 z-50 -translate-x-1/2 px-6 py-3 font-bold shadow-2xl ${
             notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
           }`}
         >
@@ -630,239 +928,273 @@ export default function MatchDefenseScoutView() {
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
-        <div>
-          <h1 className="bg-gradient-to-r from-cyan-400 via-blue-400 to-emerald-400 bg-clip-text text-3xl font-black text-transparent">
-            {isEditing ? 'EDIT DEFENSE SCOUT' : 'DEFENSE SCOUT'}
-          </h1>
-          <p className="mt-1 text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-            Sparse scouting form for defense observations
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowQr(true)}
-            className="rounded-xl bg-slate-800 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-700"
-          >
-            <QrCode className="mr-2 inline h-4 w-4" />
-            QR Export
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="rounded-xl bg-slate-800 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-700"
-          >
-            <ArrowLeft className="mr-2 inline h-4 w-4" />
-            Back
-          </button>
-        </div>
-      </div>
+      <ScoutWorkflowHeader
+        missionKey="defenseScout"
+        title={isEditing ? 'Edit Defense Scout' : 'Defense Scout'}
+        subtitle="Capture whether defense actually denied points, who it affected, and how it should influence role planning."
+        handoff={activeTaskHandoff}
+        onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
+        metric={(
+          <div className="admin-g2-sm hidden border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-right sm:block sm:px-5 sm:py-4">
+            <div className="text-xs font-black uppercase tracking-widest text-rose-200">Defense Metric</div>
+            <div className="text-3xl font-black text-rose-100 sm:text-5xl">{formatDefensePercent(data.defenseMetric)}</div>
+          </div>
+        )}
+      />
+
+      <ScoutingMissionPanel missionKey="defenseScout" compact className="mt-6" />
 
       <div className="space-y-6">
-        <SectionCard title="Match Meta" subtitle="Core identifiers plus fixed scout-slot assignment for this defense entry.">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Archive Username</span>
-              <input
-                value={archiveUsername}
-                readOnly
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-white opacity-80"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Event Key</span>
-              <input
-                value={data.eventKey}
-                onChange={event => {
-                  const nextEventKey = sanitizeEventKey(event.target.value || DEFAULT_EVENT_KEY);
-                  updateMatchIdentity({ eventKey: nextEventKey || DEFAULT_EVENT_KEY });
-                }}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500"
-              />
-            </label>
-            <div className="space-y-2 md:col-span-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Assigned Scout</span>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-                {SCOUT_ASSIGNMENTS.map(option => (
-                  <ChoiceButton
-                    key={option.name}
-                    active={data.assignedScoutName === option.name}
-                    label={`${option.name} • ${option.slotLabel.replace('Red', 'R').replace('Blue', 'B')}`}
-                    onClick={() => handleAssignedScoutChange(option.name)}
-                    disabled={isEditing}
+        <DefenseStepNav activeStep={activeStep} data={data} onChange={handleStepChange} />
+        {shouldShowDefenseMap && <DefenseImpactStrip data={data} />}
+
+        <div ref={activeStepRef} className="scroll-mt-4">
+          {activeStep === 'match' && (
+            <DefenseStepFrame step="match">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <label className="space-y-2">
+                  <span className={labelClass}>Archive Username</span>
+                  <input value={archiveUsername} readOnly className={`${inputClass} border-slate-800 opacity-80`} />
+                </label>
+                <label className="space-y-2">
+                  <span className={labelClass}>Event Key</span>
+                  <input
+                    value={data.eventKey}
+                    onChange={event => {
+                      const nextEventKey = sanitizeEventKey(event.target.value || DEFAULT_EVENT_KEY);
+                      updateMatchIdentity({ eventKey: nextEventKey || DEFAULT_EVENT_KEY });
+                    }}
+                    className={inputClass}
                   />
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Substitute</span>
-              <div className="grid grid-cols-2 gap-2">
-                {SUBSTITUTE_SCOUTS.map(option => (
-                  <ChoiceButton
-                    key={option}
-                    active={data.substituteScoutName === option}
-                    label={option}
-                    onClick={() => handleSubstituteSelect(option)}
+                </label>
+                <div className="space-y-2 md:col-span-2">
+                  <span className={labelClass}>Assigned Scout</span>
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                    {SCOUT_ASSIGNMENTS.map(option => (
+                      <ChoiceButton
+                        key={option.name}
+                        active={data.assignedScoutName === option.name}
+                        label={`${option.name} · ${option.slotLabel.replace('Red', 'R').replace('Blue', 'B')}`}
+                        onClick={() => handleAssignedScoutChange(option.name)}
+                        disabled={isEditing}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <span className={labelClass}>Substitute</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SUBSTITUTE_SCOUTS.map(option => (
+                      <ChoiceButton
+                        key={option}
+                        active={data.substituteScoutName === option}
+                        label={option}
+                        onClick={() => handleSubstituteSelect(option)}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <span className={labelClass}>Match Type</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MATCH_TYPES.map(option => (
+                      <ChoiceButton
+                        key={option}
+                        active={data.matchType === option}
+                        label={option}
+                        onClick={() => updateMatchIdentity({ matchType: option })}
+                        disabled={isEditing}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <label className="space-y-2">
+                  <span className={labelClass}>Match Number</span>
+                  <input
+                    value={String(data.matchNumber)}
+                    onChange={event => updateMatchIdentity({ matchNumber: Math.max(1, toPositiveInt(event.target.value) || 1) })}
+                    className={inputClass}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
-                ))}
+                </label>
+                <label className="space-y-2">
+                  <span className={labelClass}>Generated Match Key</span>
+                  <input value={data.matchKey.toUpperCase()} readOnly className={`${inputClass} border-slate-800 font-mono opacity-80`} />
+                </label>
               </div>
-            </div>
-            <div className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Match Type</span>
-              <div className="grid grid-cols-2 gap-2">
-                {MATCH_TYPES.map(option => (
-                  <ChoiceButton
-                    key={option}
-                    active={data.matchType === option}
-                    label={option}
-                    onClick={() => updateMatchIdentity({ matchType: option })}
-                    disabled={isEditing}
+              <div className="admin-g2-sm mt-4 border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-200">Schedule Status</div>
+                <div className="mt-1 text-sm font-black text-white">
+                  {isLoadingSchedule ? 'Loading schedule...' : assignmentWarning ? 'Manual override' : 'Auto-filled'}
+                </div>
+              </div>
+              {assignmentWarning && (
+                <div className="admin-g2-sm mt-4 flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {assignmentWarning}
+                </div>
+              )}
+              <div className="mt-5">
+                <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </DefenseStepFrame>
+          )}
+
+          {activeStep === 'target' && (
+            <DefenseStepFrame step="target">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <label className="space-y-2">
+                  <span className={labelClass}>Team Number</span>
+                  <input
+                    value={data.teamNumber}
+                    onChange={event => updateMatchIdentity({ teamNumber: event.target.value.replace(/[^\d]/g, '') })}
+                    className={inputClass}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                   />
-                ))}
+                </label>
+                <div className="space-y-2 md:col-span-2">
+                  <span className={labelClass}>Alliance</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Red', 'Blue'] as const).map(option => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => updateMatchIdentity({ alliance: option })}
+                        className={`admin-g2-sm px-3 py-3 text-sm font-black transition-all ${
+                          data.alliance === option
+                            ? option === 'Red'
+                              ? 'bg-red-600 text-white'
+                              : 'bg-blue-600 text-white'
+                            : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Match Number</span>
-              <input
-                value={String(data.matchNumber)}
-                onChange={event => updateMatchIdentity({ matchNumber: Math.max(1, toPositiveInt(event.target.value) || 1) })}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500"
-                inputMode="numeric"
-                pattern="[0-9]*"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Generated Match Key</span>
-              <input
-                value={data.matchKey.toUpperCase()}
-                readOnly
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-white opacity-80"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Team Number</span>
-              <input
-                value={data.teamNumber}
-                onChange={event => updateMatchIdentity({ teamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500"
-                inputMode="numeric"
-                pattern="[0-9]*"
-              />
-            </label>
-            <div className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Alliance</span>
-              <div className="grid grid-cols-2 gap-2">
-                {(['Red', 'Blue'] as const).map(option => (
+              <div className="admin-g2-sm mt-4 border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100">
+                This row describes the robot doing defense, not necessarily the team being defended.
+              </div>
+              {teamWarning && (
+                <div className="admin-g2-sm mt-4 flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {teamWarning}
+                </div>
+              )}
+              <div className="mt-5">
+                <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </DefenseStepFrame>
+          )}
+
+          {activeStep === 'impact' && (
+            <DefenseStepFrame step="impact">
+              <div>
+                <DefenseMetricSlider value={data.defenseMetric} onChange={value => updateData({ defenseMetric: value })} />
+              </div>
+              <div className="mt-5">
+                <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </DefenseStepFrame>
+          )}
+
+          {activeStep === 'evidence' && (
+            <DefenseStepFrame step="evidence">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <label className="space-y-2">
+                  <span className={labelClass}>Denial Evidence</span>
+                  <textarea
+                    value={data.defenseComments}
+                    onChange={event => updateData({ defenseComments: event.target.value })}
+                    className={`${inputClass} min-h-[180px]`}
+                    placeholder="Name the target, where they were denied, whether cycles slowed, and whether fouls or traffic made the defense risky."
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className={labelClass}>Strategy Use</span>
+                  <textarea
+                    value={data.generalComments}
+                    onChange={event => updateData({ generalComments: event.target.value })}
+                    className={`${inputClass} min-h-[180px]`}
+                    placeholder="Should we use this robot as a defender, avoid them, pair them with a scorer, or ignore the defense signal?"
+                  />
+                </label>
+              </div>
+              <div className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">
+                Good evidence names the target, the denied action, the match context, and whether the defense created foul or traffic risk.
+              </div>
+              <div className="mt-3 grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-300 sm:grid-cols-3">
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">1. Target defended</div>
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">2. Action denied</div>
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">3. Foul or traffic risk</div>
+              </div>
+              <div className="mt-5">
+                <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
+              </div>
+            </DefenseStepFrame>
+          )}
+
+          {activeStep === 'handoff' && (
+            <DefenseStepFrame step="handoff">
+              <ScoutSignalHandoff missionKey="defenseScout" />
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
+                <div className="admin-g2 border border-slate-800 bg-slate-950/55 px-5 py-4">
+                  <div className={labelClass}>Current Defense Metric</div>
+                  <div className="mt-1 text-4xl font-black text-white">{formatDefensePercent(data.defenseMetric)}</div>
+                  <div className="mt-2 text-sm text-slate-400">{getDefenseRoleLabel(data.defenseMetric)} · stored as {data.defenseMetric.toFixed(4)}</div>
+                </div>
+                <div className="grid gap-3 md:min-w-72">
                   <button
-                    key={option}
                     type="button"
-                    onClick={() => updateMatchIdentity({ alliance: option })}
-                    className={`rounded-xl px-3 py-3 text-sm font-black transition-all ${
-                      data.alliance === option
-                        ? option === 'Red'
-                          ? 'bg-red-600 text-white'
-                          : 'bg-blue-600 text-white'
-                        : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
-                    }`}
+                    onClick={() => setShowQr(true)}
+                    className="admin-g2-sm inline-flex items-center justify-center gap-2 border border-slate-700 bg-slate-950 px-5 py-4 text-sm font-black text-slate-200 hover:bg-slate-800"
                   >
-                    {option}
+                    <QrCode className="h-5 w-5" />
+                    QR Export
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="admin-g2 bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-4 text-lg font-black text-white shadow-xl transition-all hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'SAVING...' : isEditing ? 'UPDATE DEFENSE ENTRY' : 'SUBMIT DEFENSE ENTRY'}
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-              <div className="text-xs font-black uppercase tracking-wider text-emerald-200">
-                Schedule Status
+              <div className="mt-5">
+                <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
               </div>
-              <div className="mt-1 text-sm font-black text-white">
-                {isLoadingSchedule ? 'Loading schedule…' : assignmentWarning ? 'Manual override' : 'Auto-filled'}
-              </div>
-            </div>
-          </div>
-
-          {assignmentWarning && (
-            <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              {assignmentWarning}
-            </div>
+            </DefenseStepFrame>
           )}
-
-          {teamWarning && (
-            <div className="flex items-start gap-2 rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              {teamWarning}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Defense Evaluation"
-          subtitle="Log one precise defense percentage plus detailed comments."
-        >
-          <DefenseMetricSlider
-            value={data.defenseMetric}
-            onChange={value => updateData({ defenseMetric: value })}
-          />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">Defense Comments</span>
-              <textarea
-                value={data.defenseComments}
-                onChange={event => updateData({ defenseComments: event.target.value })}
-                className="min-h-[180px] w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500"
-                placeholder="Describe how effective this team is on defense, where they disrupt, and how they change the match."
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs font-black uppercase tracking-wider text-slate-500">General Comments</span>
-              <textarea
-                value={data.generalComments}
-                onChange={event => updateData({ generalComments: event.target.value })}
-                className="min-h-[180px] w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-500"
-                placeholder="Anything else we should know about this team in this match."
-              />
-            </label>
-          </div>
-        </SectionCard>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 px-5 py-4">
-            <div className="text-xs font-black uppercase tracking-wider text-slate-500">Current Defense Metric</div>
-            <div className="mt-1 text-4xl font-black text-white">{formatDefensePercent(data.defenseMetric)}</div>
-            <div className="mt-2 text-sm text-slate-400">Stored as {data.defenseMetric.toFixed(4)}</div>
-          </div>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="rounded-3xl bg-gradient-to-r from-emerald-600 to-cyan-600 px-8 py-6 text-xl font-black text-white shadow-xl transition-all hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-50"
-          >
-            {isSubmitting ? 'SAVING DEFENSE ENTRY…' : isEditing ? 'UPDATE DEFENSE ENTRY' : 'SUBMIT DEFENSE ENTRY'}
-          </button>
         </div>
       </div>
 
       {showQr && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
-          <div className="relative flex w-full max-w-sm flex-col items-center rounded-3xl bg-white p-8">
+          <div className="admin-g2-lg relative flex w-full max-w-sm flex-col items-center bg-white p-8">
             <button
               type="button"
               onClick={() => setShowQr(false)}
-              className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
+              className="admin-g2-sm absolute right-4 top-4 bg-slate-100 p-2 text-slate-700 hover:bg-slate-200"
             >
               <Download className="h-4 w-4 rotate-45" />
             </button>
             <h3 className="mb-3 text-xl font-black text-slate-900">Defense Offline QR Export</h3>
             <p className="mb-5 text-center text-sm text-slate-600">
-              Scan this from an admin device if internet access is unavailable.
+              Scan this in Admin V4 Data when internet access is unavailable.
             </p>
             <QRCodeSVG
               value={compressMatchDefenseData(
                 normalizeMatchDefenseScoutingV1({
                   ...data,
                   scoutName: archiveUsername || data.scoutName,
-                  matchKey: buildMatchKeyV3(data.matchType, data.matchNumber)
+                  matchKey: buildMatchKeyV3(data.matchType, data.matchNumber),
+                  adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
                 })
               )}
               size={280}

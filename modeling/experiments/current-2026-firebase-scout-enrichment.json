@@ -1,0 +1,19 @@
+{
+  "name": "current-2026-firebase-scout-enrichment",
+  "description": "Full 2026 replay after live Firebase scout import. This checks whether scout-aware features improve the defended TailGuard family beyond the event where scout coverage is dense.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-firebase-scout-enrichment",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future Compact Ridge L2=10",
+    "No-Future Compact Robust Ridge L2=10",
+    "No-Future Compact Elastic Net a=0.5 L=0.04",
+    "No-Future Minimal Ridge L2=10"
+  ],
+  "notes": [
+    "Full-year confirmation prevents the 2026mnum scout data from being overclaimed as a universal model improvement.",
+    "Scout/PPC claims should cite the scout-coverage audit and report the number of matched rows."
+  ]
+}

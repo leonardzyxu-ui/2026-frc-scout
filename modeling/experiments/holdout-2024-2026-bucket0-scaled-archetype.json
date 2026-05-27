@@ -1,0 +1,24 @@
+{
+  "name": "holdout-2024-2026-bucket0-scaled-archetype",
+  "description": "Checkpointed broad-history confirmation run: replay all cached 2024-2026 matches, but score only event-key hash bucket 0 of 5.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [0],
+    "label": "2024-2026 checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket0-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.055 DR=0.0275",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.075 DR=0.0375",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050"
+  ],
+  "notes": [
+    "This is not a new tuning manifest. It is a checkpointed confirmation slice for broad historical candidates.",
+    "The model replay still updates on all cached 2024-2026 matches in chronological order; only metrics are restricted to the held-out event bucket."
+  ]
+}

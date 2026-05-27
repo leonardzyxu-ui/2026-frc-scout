@@ -132,7 +132,8 @@ export const compressPitData = (payload: PitQrExportPayload): string => {
     data.hoodAdjustable ? 1 : 0,
     data.notes,
     data.deviceId || '',
-    data.timestamp || 0
+    data.timestamp || 0,
+    data.adminTask || null
   ];
 
   return 'P1|' + JSON.stringify(arr);
@@ -155,7 +156,8 @@ export const compressMatchDefenseData = (data: MatchDefenseScoutingV1): string =
     timestamp: data.timestamp || Date.now(),
     defenseMetric: data.defenseMetric,
     defenseComments: data.defenseComments,
-    generalComments: data.generalComments
+    generalComments: data.generalComments,
+    adminTask: data.adminTask
   };
 
   return `D1|${JSON.stringify(payload)}`;
@@ -339,7 +341,8 @@ function parsePitPayload(str: string): ScoutingImportRecord {
       hoodAdjustable: !!arr[26],
       notes: arr[27] || '',
       deviceId: arr[28] || '',
-      timestamp: arr[29] || Date.now()
+      timestamp: arr[29] || Date.now(),
+      adminTask: arr[30] || undefined
     }
   };
 }

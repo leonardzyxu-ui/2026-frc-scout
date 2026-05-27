@@ -1,0 +1,19 @@
+{
+  "name": "current-2026-residual-gated-tail",
+  "description": "Exact 2026 test of residual-gated championship score-scale corrections against the current residual-ridge default.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-residual-gated-tail",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.10 T=8 N=12",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.20 T=8 N=12",
+    "No-Future Residual-Gated Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.20 T=8 N=12 G=0 F=24",
+    "No-Future Residual-Gated Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.20 T=8 N=12 G=8 F=24",
+    "No-Future Residual-Gated ChampsDiv-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.15 T=8 N=12 G=0 F=24"
+  ],
+  "notes": [
+    "Residual-gated score scaling requires prior event residuals to show that the model has been underpredicting before applying the high-score event correction.",
+    "This is a no-future selector attempt, not a post-hoc event list."
+  ]
+}

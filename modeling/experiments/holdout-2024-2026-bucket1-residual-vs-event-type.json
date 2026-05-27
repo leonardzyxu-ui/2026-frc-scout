@@ -1,0 +1,26 @@
+{
+  "name": "holdout-2024-2026-bucket1-residual-vs-event-type",
+  "description": "Direct broad 2024-2026 holdout comparison of residual-ridge against event-type residual and earlier archetype winners, scoring only event-key hash bucket 1 of 5.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [1],
+    "label": "2024-2026 direct residual-vs-event-type holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket1-residual-vs-event-type",
+  "modelNames": [
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.05 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.10 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.15 M=60",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Residual-Ridge Component Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35 CP=0.10 CM=4"
+  ],
+  "notes": [
+    "This is a predeclared direct-comparison holdout, not a separate-family leaderboard.",
+    "The replay uses all cached 2024-2026 matches chronologically; only reported metrics are restricted to bucket 1."
+  ]
+}

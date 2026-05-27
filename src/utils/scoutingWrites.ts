@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, ScoutEvidenceAdminTask } from '../types';
 import { getMatchScoutingV3DocId } from './matchScoutingV3';
 import { getMatchDefenseScoutingV1DocId } from './matchDefenseScouting';
 import { getMatchScoutingV4DocId } from './matchScoutingV4';
@@ -168,6 +168,24 @@ const canonicalizePit = (record: PitScoutingV2) => ({
 
 const areEqual = (left: unknown, right: unknown) => stableStringify(left) === stableStringify(right);
 
+const isAdminV4Task = (task: unknown): task is ScoutEvidenceAdminTask =>
+  Boolean(task && typeof task === 'object' && (task as ScoutEvidenceAdminTask).source === 'adminv4');
+
+const shouldAttachMissingAdminTask = (
+  existing: { adminTask?: ScoutEvidenceAdminTask },
+  incoming: { adminTask?: ScoutEvidenceAdminTask }
+) => isAdminV4Task(incoming.adminTask) && !isAdminV4Task(existing.adminTask);
+
+const attachMissingAdminTask = async (
+  targetRef: ReturnType<typeof doc>,
+  existing: { adminTask?: ScoutEvidenceAdminTask },
+  incoming: { adminTask?: ScoutEvidenceAdminTask }
+) => {
+  if (!shouldAttachMissingAdminTask(existing, incoming)) return false;
+  await setDoc(targetRef, { adminTask: incoming.adminTask }, { merge: true });
+  return true;
+};
+
 export const getMatchDocId = (record: Pick<MatchScoutingV2, 'matchKey' | 'teamNumber'>) =>
   `${record.matchKey}_${record.teamNumber}`;
 
@@ -298,6 +316,14 @@ export async function writeMatchScoutingV4Record(
 
   const existingRecord = existing.data() as MatchScoutingV4;
   if (areEqual(canonicalizeMatchV4(existingRecord), canonicalizeMatchV4(record))) {
+    if (await attachMissingAdminTask(targetRef, existingRecord, record)) {
+      return {
+        outcome: 'updated',
+        targetCollection: 'matchScoutingV4',
+        docId,
+        message: `Attached Admin V4 task metadata to duplicate matchScoutingV4/${docId}.`
+      };
+    }
     return {
       outcome: 'duplicate',
       targetCollection: 'matchScoutingV4',
@@ -345,6 +371,14 @@ export async function writeMatchDefenseScoutingRecord(
 
   const existingRecord = existing.data() as MatchDefenseScoutingV1;
   if (areEqual(canonicalizeMatchDefense(existingRecord), canonicalizeMatchDefense(record))) {
+    if (await attachMissingAdminTask(targetRef, existingRecord, record)) {
+      return {
+        outcome: 'updated',
+        targetCollection: 'matchScoutingDefense',
+        docId,
+        message: `Attached Admin V4 task metadata to duplicate matchScoutingDefense/${docId}.`
+      };
+    }
     return {
       outcome: 'duplicate',
       targetCollection: 'matchScoutingDefense',
@@ -393,6 +427,14 @@ export async function writePitScoutingRecord(
 
   const existingRecord = existing.data() as PitScoutingV2;
   if (areEqual(canonicalizePit(existingRecord), canonicalizePit(record))) {
+    if (await attachMissingAdminTask(targetRef, existingRecord, record)) {
+      return {
+        outcome: 'updated',
+        targetCollection: 'pitScouting',
+        docId,
+        message: `Attached Admin V4 task metadata to duplicate pitScouting/${docId}.`
+      };
+    }
     return {
       outcome: 'duplicate',
       targetCollection: 'pitScouting',

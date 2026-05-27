@@ -1,0 +1,22 @@
+{
+  "name": "holdout-2026-bucket0-role-v2-residual-ridge",
+  "description": "Checkpointed 2026 holdout for conservative RoleV2 suppression/foul-risk features: replay all 2026 matches, but score only event-key hash bucket 0 of 5.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [0],
+    "label": "2026 RoleV2 residual-ridge checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket0-role-v2-residual-ridge",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35",
+    "No-Future RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=50 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "This is only a first holdout stress test. Promotion still requires more buckets if RoleV2 remains competitive.",
+    "Walk-forward state updates still use all 2026 matches before each predicted match; metrics are restricted to the held-out event bucket."
+  ]
+}

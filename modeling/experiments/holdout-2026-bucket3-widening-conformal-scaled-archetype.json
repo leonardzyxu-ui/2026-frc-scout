@@ -1,0 +1,25 @@
+{
+  "name": "holdout-2026-bucket3-widening-conformal-scaled-archetype",
+  "description": "Fresh 2026 holdout test of widening conformal interval calibration for the scaled archetype model on event-key hash bucket 3 of 5.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [3],
+    "label": "2026 checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket3-widening-conformal-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.84",
+    "No-Future Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.88",
+    "No-Future Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.80",
+    "No-Future Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.84",
+    "No-Future Widening-Conformal Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 Q=0.88"
+  ],
+  "notes": [
+    "This is the next predeclared checkpoint after bucket 2, using the same widening-conformal candidate set.",
+    "The replay uses all 2026 matches chronologically; metrics are restricted to event-key hash bucket 3 of 5."
+  ]
+}

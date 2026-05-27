@@ -1,0 +1,18 @@
+{
+  "name": "current-2026-residual-tree",
+  "description": "Exact 2026 test of shallow boosted nonlinear residual correction against the current residual-ridge default.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-residual-tree",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 TW=0.20 N=720 T=16 C=45",
+    "No-Future Residual-Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 TW=0.35 N=720 T=24 C=45",
+    "No-Future Role-Feature Residual-Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 TW=0.25 N=720 T=24 C=45",
+    "No-Future Residual-Ridge+Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 TW=0.15 N=720 T=16 C=35"
+  ],
+  "notes": [
+    "The tree correction is a shallow boosted-stump ensemble trained only from prior residual errors during walk-forward replay.",
+    "This branch tests nonlinear thresholds without using future matches or published post-match EPA snapshots."
+  ]
+}

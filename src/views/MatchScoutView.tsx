@@ -44,7 +44,7 @@ const buildMatchKey = (matchType: MatchType, matchNumber: number) =>
 
 const parseMatchNumber = (matchKey: string) => {
   const match = matchKey.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : 1;
+  return match ? parseInt(match[1] ?? '1', 10) : 1;
 };
 
 const parseMatchType = (matchKey: string): MatchType =>

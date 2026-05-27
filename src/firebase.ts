@@ -37,9 +37,10 @@ if (isFirebaseConfigured) {
     initializedAuth = getAuth(initializedApp);
     initializedStorage = getStorage(initializedApp);
 
-    // Sign in anonymously for scouts.
-    signInAnonymously(initializedAuth).catch((error) => {
-      console.error('Error signing in anonymously:', error);
+    // Sign in anonymously for scouts. Connectivity problems should not break
+    // local-first scouting; the guarded admin route will explain access state.
+    signInAnonymously(initializedAuth).catch(() => {
+      console.warn('Anonymous Firebase sign-in is unavailable. Local scouting, QR fallback, and IndexedDB history can still run.');
     });
   } catch (error) {
     initializationError = error;

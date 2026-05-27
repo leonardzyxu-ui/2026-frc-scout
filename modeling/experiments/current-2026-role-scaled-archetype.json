@@ -1,0 +1,19 @@
+{
+  "name": "current-2026-role-scaled-archetype",
+  "description": "Exact 2026 current-season test of adding a small role-aware Monte Carlo component to the current scaled archetype point model.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-role-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Role Monte Carlo EPA K=1.10 S=0.80 R=0.15",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.05",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.10",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.15",
+    "No-Future Light-Role-Scaled-Archetype Ensemble K=1.10 W=0.10 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.15"
+  ],
+  "notes": [
+    "The previous role branch asked crude role Monte Carlo to replace the point model and failed. This manifest tests a smaller, more plausible hypothesis: keep the scaled archetype model and blend in a small role simulation.",
+    "The role signal is still mostly inferred from official residuals because the current broad cache has zero scout-enriched rows."
+  ]
+}

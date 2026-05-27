@@ -1,0 +1,23 @@
+{
+  "name": "holdout-2024-2026-bucket0-role-scaled-archetype",
+  "description": "Broad-history checkpoint holdout test of small role-aware Monte Carlo injection into the scaled archetype point model.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [0],
+    "label": "2024-2026 checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket0-role-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Role Monte Carlo EPA K=1.10 S=0.80 R=0.15",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.05",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.10",
+    "No-Future Role-Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.15",
+    "No-Future Light-Role-Scaled-Archetype Ensemble K=1.10 W=0.10 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 R=0.15"
+  ],
+  "notes": [
+    "This checks whether the broad full-replay R=0.15 near-tie survives a deterministic event-key bucket holdout.",
+    "Evaluation metrics are restricted to event-key hash bucket 0 of 5; walk-forward state still uses prior rows in chronological order."
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "current-2026-archetype",
+  "description": "Exact 2026 current-season benchmark for the defended archetype ensemble against its nearest no-future comparators and the non-promotable Statbotics prediction comparator.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/manifest-current-2026-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Season-Reset EPA K=1.10",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=8 D=4",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=16 D=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10"
+  ],
+  "notes": [
+    "Exact model names avoid substring-filter drift.",
+    "The Statbotics prediction row is a comparator only and remains non-promotable until pre-match provenance is audited.",
+    "This manifest is for 2026 current-season validation, not a hidden holdout."
+  ]
+}

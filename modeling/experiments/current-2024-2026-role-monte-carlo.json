@@ -1,0 +1,21 @@
+{
+  "name": "current-2024-2026-role-monte-carlo",
+  "description": "Exact broad-history test of role-aware Monte Carlo, soft-role EPA, and dual offense/defense EPA against the current scaled archetype default.",
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-role-monte-carlo",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "Role-Aware Prior",
+    "No-Future Monte Carlo EPA K=1.10 S=0.80",
+    "No-Future Role Monte Carlo EPA K=1.10 S=0.80 R=0.15",
+    "No-Future Role EPA K=0.80",
+    "No-Future Soft-Role EPA K=0.80 R=0.25",
+    "No-Future Soft-Role EPA K=0.80 R=0.50",
+    "No-Future Dual EPA K=0.80 D=0.35",
+    "No-Future Dual EPA K=1.00 D=0.50"
+  ],
+  "notes": [
+    "This checks whether the role-aware ideas generalize across 2024-2026 instead of only fitting the 2026 scoring environment.",
+    "The role features are still mostly inferred from official score residuals because the current broad cache has zero scout-enriched rows."
+  ]
+}

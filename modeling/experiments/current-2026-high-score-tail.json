@@ -1,0 +1,18 @@
+{
+  "name": "current-2026-high-score-tail",
+  "description": "Exact 2026 test of championship-scoped event score-scale corrections against the current residual-ridge default.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-high-score-tail",
+  "modelNames": [
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge+Tree Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 TW=0.15 N=720 T=16 C=35",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.10 T=8 N=12",
+    "No-Future Champs-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.20 T=8 N=12",
+    "No-Future ChampsDiv-Scale Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 A=0.15 T=8 N=12"
+  ],
+  "notes": [
+    "The championship scale candidates only use known event metadata plus official scores from earlier matches in the same event.",
+    "This is a targeted attempt to reduce high-score championship tail error without changing ordinary regional/district predictions."
+  ]
+}

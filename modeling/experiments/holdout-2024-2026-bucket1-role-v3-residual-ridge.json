@@ -1,0 +1,22 @@
+{
+  "name": "holdout-2024-2026-bucket1-role-v3-residual-ridge",
+  "description": "Checkpointed broad 2024-2026 holdout for RoleV3 separated suppression/confidence/foul/offense-cost features: replay all cached matches, but score only event-key hash bucket 1 of 5.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [1],
+    "label": "2024-2026 RoleV3 residual-ridge checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket1-role-v3-residual-ridge",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=60 C=35",
+    "No-Future Role-Feature Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=40 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35"
+  ],
+  "notes": [
+    "This continues the RoleV3 stability check after full-replay gains.",
+    "Walk-forward state updates still use all prior cached matches; metrics are restricted to the held-out event bucket."
+  ]
+}

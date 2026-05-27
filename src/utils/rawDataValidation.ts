@@ -69,7 +69,7 @@ const normalizeMatchKey = (matchKey: string) => {
   const trimmed = (matchKey || '').trim().toLowerCase();
   if (!trimmed) return '';
   const parts = trimmed.split('_');
-  return parts[parts.length - 1];
+  return parts[parts.length - 1] ?? '';
 };
 
 const normalizeTeamNumber = (teamNumber: string) => teamNumber.replace(/^frc/i, '').trim();

@@ -1,0 +1,17 @@
+{
+  "name": "current-2024-2026-role-v3-tailguard-smooth-tailrisk",
+  "description": "Broad 2024-2026 replay checking whether margin/confidence-smoothed TailRisk on top of TailGuard generalizes beyond 2026.",
+  "years": [2024, 2025, 2026],
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-role-v3-tailguard-smooth-tailrisk",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+SmoothTailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 MR=35 PR=0.25 SF=0.50",
+    "No-Future TailGuard+SmoothTailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=1.25 TL=50 TN=32 TC=20 F=PR G=8/R4/F20 MR=35 PR=0.25 SF=0.50"
+  ],
+  "notes": [
+    "This is a probability-quality challenger, not a new score-mean source.",
+    "A full promotion would still require event-key bucket confirmation if the broad replay looks promising."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "current-2026-role-v3-tailrisk-winprob",
+  "description": "Full 2026 replay testing whether the existing TailRiskWinProb reporting overlay improves Strong RoleV3 probability calibration without changing its score means.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-role-v3-tailrisk-winprob",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "TailRiskWinProb uses the existing no-future learned-tail uncertainty signal only for win probabilities.",
+    "The Strong RoleV3 TailRisk variants share the Strong RoleV3 simulation seed so score forecasts remain comparable."
+  ]
+}

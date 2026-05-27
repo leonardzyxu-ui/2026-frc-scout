@@ -17,11 +17,18 @@ import {
 } from '../utils/scoutArchive';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchScoutingV3';
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, ScoutEvidenceAdminTask } from '../types';
 import { stableStringify } from '../utils/keys';
+import { SCOUTING_MISSIONS, ScoutingMissionKey, getMissionToneClasses } from '../utils/scoutingWorkflow';
+import {
+  describeScoutEvidenceAdminTaskDecisionUse,
+  formatScoutEvidenceAdminTaskMission,
+  formatScoutEvidenceAdminTaskPpaRange,
+  getScoutEvidenceAdminTaskFromPayload
+} from '../utils/scoutTaskHandoff';
 
 type ImportStatus = 'pending' | 'uploaded' | 'duplicate' | 'conflict' | 'failed';
-type StageOutcome = 'added' | 'duplicate' | 'conflict' | false;
+type StageOutcome = 'added' | 'duplicate' | 'enriched' | 'conflict' | false;
 
 interface StagedImportItem {
   id: string;
@@ -59,6 +66,57 @@ const getTargetCollection = (record: ScoutingImportRecord) =>
       : record.recordType === 'matchDefense'
         ? 'matchScoutingDefense'
         : 'pitScouting';
+
+const getImportEvidenceMeta = (record: ScoutingImportRecord): {
+  missionKey: ScoutingMissionKey;
+  title: string;
+  decisionUse: string;
+  ppaSignal: string;
+  value: string;
+  toneClass: string;
+} => {
+  if (record.recordType === 'matchV4') {
+    return {
+      missionKey: 'matchScout',
+      title: 'Match evidence',
+      decisionUse: 'Feeds Now, Matches, Pick List, Visualize, and Reports.',
+      ppaSignal: 'Expected value, floor risk, role fit, volatility, and scout confidence.',
+      value: `${record.data.totalMatchPoints} pts`,
+      toneClass: getMissionToneClasses('cyan')
+    };
+  }
+
+  if (record.recordType === 'match') {
+    return {
+      missionKey: 'matchScout',
+      title: 'Legacy match evidence',
+      decisionUse: 'Feeds raw audit and historical team context; V4 rows are stronger for PPA.',
+      ppaSignal: 'Scoring context without the full V4 role/reliability shape.',
+      value: `${record.data.totalMatchPoints} pts`,
+      toneClass: getMissionToneClasses('cyan')
+    };
+  }
+
+  if (record.recordType === 'matchDefense') {
+    return {
+      missionKey: 'defenseScout',
+      title: 'Defense impact evidence',
+      decisionUse: 'Feeds next-match role plans, defender assignment, and pick-list role balance.',
+      ppaSignal: 'Protects PPA from mistaking strategic defense for weak offense.',
+      value: `${((record.data.defenseMetric || 0) * 100).toFixed(1)}%`,
+      toneClass: getMissionToneClasses('rose')
+    };
+  }
+
+  return {
+    missionKey: 'pitScout',
+    title: 'Pit capability prior',
+    decisionUse: 'Feeds compatibility, pre-match questions, and early pick-list context.',
+    ppaSignal: 'Human role-fit prior before enough match rows exist.',
+    value: `${record.data.expectedHubBallsPerMatch || 0} expected balls`,
+    toneClass: getMissionToneClasses('emerald')
+  };
+};
 
 const toMatchImportRecord = (payload: MatchScoutingV2 | MatchScoutingV3): ScoutingImportRecord => ({
   recordType: 'match',
@@ -101,8 +159,52 @@ const getRecordScoutName = (record: ScoutingImportRecord) =>
     ? record.data.scoutName || 'Imported Scout'
     : record.data.scoutName || record.data.substituteScoutName || record.data.assignedScoutName || 'Imported Scout';
 
+const getRecordAdminTask = (record: ScoutingImportRecord) => getScoutEvidenceAdminTaskFromPayload(record.data);
+
+const getCoreRecordForHash = (record: ScoutingImportRecord) => {
+  const { adminTask: _adminTask, ...coreData } = record.data as unknown as Record<string, unknown>;
+  return record.recordType === 'pit'
+    ? { eventKey: record.eventKey, ...coreData }
+    : coreData;
+};
+
 const hashRecord = (record: ScoutingImportRecord) =>
-  `${getLogicalKey(record)}|${stableStringify(record.data)}`;
+  `${getLogicalKey(record)}|${stableStringify(getCoreRecordForHash(record))}`;
+
+const attachAdminTaskToImportRecord = (
+  record: ScoutingImportRecord,
+  adminTask: ScoutEvidenceAdminTask
+): ScoutingImportRecord => {
+  if (record.recordType === 'match') return record;
+
+  if (record.recordType === 'pit') {
+    return {
+      ...record,
+      data: {
+        ...record.data,
+        adminTask
+      }
+    };
+  }
+
+  if (record.recordType === 'matchV4') {
+    return {
+      ...record,
+      data: {
+        ...record.data,
+        adminTask
+      }
+    };
+  }
+
+  return {
+    ...record,
+    data: {
+      ...record.data,
+      adminTask
+    }
+  };
+};
 
 const makeStageId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -197,6 +299,23 @@ export default function QRScannerView({
     const nextLogicalKey = getLogicalKey(record);
     const nextTimestamp = getRecordTimestamp(record);
     if (sessionHashes.current.has(nextHash) || currentStagedData.some(entry => entry.hash === nextHash)) {
+      const nextAdminTask = getRecordAdminTask(record);
+      const existingIndex = currentStagedData.findIndex(entry => entry.hash === nextHash);
+      const existingItem = existingIndex >= 0 ? currentStagedData[existingIndex] : null;
+      if (nextAdminTask && existingItem && !getRecordAdminTask(existingItem.record)) {
+        const nextStagedData = currentStagedData.map((entry, index) =>
+          index === existingIndex
+            ? {
+                ...entry,
+                record: attachAdminTaskToImportRecord(entry.record, nextAdminTask),
+                message: `${entry.message} | Admin V4 task metadata attached`
+              }
+            : entry
+        );
+        stagedDataRef.current = nextStagedData;
+        setStagedData(nextStagedData);
+        return 'enriched';
+      }
       return 'duplicate';
     }
 
@@ -265,6 +384,8 @@ export default function QRScannerView({
       setLogMsg(
         added === 'added'
           ? '✅ Successfully staged scouting data from camera.'
+          : added === 'enriched'
+            ? '✅ Added Admin V4 task context to an already staged row.'
           : added === 'conflict'
             ? '🚨 Staged a conflict. Review the conflicting item before pushing.'
           : '⚠️ Skipped duplicate scouting data.'
@@ -549,63 +670,90 @@ export default function QRScannerView({
       return nextItems;
     });
   };
+  const stagedSummary = {
+    match: stagedData.filter(item => item.record.recordType === 'match' || item.record.recordType === 'matchV4').length,
+    defense: stagedData.filter(item => item.record.recordType === 'matchDefense').length,
+    pit: stagedData.filter(item => item.record.recordType === 'pit').length,
+    conflicts: stagedData.filter(item => item.status === 'conflict').length,
+    ready: stagedData.filter(item => item.status === 'pending').length
+  };
 
   return (
     <div className={isEmbedded ? '' : 'min-h-screen bg-slate-950 p-4 font-sans text-slate-200 md:p-8'}>
       <div className={isEmbedded ? 'space-y-8' : 'mx-auto max-w-5xl space-y-8'}>
         {!isEmbedded && (
-          <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className="admin-g2 flex items-center gap-4 border border-slate-800 bg-slate-900/50 p-6">
             <button
               onClick={() => navigate('/')}
-              className="rounded-lg bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700"
+              className="admin-g2-sm bg-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-700"
             >
               <ArrowLeft className="h-6 w-6" />
             </button>
             <div>
-              <h1 className="flex items-center gap-3 text-3xl font-black tracking-tight text-white">
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">Evidence Intake</div>
+              <h1 className="mt-1 flex items-center gap-3 text-3xl font-black tracking-tight text-white">
                 <ScanLine className="h-8 w-8 text-emerald-500" />
-                DATA IMPORT & STAGING
+                QR And Archive Staging
               </h1>
-              <p className="mt-1 text-slate-400">Offline protocol for V4, defense, legacy match, and pit scouting data.</p>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+                Intake scout evidence from QR images, live camera scans, or JSON archives. Stage it first, inspect what decision surface it feeds, then push only the rows you trust.
+              </p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <section className="admin-g2 border border-slate-800 bg-slate-900/60 p-5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Admin Data Intake</div>
+              <h2 className="mt-1 text-2xl font-black text-white">From field devices to usable PPA evidence</h2>
+            </div>
+            <div className="text-sm font-semibold text-slate-400">Scan or upload, resolve conflicts, then sync.</div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <IntakeSummaryCard label="Ready" value={stagedSummary.ready} tone="cyan" />
+            <IntakeSummaryCard label="Match Rows" value={stagedSummary.match} />
+            <IntakeSummaryCard label="Defense Rows" value={stagedSummary.defense} tone="rose" />
+            <IntakeSummaryCard label="Pit Priors" value={stagedSummary.pit} tone="emerald" />
+            <IntakeSummaryCard label="Conflicts" value={stagedSummary.conflicts} tone={stagedSummary.conflicts > 0 ? 'amber' : 'slate'} />
+          </div>
+        </section>
+
+        <div className={isEmbedded ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]'}>
           <div className="space-y-6">
-            <div className="flex flex-col items-center rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+            <div className="admin-g2 flex flex-col items-center border border-slate-800 bg-slate-900/50 p-6">
               <div className="mb-6 flex w-full gap-4">
                 {!isScanning ? (
-                  <button onClick={startCam} className="flex-1 rounded-lg bg-blue-600 py-3 font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-blue-500">
-                    📷 Start Camera
+                  <button onClick={startCam} className="admin-g2-sm flex-1 border border-cyan-400/30 bg-cyan-500/15 py-3 font-black text-cyan-50 shadow-lg transition-all active:scale-95 hover:bg-cyan-500/25">
+                    Start Camera
                   </button>
                 ) : (
-                  <button onClick={stopCam} className="flex-1 rounded-lg bg-red-600 py-3 font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-red-500">
-                    🛑 Stop Camera
+                  <button onClick={stopCam} className="admin-g2-sm flex-1 border border-rose-400/30 bg-rose-500/15 py-3 font-black text-rose-50 shadow-lg transition-all active:scale-95 hover:bg-rose-500/25">
+                    Stop Camera
                   </button>
                 )}
 
-                <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-indigo-500 ${isProcessing ? 'pointer-events-none opacity-50' : ''}`}>
+                <label className={`admin-g2-sm flex flex-1 cursor-pointer items-center justify-center gap-2 border border-fuchsia-400/30 bg-fuchsia-500/15 py-3 font-black text-fuchsia-50 shadow-lg transition-all active:scale-95 hover:bg-fuchsia-500/25 ${isProcessing ? 'pointer-events-none opacity-50' : ''}`}>
                   <Upload className="h-5 w-5" />
                   Upload QR / JSON
                   <input type="file" className="hidden" accept="image/*,.json" multiple onChange={handleFileUpload} />
                 </label>
               </div>
 
-              <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border-2 border-slate-700 bg-black font-mono text-slate-600 shadow-2xl">
+              <div className="admin-g2 relative flex aspect-square w-full items-center justify-center overflow-hidden border-2 border-slate-700 bg-black font-mono text-slate-600 shadow-2xl">
                 {!isScanning && <span className="absolute z-10">Camera Offline</span>}
                 <div id="qr-reader" className="absolute inset-0 h-full w-full" />
               </div>
 
               {logMsg && (
-                <div className="mt-6 w-full rounded-xl border border-emerald-900 bg-emerald-950/50 p-4 text-center font-mono text-sm text-emerald-400 whitespace-pre-wrap">
+                <div className="admin-g2-sm mt-6 w-full border border-emerald-900 bg-emerald-950/50 p-4 text-center font-mono text-sm text-emerald-400 whitespace-pre-wrap">
                   {logMsg}
                 </div>
               )}
             </div>
 
             {failedFiles.length > 0 && (
-              <div className="rounded-2xl border border-red-900/50 bg-slate-900/50 p-6">
+              <div className="admin-g2 border border-red-900/50 bg-slate-900/50 p-6">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="flex items-center gap-2 text-lg font-black text-red-500">
                     <AlertTriangle className="h-5 w-5" />
@@ -616,21 +764,21 @@ export default function QRScannerView({
                       failedFiles.forEach(file => URL.revokeObjectURL(file.url));
                       setFailedFiles([]);
                     }}
-                    className="rounded-lg border border-red-800 bg-red-950 px-3 py-1 text-sm text-red-400 transition-colors hover:bg-red-900"
+                    className="admin-g2-sm border border-red-800 bg-red-950 px-3 py-1 text-sm text-red-400 transition-colors hover:bg-red-900"
                   >
                     Clear All
                   </button>
                 </div>
                 <div className="grid grid-cols-3 gap-3">
                   {failedFiles.map((fileObj, index) => (
-                    <div key={index} className="group relative aspect-[3/4] overflow-hidden rounded-lg border border-red-900 bg-black">
+                    <div key={index} className="admin-g2-sm group relative aspect-[3/4] overflow-hidden border border-red-900 bg-black">
                       <img src={fileObj.url} alt={fileObj.file.name} className="h-full w-full object-contain" />
                       <button
                         onClick={() => {
                           URL.revokeObjectURL(fileObj.url);
                           setFailedFiles(prev => prev.filter((_, fileIndex) => fileIndex !== index));
                         }}
-                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        className="admin-g2-sm absolute right-1 top-1 flex h-6 w-6 items-center justify-center bg-red-600 text-white opacity-0 transition-opacity group-hover:opacity-100"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -641,22 +789,22 @@ export default function QRScannerView({
             )}
           </div>
 
-          <div className="flex h-[800px] flex-col rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+          <div className={`admin-g2 flex flex-col border border-slate-800 bg-slate-900/50 p-6 ${isEmbedded ? 'max-h-[640px] min-h-[420px]' : 'h-[800px]'}`}>
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="flex items-center gap-2 text-xl font-black text-white">
                   <Database className="h-6 w-6 text-blue-400" />
-                  Staging Area
+                  Evidence Staging
                 </h2>
-                <p className="text-sm text-slate-400">{stagedData.length} records waiting for action</p>
+                <p className="text-sm text-slate-400">{stagedData.length} records waiting for review and sync</p>
               </div>
               <button
                 onClick={handlePushToDatabase}
                 disabled={stagedData.length === 0 || isProcessing}
-                className="flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 font-bold text-white shadow-lg transition-all active:scale-95 hover:bg-emerald-500 disabled:pointer-events-none disabled:opacity-50"
+                className="admin-g2-sm flex items-center gap-2 border border-emerald-400/30 bg-emerald-500/15 px-6 py-2 font-black text-emerald-50 shadow-lg transition-all active:scale-95 hover:bg-emerald-500/25 disabled:pointer-events-none disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" />
-                Push All
+                Sync Staged
               </button>
             </div>
 
@@ -664,39 +812,54 @@ export default function QRScannerView({
               {stagedData.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center space-y-4 text-slate-500">
                   <Database className="h-12 w-12 opacity-20" />
-                  <p>No data staged. Scan QR codes or upload QR images / JSON files.</p>
+                  <p>No evidence staged. Scan QR codes or upload QR images / JSON files.</p>
                 </div>
               ) : (
-                stagedData.map((item) => (
-                  <div key={item.id} className="group rounded-xl border border-slate-800 bg-slate-950 p-4">
+                stagedData.map((item) => {
+                  const meta = getImportEvidenceMeta(item.record);
+                  const mission = SCOUTING_MISSIONS[meta.missionKey];
+                  const adminTask = getRecordAdminTask(item.record);
+                  return (
+                  <div key={item.id} className="admin-g2-sm group border border-slate-800 bg-slate-950 p-4">
+                    <div className={`admin-g2-sm mb-3 border px-3 py-3 ${meta.toneClass}`}>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{mission.shortTitle}</div>
+                          <div className="mt-1 text-sm font-black text-white">{meta.title}</div>
+                          <div className="mt-1 text-xs font-semibold leading-relaxed opacity-80">{meta.ppaSignal}</div>
+                        </div>
+                        <div className="admin-g2-sm shrink-0 border border-white/15 bg-white/10 px-3 py-2 text-sm font-black text-white">{meta.value}</div>
+                      </div>
+                      <div className="mt-2 text-xs font-semibold leading-relaxed opacity-80">{meta.decisionUse}</div>
+                    </div>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4">
-                        <div className={`mt-1 w-2 self-stretch rounded-full ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? (item.record.data.alliance === 'Red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-cyan-400'}`} />
+                        <div className={`mt-1 w-2 self-stretch admin-g2-sm ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? (item.record.data.alliance === 'Red' ? 'bg-red-500' : 'bg-blue-500') : 'bg-cyan-400'}`} />
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? 'bg-purple-500/15 text-purple-200' : 'bg-cyan-500/15 text-cyan-200'}`}>
+                            <span className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? 'bg-purple-500/15 text-purple-200' : 'bg-cyan-500/15 text-cyan-200'}`}>
                               {item.record.recordType.toUpperCase()}
                             </span>
-                            <span className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${STATUS_CLASSES[item.status]}`}>
+                            <span className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${STATUS_CLASSES[item.status]}`}>
                               {item.status.toUpperCase()}
                             </span>
-                            <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-black tracking-wider text-slate-300">
+                            <span className="admin-g2-sm bg-slate-900 px-3 py-1 text-xs font-black tracking-wider text-slate-300">
                               {getTargetCollection(item.record)}
                             </span>
                             {item.record.recordType === 'match' || item.record.recordType === 'matchV4' ? (
                               <>
                                 <span className="text-lg font-black text-white">{item.record.data.teamNumber}</span>
-                                <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.data.matchKey}</span>
+                                <span className="admin-g2-sm bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.data.matchKey}</span>
                               </>
                             ) : item.record.recordType === 'matchDefense' ? (
                               <>
                                 <span className="text-lg font-black text-white">{item.record.data.teamNumber}</span>
-                                <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.data.matchKey}</span>
+                                <span className="admin-g2-sm bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.data.matchKey}</span>
                               </>
                             ) : (
                               <>
                                 <span className="text-lg font-black text-white">{item.record.data.teamNumber}</span>
-                                <span className="rounded bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.eventKey}</span>
+                                <span className="admin-g2-sm bg-slate-900 px-2 py-0.5 font-mono text-sm text-slate-400">{item.record.eventKey}</span>
                               </>
                             )}
                           </div>
@@ -708,22 +871,113 @@ export default function QRScannerView({
                                 : `Scout: ${item.record.data.scoutName || 'Unknown'} | Team: ${item.record.data.teamName || 'Unknown'}`}
                           </div>
                           <div className="mt-2 text-xs font-medium text-slate-400">{item.message}</div>
+                          <ImportAdminTaskPanel task={adminTask} />
                         </div>
                       </div>
                       <button
                         onClick={() => removeStagedItem(item.id)}
-                        className="rounded-lg p-2 text-slate-500 opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-950/30 hover:text-red-400"
+                        className="admin-g2-sm p-2 text-slate-500 opacity-0 transition-colors group-hover:opacity-100 hover:bg-red-950/30 hover:text-red-400"
                       >
                         <Trash2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
-                ))
+                );
+                })
               )}
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function IntakeSummaryCard({
+  label,
+  value,
+  tone = 'slate'
+}: {
+  label: string;
+  value: number | string;
+  tone?: 'slate' | 'cyan' | 'emerald' | 'rose' | 'amber';
+}) {
+  const toneClass =
+    tone === 'cyan'
+      ? 'border-cyan-400/30 bg-cyan-500/10 text-cyan-100'
+      : tone === 'emerald'
+        ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+        : tone === 'rose'
+          ? 'border-rose-400/30 bg-rose-500/10 text-rose-100'
+          : tone === 'amber'
+            ? 'border-amber-400/30 bg-amber-500/10 text-amber-100'
+            : 'border-slate-800 bg-slate-950/70 text-slate-200';
+
+  return (
+    <div className={`admin-g2-sm border px-4 py-3 ${toneClass}`}>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-1 text-2xl font-black text-white">{value}</div>
+    </div>
+  );
+}
+
+const formatTaskPercent = (value: number | null | undefined) =>
+  value == null || !Number.isFinite(value) ? 'N/A' : `${Math.round(value * 100)}%`;
+
+function ImportAdminTaskPanel({ task }: { task?: ScoutEvidenceAdminTask }) {
+  if (!task) return null;
+  const ppaRange = formatScoutEvidenceAdminTaskPpaRange(task);
+  const decisionUse = describeScoutEvidenceAdminTaskDecisionUse(task);
+  return (
+    <div className="admin-g2-sm mt-3 border border-sky-400/25 bg-sky-500/10 p-3 text-xs font-semibold text-sky-50">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-black uppercase tracking-[0.16em] text-sky-200/75">Admin Task</span>
+        <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1 font-black">
+          {formatScoutEvidenceAdminTaskMission(task)}
+        </span>
+        <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+          Team {task.teamNumber}{task.teamName ? ` ${task.teamName}` : ''}
+        </span>
+        {(task.matchKey || task.matchNumber) && (
+          <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+            {task.matchKey || `${task.matchType || 'Match'} ${task.matchNumber}`}
+          </span>
+        )}
+      </div>
+      {(task.context || task.detail || task.reason) && (
+        <div className="mt-2 leading-relaxed text-sky-100/80">
+          {[task.reason, task.context, task.detail].filter(Boolean).join(' | ')}
+        </div>
+      )}
+      {task.ppa && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+            PPA {ppaRange || 'N/A'}
+          </span>
+          <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+            {task.ppa.role || 'Unknown role'}
+          </span>
+          <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+            {task.ppa.uncertainty || 'Unknown risk'} / {task.ppa.tailRisk || 'Unknown tail'}
+          </span>
+          <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+            Scout trust {formatTaskPercent(task.ppa.scoutConfidence)}
+          </span>
+        </div>
+      )}
+      {decisionUse && (
+        <div className="admin-g2-sm mt-3 border border-emerald-300/20 bg-emerald-500/10 px-3 py-2">
+          <div className="font-black uppercase tracking-[0.14em] text-emerald-100/70">{decisionUse.title}</div>
+          <div className="mt-1 leading-relaxed text-emerald-50/85">{decisionUse.modelEffect}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {decisionUse.feeds.map(feed => (
+              <span key={feed} className="admin-g2-sm border border-emerald-200/15 bg-slate-950/45 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-50">
+                {feed}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

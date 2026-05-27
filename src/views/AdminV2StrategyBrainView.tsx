@@ -56,11 +56,18 @@ import {
 } from '../utils/adminV2LocalStore';
 import { fetchAndCacheFirstEventBundle, getYearFromEventKey } from '../utils/firstEventsApi';
 
-type StrategyBrainTab = 'foundation' | 'models' | 'profiles' | 'strategy' | 'alliance' | 'scoutOps';
+export type StrategyBrainTab = 'foundation' | 'models' | 'profiles' | 'strategy' | 'alliance' | 'scoutOps';
 
 const DEFAULT_SCOUTS = ['Olivia', 'Eason', 'Matilda', 'Sophia', 'Lucas', 'Justin'];
 const STARTING_POWERCOINS = 1000;
 const ALLIANCE_SELECTION_STORAGE_PREFIX = 'adminv2_strategy_alliance_selection';
+const JUDGE_MODEL_BENCHMARK = {
+  modelName: 'Conservative TailGuard Strong RoleV3',
+  decidedMatches: 14685,
+  winnerAccuracy: 0.753,
+  confidence65Accuracy: 0.83,
+  confidence75Accuracy: 0.877
+};
 
 type LocalAllianceSelectionState = {
   allianceSeed: number;
@@ -167,7 +174,7 @@ const escapeCsv = (value: string | number | null | undefined) => {
 
 const downloadCsvFile = (filename: string, rows: Array<Record<string, string | number | null | undefined>>) => {
   if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
+  const headers = Object.keys(rows[0]!);
   const csv = [
     headers.map(escapeCsv).join(','),
     ...rows.map(row => headers.map(header => escapeCsv(row[header])).join(','))
@@ -241,6 +248,8 @@ function StrategyTeamBadgeList({
 
 export default function AdminV2StrategyBrainView({
   defaultTab = 'foundation',
+  lockedTab,
+  hideShell = false,
   eventKey,
   selectedMetric,
   ownTeamNumber,
@@ -257,6 +266,8 @@ export default function AdminV2StrategyBrainView({
   teamNameLookup
 }: {
   defaultTab?: StrategyBrainTab;
+  lockedTab?: StrategyBrainTab;
+  hideShell?: boolean;
   eventKey: string;
   selectedMetric: AdminV2SelectedMetric;
   ownTeamNumber: string;
@@ -272,7 +283,7 @@ export default function AdminV2StrategyBrainView({
   epaRatings: Record<string, number>;
   teamNameLookup: Record<string, string>;
 }) {
-  const [activeTab, setActiveTab] = useState<StrategyBrainTab>(defaultTab);
+  const [activeTab, setActiveTab] = useState<StrategyBrainTab>(lockedTab ?? defaultTab);
   const [firstCredentials, setFirstCredentials] = useState<FirstEventsCredentials | null>(null);
   const [cacheCount, setCacheCount] = useState(0);
   const [cacheEntries, setCacheEntries] = useState<AdminV2CacheEntry[]>([]);
@@ -294,8 +305,8 @@ export default function AdminV2StrategyBrainView({
   const [latestFeatureSnapshot, setLatestFeatureSnapshot] = useState<ModelFeatureSnapshot | null>(null);
 
   useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab]);
+    setActiveTab(lockedTab ?? defaultTab);
+  }, [defaultTab, lockedTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -553,6 +564,20 @@ export default function AdminV2StrategyBrainView({
   const usableModelCount = modelBacktests.filter(result => result.matchesTested > 0).length;
   const promotionCandidateCount = modelBacktests.filter(result => result.matchesTested > 0 && result.eligibleForPromotion).length;
   const calibrationBins = bestModel?.calibrationBins || [];
+  const bestModelJudgeSummary = useMemo(() => {
+    const decidedRows = (bestModel?.comparisonRows || []).filter(row => row.actualWinner !== 'Tie' && row.predictedWinner !== 'Tie');
+    const correctRows = decidedRows.filter(row => row.winnerPickCorrect);
+    const highConfidenceRows = decidedRows.filter(row => row.confidence >= 0.65);
+    const highConfidenceCorrectRows = highConfidenceRows.filter(row => row.winnerPickCorrect);
+
+    return {
+      decidedMatches: decidedRows.length,
+      correctWinnerPicks: correctRows.length,
+      winnerAccuracy: decidedRows.length > 0 ? correctRows.length / decidedRows.length : null,
+      highConfidenceMatches: highConfidenceRows.length,
+      highConfidenceAccuracy: highConfidenceRows.length > 0 ? highConfidenceCorrectRows.length / highConfidenceRows.length : null
+    };
+  }, [bestModel]);
   const powerCoinRows = useMemo(() => {
     const scoutNames = Array.from(new Set([
       ...DEFAULT_SCOUTS,
@@ -896,34 +921,38 @@ export default function AdminV2StrategyBrainView({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h3 className="flex items-center gap-3 text-2xl font-black text-white">
-              <Brain className="h-7 w-7 text-cyan-300" />
-              Strategy Brain
-            </h3>
-            <p className="mt-2 max-w-4xl text-sm font-semibold text-cyan-100/80">
-              V4 evidence, cached APIs, no-future-data model evaluation, defense attribution, match strategy,
-              alliance selection, scout assignment optimization, and PowerCoins live in one Admin V4 strategy workspace.
-            </p>
+      {!hideShell && (
+        <>
+          <div className="rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="flex items-center gap-3 text-2xl font-black text-white">
+                  <Brain className="h-7 w-7 text-cyan-300" />
+                  Strategy Brain
+                </h3>
+                <p className="mt-2 max-w-4xl text-sm font-semibold text-cyan-100/80">
+                  V4 evidence, cached APIs, no-future-data model evaluation, defense attribution, match strategy,
+                  alliance selection, scout assignment optimization, and PowerCoins live in one Admin V4 strategy workspace.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm">
+                <div className="font-black text-slate-400">Best Validated Model</div>
+                <div className="mt-1 text-xl font-black text-white">{bestModel?.modelName || 'Pending data'}</div>
+                <div className="text-xs text-slate-500">PPA uses validated blend when available.</div>
+              </div>
+            </div>
           </div>
-          <div className="rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm">
-            <div className="font-black text-slate-400">Best Validated Model</div>
-            <div className="mt-1 text-xl font-black text-white">{bestModel?.modelName || 'Pending data'}</div>
-            <div className="text-xs text-slate-500">PPA uses validated blend when available.</div>
-          </div>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button onClick={() => setActiveTab('foundation')} className={tabClass('foundation')}>Data Foundation</button>
-        <button onClick={() => setActiveTab('models')} className={tabClass('models')}>Model Lab</button>
-        <button onClick={() => setActiveTab('profiles')} className={tabClass('profiles')}>Team Profiles</button>
-        <button onClick={() => setActiveTab('strategy')} className={tabClass('strategy')}>Match Strategy</button>
-        <button onClick={() => setActiveTab('alliance')} className={tabClass('alliance')}>Alliance Selection</button>
-        <button onClick={() => setActiveTab('scoutOps')} className={tabClass('scoutOps')}>Scout Ops + PowerCoins</button>
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setActiveTab('foundation')} className={tabClass('foundation')}>Data Foundation</button>
+            <button onClick={() => setActiveTab('models')} className={tabClass('models')}>Model Lab</button>
+            <button onClick={() => setActiveTab('profiles')} className={tabClass('profiles')}>Team Profiles</button>
+            <button onClick={() => setActiveTab('strategy')} className={tabClass('strategy')}>Match Strategy</button>
+            <button onClick={() => setActiveTab('alliance')} className={tabClass('alliance')}>Alliance Selection</button>
+            <button onClick={() => setActiveTab('scoutOps')} className={tabClass('scoutOps')}>Scout Ops + PowerCoins</button>
+          </div>
+        </>
+      )}
 
       {activeTab === 'foundation' && (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -1052,6 +1081,36 @@ export default function AdminV2StrategyBrainView({
             PPC and OPR rows are evaluated with only scouting or official-score data available before each played match.
             EPA rows use current Statbotics context until we add historical EPA snapshots.
           </p>
+          <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5">
+              <div className="text-xs font-black uppercase tracking-widest text-emerald-200">Judge answer</div>
+              <div className="mt-2 text-4xl font-black text-white">{formatPercent(JUDGE_MODEL_BENCHMARK.winnerAccuracy)}</div>
+              <p className="mt-2 text-sm font-semibold text-emerald-50/85">
+                This means the model picked the correct winning alliance, red or blue, before the match result was known.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <MetricCard label="Final Model" value={JUDGE_MODEL_BENCHMARK.modelName} />
+                <MetricCard label="Decided Matches" value={JUDGE_MODEL_BENCHMARK.decidedMatches.toLocaleString()} />
+                <MetricCard label="At 65% Confidence" value={formatPercent(JUDGE_MODEL_BENCHMARK.confidence65Accuracy)} />
+              </div>
+              <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-slate-950/45 px-4 py-3 text-sm font-bold text-emerald-50">
+                At 75% confidence or higher, winner-pick accuracy rose to {formatPercent(JUDGE_MODEL_BENCHMARK.confidence75Accuracy)}.
+              </div>
+            </div>
+            <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/10 p-5">
+              <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Live AdminV4 backtest</div>
+              <div className="mt-2 text-4xl font-black text-white">{formatPercent(bestModelJudgeSummary.winnerAccuracy)}</div>
+              <p className="mt-2 text-sm font-semibold text-cyan-50/80">
+                Current event check for {bestModel?.modelName || 'the best available model'} using completed, non-tied matches.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <MetricCard label="Win/Loss Matches" value={bestModelJudgeSummary.decidedMatches} />
+                <MetricCard label="Correct Picks" value={bestModelJudgeSummary.correctWinnerPicks} />
+                <MetricCard label="High-Conf. Matches" value={bestModelJudgeSummary.highConfidenceMatches} />
+                <MetricCard label="High-Conf. Accuracy" value={formatPercent(bestModelJudgeSummary.highConfidenceAccuracy)} />
+              </div>
+            </div>
+          </div>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <MetricCard label="Best No-Future Model" value={bestModel?.modelName || 'Pending'} />
             <MetricCard label="Promotion Candidates" value={`${promotionCandidateCount}/${usableModelCount}`} />
@@ -1061,7 +1120,7 @@ export default function AdminV2StrategyBrainView({
           <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
             <div className="font-black text-white">PPA rule for now</div>
             <p className="mt-1 text-cyan-100/80">
-              PPA is a weighted blend of promotion-eligible no-future models that produce team ratings, with lower score MAE receiving more weight.
+              PPA is a weighted blend of promotion-eligible no-future models that produce team ratings, giving more influence to models that missed completed match scores by less.
               Current EPA can still inform live decisions, but it is not promoted until we cache historical EPA snapshots.
             </p>
             {bestModel && (
@@ -1115,7 +1174,7 @@ export default function AdminV2StrategyBrainView({
             <table className="admin-sticky-table min-w-full text-sm">
               <thead className="sticky top-0 bg-slate-950 text-xs uppercase tracking-wider text-slate-400">
                 <tr>
-                  {['Model', 'Promote', 'Team Ratings', 'Leakage', 'Source', 'Matches', 'Winner Acc.', 'Avg Conf.', 'Brier', 'Score MAE', 'Margin MAE', 'Margin Cal.', 'Low Conf.'].map(header => (
+                  {['Model', 'Promote', 'Team Ratings', 'Leakage', 'Source', 'Matches', 'Winner Acc.', 'Avg Conf.', 'Brier', 'Avg Score Miss', 'Avg Margin Miss', 'Margin Cal.', 'Low Conf.'].map(header => (
                     <th key={header} className="px-4 py-3 text-left">{header}</th>
                   ))}
                 </tr>
@@ -1921,7 +1980,7 @@ function MiniTrendChart({ profile }: { profile: TeamPerformanceProfile }) {
     maxMatch === minMatch ? width / 2 : ((matchNumber - minMatch) / (maxMatch - minMatch)) * (width - 8) + 4;
   const yFor = (value: number) => height - 4 - (Math.max(0, value) / maxValue) * (height - 8);
   const pathFor = (values: number[]) =>
-    values.map((value, index) => `${index === 0 ? 'M' : 'L'}${xFor(points[index].matchNumber).toFixed(1)},${yFor(value).toFixed(1)}`).join(' ');
+    values.map((value, index) => `${index === 0 ? 'M' : 'L'}${xFor(points[index]!.matchNumber).toFixed(1)},${yFor(value).toFixed(1)}`).join(' ');
   const bandPath = [
     ...points.map(point => `${xFor(point.matchNumber).toFixed(1)},${yFor(point.upperBand).toFixed(1)}`),
     ...[...points].reverse().map(point => `${xFor(point.matchNumber).toFixed(1)},${yFor(point.lowerBand).toFixed(1)}`)

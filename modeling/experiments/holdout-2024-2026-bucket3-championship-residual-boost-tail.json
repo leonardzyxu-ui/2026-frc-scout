@@ -1,0 +1,20 @@
+{
+  "name": "holdout-2024-2026-bucket3-championship-residual-boost-tail",
+  "description": "Direct broad 2024-2026 holdout comparison for the championship phase/residual-boost tail clue, scoring only event-key hash bucket 3 of 5.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [3],
+    "label": "2024-2026 championship residual-boost tail checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket3-championship-residual-boost-tail",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future Champs-Phase Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 E=8 M=12 LATE=0 R=72/180",
+    "No-Future Champs-ResidualBoost Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 RB=0.15/0.25/0 N=8 W=18 POS",
+    "No-Future Champs-PhaseResidualBoost Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 E=4 M=6 RB=0.15/0.25/0 N=8 W=18 POS"
+  ],
+  "notes": [
+    "This is the next deterministic checkpoint after buckets 0-2, using the same candidate set.",
+    "The replay updates on all cached 2024-2026 matches chronologically; only reported metrics are restricted to bucket 3."
+  ]
+}

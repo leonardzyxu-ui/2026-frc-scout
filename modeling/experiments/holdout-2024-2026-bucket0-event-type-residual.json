@@ -1,0 +1,25 @@
+{
+  "name": "holdout-2024-2026-bucket0-event-type-residual",
+  "description": "Checkpointed broad-history confirmation run for event-type residuals: replay all cached 2024-2026 matches, but score only event-key hash bucket 0 of 5.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [0],
+    "label": "2024-2026 event-type residual checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket0-event-type-residual",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=20 D=10",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.05 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.10 M=40",
+    "No-Future Event-Type-Residual Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 T=0.15 M=60"
+  ],
+  "notes": [
+    "This is not a new tuning manifest. It confirms whether the event-type residual improvement survives a deterministic held-out event bucket.",
+    "The model replay still updates on all cached 2024-2026 matches in chronological order; only metrics are restricted to the held-out event bucket."
+  ]
+}

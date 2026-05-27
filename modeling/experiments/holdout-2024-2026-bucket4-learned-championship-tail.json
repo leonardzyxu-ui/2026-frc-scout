@@ -1,0 +1,19 @@
+{
+  "name": "holdout-2024-2026-bucket4-learned-championship-tail",
+  "description": "Broad 2024-2026 event-key bucket-4 holdout confirmation for no-future learned championship tail residual correction candidates.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [4],
+    "label": "2024-2026 learned championship tail checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket4-learned-championship-tail",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future LearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.50 TL=15 TN=16 TC=35 F=PRS POS",
+    "No-Future LearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.35 TL=40 TN=24 TC=25 F=PR"
+  ],
+  "notes": [
+    "This holdout tests whether learned tail gains survive outside the full replay leaderboard.",
+    "The replay updates on all cached 2024-2026 matches chronologically; only reported metrics are restricted to bucket 4."
+  ]
+}

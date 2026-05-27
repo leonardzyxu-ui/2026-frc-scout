@@ -1,0 +1,17 @@
+{
+  "name": "current-2024-2026-learned-win-calibration-v2",
+  "description": "Broad 2024-2026 replay testing conservative learned win-probability calibration after 2026 showed calibration gains but no relative promotion.",
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-learned-win-calibration-v2",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.10 WL=50 WN=320 WW=2400 C=0.040 F=MC",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.10 WL=50 WN=320 WW=2400 C=0.040 F=MC",
+    "No-Future LearnedWinCal TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20 WC=0.15 WL=30 WN=320 WW=2400 C=0.040 F=B"
+  ],
+  "notes": [
+    "This manifest intentionally has no year filter; it replays the cached 2024-2026 official match set.",
+    "A learned calibration candidate must beat or clearly complement ungated TailRiskWinProb before it deserves holdout bucket confirmation."
+  ]
+}

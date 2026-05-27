@@ -1,0 +1,20 @@
+{
+  "name": "current-2024-scaled-archetype",
+  "description": "Exact 2024-only test of season-score-scaled championship archetype shifts against fixed-point archetype shifts.",
+  "year": 2024,
+  "outputDir": "modeling/artifacts/runs/manifest-current-2024-scaled-archetype",
+  "modelNames": [
+    "Published Statbotics Match Prediction",
+    "No-Future EPA-MC Ensemble K=1.10 W=0.20 P=0.00",
+    "No-Future Event-Shift Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=8 D=4",
+    "No-Future Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 C=12 D=6",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.055 DR=0.0275",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.075 DR=0.0375",
+    "No-Future Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050"
+  ],
+  "notes": [
+    "This tests whether championship boosts should scale with the known season score environment instead of fixed points.",
+    "2024 is the lower-scoring season that previously rejected large fixed archetype shifts."
+  ]
+}

@@ -18,6 +18,8 @@ import { calculateLegacyOprRatings, TBAMatch } from './mathEngine';
 import { TeamHistoricalAverageRow } from './adminV2Analytics';
 import { rebuilt2026GameAdapter } from './seasonGameAdapter';
 
+type BacktestMetadata = Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>;
+
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
 
 const mean = (values: number[]) => (values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length);
@@ -34,8 +36,10 @@ const percentile = (values: number[], target: number) => {
   const index = Math.min(sorted.length - 1, Math.max(0, (sorted.length - 1) * target));
   const lower = Math.floor(index);
   const upper = Math.ceil(index);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
+  const lowerValue = sorted[lower] ?? 0;
+  const upperValue = sorted[upper] ?? lowerValue;
+  if (lower === upper) return lowerValue;
+  return lowerValue + (upperValue - lowerValue) * (index - lower);
 };
 
 const linearSlope = (points: Array<{ x: number; y: number }>) => {
@@ -182,32 +186,38 @@ const countOfficialAppearancesBefore = (matches: TBAMatch[]) => {
 
 const solveLinearSystem = (matrix: number[][], vector: number[]) => {
   const size = vector.length;
-  const augmented = matrix.map((row, index) => [...row, vector[index]]);
+  const augmented = matrix.map((row, index) => [...row, vector[index] ?? 0]);
 
   for (let pivot = 0; pivot < size; pivot += 1) {
     let pivotRow = pivot;
     for (let row = pivot + 1; row < size; row += 1) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[pivotRow][pivot])) {
+      if (Math.abs(augmented[row]?.[pivot] ?? 0) > Math.abs(augmented[pivotRow]?.[pivot] ?? 0)) {
         pivotRow = row;
       }
     }
-    [augmented[pivot], augmented[pivotRow]] = [augmented[pivotRow], augmented[pivot]];
+    const currentPivotRow = augmented[pivot] ?? Array.from({ length: size + 1 }, () => 0);
+    const swapPivotRow = augmented[pivotRow] ?? currentPivotRow;
+    augmented[pivot] = swapPivotRow;
+    augmented[pivotRow] = currentPivotRow;
 
-    const pivotValue = augmented[pivot][pivot] || 1e-9;
+    const activePivotRow = augmented[pivot] ?? Array.from({ length: size + 1 }, () => 0);
+    const pivotValue = activePivotRow[pivot] || 1e-9;
     for (let column = pivot; column <= size; column += 1) {
-      augmented[pivot][column] /= pivotValue;
+      activePivotRow[column] = (activePivotRow[column] ?? 0) / pivotValue;
     }
 
     for (let row = 0; row < size; row += 1) {
       if (row === pivot) continue;
-      const factor = augmented[row][pivot];
+      const activeRow = augmented[row];
+      if (!activeRow) continue;
+      const factor = activeRow[pivot] ?? 0;
       for (let column = pivot; column <= size; column += 1) {
-        augmented[row][column] -= factor * augmented[pivot][column];
+        activeRow[column] = (activeRow[column] ?? 0) - factor * (activePivotRow[column] ?? 0);
       }
     }
   }
 
-  return augmented.map(row => row[size]);
+  return augmented.map(row => row[size] ?? 0);
 };
 
 const trainRidgeRegression = (
@@ -215,29 +225,29 @@ const trainRidgeRegression = (
   lambda = 30
 ) => {
   if (samples.length === 0) return null;
-  const featureCount = samples[0].features.length + 1;
+  const featureCount = samples[0]!.features.length + 1;
   const xtx = Array.from({ length: featureCount }, () => Array.from({ length: featureCount }, () => 0));
   const xty = Array.from({ length: featureCount }, () => 0);
 
   samples.forEach(sample => {
     const row = [1, ...sample.features];
     row.forEach((leftValue, leftIndex) => {
-      xty[leftIndex] += leftValue * sample.target;
+      xty[leftIndex] = (xty[leftIndex] ?? 0) + leftValue * sample.target;
       row.forEach((rightValue, rightIndex) => {
-        xtx[leftIndex][rightIndex] += leftValue * rightValue;
+        xtx[leftIndex]![rightIndex] = (xtx[leftIndex]?.[rightIndex] ?? 0) + leftValue * rightValue;
       });
     });
   });
 
   for (let index = 1; index < featureCount; index += 1) {
-    xtx[index][index] += lambda;
+    xtx[index]![index] = (xtx[index]?.[index] ?? 0) + lambda;
   }
 
   return solveLinearSystem(xtx, xty);
 };
 
 const predictRidge = (weights: number[] | null, features: number[]) =>
-  weights ? weights.reduce((sum, weight, index) => sum + weight * (index === 0 ? 1 : features[index - 1]), 0) : 0;
+  weights ? weights.reduce((sum, weight, index) => sum + weight * (index === 0 ? 1 : features[index - 1] ?? 0), 0) : 0;
 
 const buildRidgeFeatureVector = ({
   match,
@@ -410,7 +420,7 @@ const evaluatePredictions = (
     blueScore: number;
     lowConfidence: boolean;
   }>,
-  metadata: Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>
+  metadata: BacktestMetadata
 ): ModelBacktestResult => {
   if (predictions.length === 0) {
     return {
@@ -552,7 +562,7 @@ export const backtestTimeAwareModels = ({
     ];
 
     modelRatings.forEach(({ key, ratings }) => {
-      modelPredictions[key].push({
+      modelPredictions[key]?.push({
         match,
         redScore: scoreAlliance(redTeams, ratings),
         blueScore: scoreAlliance(blueTeams, ratings),
@@ -566,7 +576,7 @@ export const backtestTimeAwareModels = ({
           .filter((value): value is number => value != null && Number.isFinite(value));
         return sum + mean(values);
       }, 0);
-    modelPredictions['No-Future Blend'].push({
+    modelPredictions['No-Future Blend']?.push({
       match,
       redScore: noFutureBlendScore(redTeams),
       blueScore: noFutureBlendScore(blueTeams),
@@ -583,7 +593,7 @@ export const backtestTimeAwareModels = ({
           .filter((value): value is number => value != null && Number.isFinite(value));
         return sum + mean(values);
       }, 0);
-    modelPredictions['Context Blend'].push({
+    modelPredictions['Context Blend']?.push({
       match,
       redScore: contextBlendScore(redTeams),
       blueScore: contextBlendScore(blueTeams),
@@ -607,7 +617,13 @@ export const backtestTimeAwareModels = ({
     'Context Blend': 'Explainable PPC/OPR/current EPA blend',
     'Context Ridge': 'Ridge regression with current EPA context'
   };
-  const metadataByModel: Record<string, Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>> = {
+  const fallbackMetadata: BacktestMetadata = {
+    eligibleForPromotion: false,
+    supportsTeamRatings: false,
+    leakageRisk: 'medium',
+    uncertaintyNote: 'This model did not provide promotion metadata, so it is treated as context only.'
+  };
+  const metadataByModel: Record<string, BacktestMetadata> = {
     PPC: {
       eligibleForPromotion: true,
       supportsTeamRatings: true,
@@ -671,7 +687,12 @@ export const backtestTimeAwareModels = ({
   };
 
   return Object.entries(modelPredictions)
-    .map(([modelName, predictions]) => evaluatePredictions(modelName, sourceLabels[modelName], predictions, metadataByModel[modelName]))
+    .map(([modelName, predictions]) => evaluatePredictions(
+      modelName,
+      sourceLabels[modelName] ?? modelName,
+      predictions,
+      metadataByModel[modelName] ?? fallbackMetadata
+    ))
     .sort((left, right) => {
       if (left.eligibleForPromotion !== right.eligibleForPromotion) return Number(right.eligibleForPromotion) - Number(left.eligibleForPromotion);
       if (left.matchesTested !== right.matchesTested) return right.matchesTested - left.matchesTested;
@@ -701,12 +722,12 @@ export const buildPpaRatings = (
   }));
   const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0) || 1;
   const teams = new Set<string>();
-  usableResults.forEach(result => Object.keys(lookups[result.modelName]).forEach(team => teams.add(team)));
+  usableResults.forEach(result => Object.keys(lookups[result.modelName] ?? {}).forEach(team => teams.add(team)));
 
   return Object.fromEntries(
     Array.from(teams).map(team => [
       team,
-      weights.reduce((sum, item) => sum + (lookups[item.modelName][team] ?? 0) * (item.weight / totalWeight), 0)
+      weights.reduce((sum, item) => sum + ((lookups[item.modelName] ?? {})[team] ?? 0) * (item.weight / totalWeight), 0)
     ])
   );
 };
@@ -1286,8 +1307,8 @@ export const buildStrategyMatchPlans = (
 
       const redRoleOptions = buildRoleOptions('Red', redTeams, baselineRedScore, baselineBlueScore);
       const blueRoleOptions = buildRoleOptions('Blue', blueTeams, baselineBlueScore, baselineRedScore);
-      const bestRedOption = redRoleOptions[0];
-      const bestBlueOption = blueRoleOptions[0];
+      const bestRedOption = redRoleOptions[0]!;
+      const bestBlueOption = blueRoleOptions[0]!;
       const redDefenseSwing = bestRedOption.defenseValue - bestRedOption.offenseCost;
       const blueDefenseSwing = bestBlueOption.defenseValue - bestBlueOption.offenseCost;
       const optimizedRedScore = Math.max(0, baselineRedScore - bestRedOption.offenseCost - bestBlueOption.defenseValue);
@@ -1422,8 +1443,8 @@ export const optimizeScoutAssignments = (
       .sort((left, right) => {
         const ownTeamDelta = Number(right.teamNumber === ownTeamNumber) - Number(left.teamNumber === ownTeamNumber);
         if (ownTeamDelta !== 0) return ownTeamDelta;
-        const leftRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name][left.teamNumber] || 0));
-        const rightRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name][right.teamNumber] || 0));
+        const leftRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name]?.[left.teamNumber] || 0));
+        const rightRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name]?.[right.teamNumber] || 0));
         if (leftRepeat !== rightRepeat) return rightRepeat - leftRepeat;
         return getStationPriority(left.station) - getStationPriority(right.station);
       })
@@ -1470,7 +1491,7 @@ export const optimizeScoutAssignments = (
         .filter(name => !usedScoutsThisMatch.has(name))
         .map(name => ({
           name,
-          repeats: exposureCounts[name][slot.teamNumber] || 0,
+          repeats: exposureCounts[name]?.[slot.teamNumber] || 0,
           load: scoutLoad[name] || 0
         }))
         .sort((left, right) => right.repeats - left.repeats || left.load - right.load || left.name.localeCompare(right.name))[0]?.name;
@@ -1486,8 +1507,10 @@ export const optimizeScoutAssignments = (
         return;
       }
       usedScoutsThisMatch.add(scoutName);
-      exposureCounts[scoutName][slot.teamNumber] = (exposureCounts[scoutName][slot.teamNumber] || 0) + 1;
-      scoutLoad[scoutName] += 1;
+      const scoutExposure = exposureCounts[scoutName] ?? {};
+      scoutExposure[slot.teamNumber] = (scoutExposure[slot.teamNumber] || 0) + 1;
+      exposureCounts[scoutName] = scoutExposure;
+      scoutLoad[scoutName] = (scoutLoad[scoutName] || 0) + 1;
       assignments.push({
         matchKey: match.key,
         matchNumber: match.match_number,
@@ -1533,16 +1556,27 @@ export const buildAlliancePickRecommendations = (
     .filter(profile => profile.teamNumber !== ownTeamNumber)
     .map(profile => {
       const status = pickedTeamStatuses[profile.teamNumber]?.status || 'available';
-      const highFloorScore = (profile.lowestNonZeroScore ?? profile.averageScore) + profile.averageScore - profile.standardDeviation;
-      const upsetScore = profile.peakScore + profile.volatility * 20 + (profile.defenseImpact ?? 0);
-      const score = highFloorScore * (1 - seedRisk) + upsetScore * seedRisk + profile.reliability * 10;
+      const expectedPpa = profile.ppa ?? profile.projectedNextScore ?? profile.averageScore;
+      const floorPpa = Math.min(profile.floorScore, expectedPpa);
+      const ceilingPpa = Math.max(profile.ceilingScore, expectedPpa, profile.peakScore);
+      const defenseValue = profile.defenseImpact ?? 0;
+      const reliabilityBonus = profile.reliability * 14;
+      const volatilityPenalty = profile.volatility * 12 + profile.zeroRate * 18;
+      const highFloorScore = floorPpa * 0.52 + expectedPpa * 0.34 + defenseValue * 0.16 + reliabilityBonus - volatilityPenalty;
+      const upsetScore = ceilingPpa * 0.46 + expectedPpa * 0.24 + profile.upsetPotential * 18 + defenseValue * 0.34 - profile.zeroRate * 10;
+      const balancedScore = expectedPpa * 0.42 + floorPpa * 0.22 + ceilingPpa * 0.18 + defenseValue * 0.24 + reliabilityBonus * 0.55 - volatilityPenalty * 0.55;
+      const score = allianceSeed <= 2
+        ? highFloorScore
+        : allianceSeed >= 7
+          ? upsetScore
+          : balancedScore * (1 - Math.abs(seedRisk - 0.5)) + ((highFloorScore + upsetScore) / 2) * Math.abs(seedRisk - 0.5);
 
       return {
         teamNumber: profile.teamNumber,
         score,
-        seedFit: allianceSeed <= 2 ? 'Floor + reliability' : allianceSeed >= 7 ? 'Upset peak + volatility' : 'Balanced value',
-        roleFit: (profile.defenseImpact ?? 0) > profile.averageScore * 0.25 ? 'Defense/specialist upside' : 'Primary scoring fit',
-        rationale: `Avg ${profile.averageScore.toFixed(1)}, Peak ${profile.peakScore.toFixed(1)}, SD ${profile.standardDeviation.toFixed(1)}, Defense ${(profile.defenseImpact ?? 0).toFixed(1)}.`,
+        seedFit: allianceSeed <= 2 ? 'Protect floor' : allianceSeed >= 7 ? 'Hunt ceiling' : 'Balance role + value',
+        roleFit: defenseValue > expectedPpa * 0.25 ? 'Defense/flex pick' : ceilingPpa - floorPpa > 18 ? 'High-upside scorer' : 'Primary scoring fit',
+        rationale: `PPA exp ${expectedPpa.toFixed(1)}, floor ${floorPpa.toFixed(1)}, ceiling ${ceilingPpa.toFixed(1)}, defense ${defenseValue.toFixed(1)}, reliability ${(profile.reliability * 100).toFixed(0)}%.`,
         status,
         pickedBy: pickedTeamStatuses[profile.teamNumber]?.pickedBy
       };

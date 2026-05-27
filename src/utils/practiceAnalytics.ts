@@ -114,7 +114,7 @@ const parsePracticeMatchNumber = (matchKey: string) => {
   const normalized = (matchKey || '').trim().toLowerCase();
   const directMatch = normalized.match(/pm(\d+)/);
   if (directMatch) {
-    return parseInt(directMatch[1], 10) || 0;
+    return parseInt(directMatch[1] ?? '0', 10) || 0;
   }
 
   const firstNumber = normalized.match(/\d+/);

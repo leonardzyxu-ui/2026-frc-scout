@@ -1,0 +1,18 @@
+{
+  "name": "current-2026-role-v3-selective-tailguard",
+  "description": "Full 2026 replay testing whether a stricter no-future TailGuard gate can keep Strong RoleV3 easy-slice behavior while still borrowing stronger tail correction only when prior event diagnostics show a high-tail regime.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-role-v3-selective-tailguard",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future SelectiveTailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=12/R8/S10/MIN/F28",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "SelectiveTailGuard uses the stronger tail correction weight, but requires both prior residual evidence and prior event score-scale evidence using a min gate.",
+    "This manifest is a first full-2026 smoke test before spending broad bucket compute."
+  ]
+}

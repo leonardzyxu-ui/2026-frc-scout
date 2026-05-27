@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Clock3, Download, Edit3, RefreshCw, Trash2, UploadCloud } from 'lucide-react';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2 } from '../types';
+import { ArrowLeft, BarChart3, Clock3, Database, Download, Edit3, RefreshCw, Trash2, UploadCloud, Wrench } from 'lucide-react';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, ScoutEvidenceAdminTask } from '../types';
 import { DEFAULT_EVENT_KEY, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
 import {
   buildScoutArchiveBundle,
@@ -16,8 +16,31 @@ import { isMatchDefenseScoutingV1 } from '../utils/matchDefenseScouting';
 import { syncScoutArchiveRecordToFirebase } from '../utils/scoutArchiveSync';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { normalizeEventKey } from '../utils/keys';
+import { SCOUTING_MISSIONS, SCOUTING_USE_MOMENTS, ScoutingMissionKey, getMissionToneClasses } from '../utils/scoutingWorkflow';
+import {
+  describeScoutEvidenceAdminTaskDecisionUse,
+  formatScoutEvidenceAdminTaskMission,
+  formatScoutEvidenceAdminTaskPpaRange,
+  getScoutEvidenceAdminTaskFromPayload
+} from '../utils/scoutTaskHandoff';
+import { getCachedPreMatchSheet, PreScoutAdminTaskEvidence } from '../utils/preMatchCache';
 
-type HistoryRow = ScoutArchiveRecord;
+interface PreScoutHistoryRow {
+  recordId: string;
+  logicalId: string;
+  recordType: 'preScout';
+  eventKey: string;
+  username: string;
+  deviceId: string;
+  updatedAt: number;
+  deleted: false;
+  source: 'pre_scout_cache';
+  syncStatus: 'synced';
+  payload: PreScoutAdminTaskEvidence;
+}
+
+type HistoryRow = ScoutArchiveRecord | PreScoutHistoryRow;
+type HistoryFilter = 'all' | 'preScout' | 'match' | 'defense' | 'pit' | 'unsynced';
 
 const toMatchPayloadV3 = (payload: MatchScoutingV2 | MatchScoutingV3) =>
   isMatchScoutingV3(payload) ? payload : mapLegacyMatchScoutingToV3(payload);
@@ -27,8 +50,136 @@ const toDefensePayloadV1 = (payload: MatchDefenseScoutingV1) =>
 
 function getMatchNumber(matchKey: string) {
   const match = matchKey.match(/(\d+)/);
-  return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+  return match ? parseInt(match[1] ?? `${Number.MAX_SAFE_INTEGER}`, 10) : Number.MAX_SAFE_INTEGER;
 }
+
+const formatRecordTime = (timestamp?: number) => timestamp ? new Date(timestamp).toLocaleString() : 'No timestamp';
+
+const getRecordTeamNumber = (record: HistoryRow) => {
+  if (record.recordType === 'preScout') return record.payload.teamNumber;
+  if (record.recordType === 'matchV4') return (record.payload as MatchScoutingV4).teamNumber;
+  if (record.recordType === 'match') return toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3).teamNumber;
+  if (record.recordType === 'matchDefense') return (record.payload as MatchDefenseScoutingV1).teamNumber;
+  return (record.payload as PitScoutingV2).teamNumber;
+};
+
+const getRecordMatchKey = (record: HistoryRow) => {
+  if (record.recordType === 'preScout') return '';
+  if (record.recordType === 'matchV4') return (record.payload as MatchScoutingV4).matchKey;
+  if (record.recordType === 'match') return toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3).matchKey;
+  if (record.recordType === 'matchDefense') return (record.payload as MatchDefenseScoutingV1).matchKey;
+  return '';
+};
+
+const getRecordAdminTask = (record: HistoryRow) =>
+  record.recordType === 'preScout'
+    ? record.payload.task
+    : getScoutEvidenceAdminTaskFromPayload(record.payload);
+
+const isArchiveHistoryRow = (record: HistoryRow): record is ScoutArchiveRecord => record.recordType !== 'preScout';
+
+const getEvidenceMeta = (record: HistoryRow): {
+  missionKey: ScoutingMissionKey;
+  title: string;
+  decisionUse: string;
+  ppaSignal: string;
+  value: string;
+  tags: string[];
+  toneClass: string;
+} => {
+  if (record.recordType === 'preScout') {
+    const payload = record.payload;
+    const gapCount = payload.missingFromTba.length + payload.manualRequired.length;
+    return {
+      missionKey: 'preScout',
+      title: payload.profileAvailable ? 'Pre Scout public context' : 'Pre Scout missing-context evidence',
+      decisionUse: 'Feeds pit priority, early model guardrails, and the Data source freshness/coverage loop.',
+      ppaSignal: 'Public fallback context and missing-data warnings before local scouting rows exist.',
+      value: gapCount > 0 ? `${gapCount} gap${gapCount === 1 ? '' : 's'}` : 'Verified',
+      tags: [
+        payload.profileAvailable ? 'profile found' : 'profile missing',
+        payload.qualificationStatus || 'status unknown',
+        ...payload.missingFromTba.slice(0, 2),
+        ...payload.manualRequired.slice(0, 2)
+      ].filter(Boolean),
+      toneClass: getMissionToneClasses('violet')
+    };
+  }
+
+  if (record.recordType === 'matchV4') {
+    const payload = record.payload as MatchScoutingV4;
+    return {
+      missionKey: 'matchScout',
+      title: 'Match evidence',
+      decisionUse: 'Feeds Now, Matches, Pick List, Visualize, and Reports.',
+      ppaSignal: 'Expected value, floor risk, role fit, volatility, and scout confidence.',
+      value: `${payload.totalMatchPoints} pts`,
+      tags: [
+        payload.rolePlayed || 'role unknown',
+        `${payload.autoPoints} auto`,
+        `${payload.teleopPoints} teleop`,
+        `${payload.endgamePoints} endgame`,
+        `reliability ${payload.reliabilityScore}/10`
+      ],
+      toneClass: getMissionToneClasses('cyan')
+    };
+  }
+
+  if (record.recordType === 'match') {
+    const payload = toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3);
+    return {
+      missionKey: 'matchScout',
+      title: payload.legacyDerived ? 'Legacy match evidence' : 'Match evidence',
+      decisionUse: 'Readable evidence for team profiles, raw audit, and historical context.',
+      ppaSignal: 'Older scoring context; useful, but weaker than V4 role/reliability rows.',
+      value: `${payload.totalMatchPoints} pts`,
+      tags: [
+        `${payload.autoPoints} auto`,
+        `${payload.teleopPoints} teleop`,
+        payload.climbLevel ? `${payload.climbLevel} climb` : 'no climb label',
+        payload.legacyDerived ? 'legacy import' : 'v3'
+      ],
+      toneClass: getMissionToneClasses('cyan')
+    };
+  }
+
+  if (record.recordType === 'matchDefense') {
+    const payload = toDefensePayloadV1(record.payload as MatchDefenseScoutingV1);
+    return {
+      missionKey: 'defenseScout',
+      title: 'Defense impact evidence',
+      decisionUse: 'Feeds next-match role plans, defender assignment, and pick-list role balance.',
+      ppaSignal: 'Prevents PPA from treating strategic sacrifice as weak scoring.',
+      value: `${(((payload?.defenseMetric || 0) * 100)).toFixed(1)}%`,
+      tags: [
+        'defense impact',
+        payload?.alliance || 'no alliance',
+        payload?.assignedSlot || 'no slot'
+      ],
+      toneClass: getMissionToneClasses('rose')
+    };
+  }
+
+  const payload = record.payload as PitScoutingV2;
+  const climbTags = [
+    payload.canClimbL1 ? 'L1 climb' : '',
+    payload.canClimbL2 ? 'L2 climb' : '',
+    payload.canClimbL3 ? 'L3 climb' : ''
+  ].filter(Boolean);
+  return {
+    missionKey: 'pitScout',
+    title: 'Pit capability prior',
+    decisionUse: 'Feeds pre-match questions, compatibility, and early pick-list context.',
+    ppaSignal: 'Human prior for role fit before enough match rows exist.',
+    value: `${payload.expectedHubBallsPerMatch || 0} expected balls`,
+    tags: [
+      payload.robotBaseType || 'base unknown',
+      payload.shootingStyle || 'shooting unknown',
+      ...climbTags.slice(0, 2)
+    ].filter(Boolean),
+    toneClass: getMissionToneClasses('emerald')
+  };
+};
 
 const downloadJson = (filename: string, content: string) => {
   const blob = new Blob([content], { type: 'application/json' });
@@ -42,7 +193,8 @@ const downloadJson = (filename: string, content: string) => {
 
 export default function HistoryView() {
   const navigate = useNavigate();
-  const [records, setRecords] = useState<HistoryRow[]>([]);
+  const [records, setRecords] = useState<ScoutArchiveRecord[]>([]);
+  const [preScoutEvidence, setPreScoutEvidence] = useState<PreScoutAdminTaskEvidence[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [archiveUsername, setArchiveUsernameState] = useState('');
@@ -51,6 +203,7 @@ export default function HistoryView() {
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [eventKey, setEventKey] = useState(() => normalizeEventKey(getStoredEventKey(), DEFAULT_EVENT_KEY));
+  const [activeFilter, setActiveFilter] = useState<HistoryFilter>('all');
 
   const handleEventKeyChange = (value: string) => {
     const nextEventKey = normalizeEventKey(value, DEFAULT_EVENT_KEY);
@@ -58,8 +211,25 @@ export default function HistoryView() {
     storeEventKey(nextEventKey);
   };
 
+  const preScoutHistoryRows = useMemo<PreScoutHistoryRow[]>(() =>
+    preScoutEvidence.map(evidence => ({
+      recordId: `preScout:${evidence.id}`,
+      logicalId: `preScout:${evidence.eventKey}:${evidence.teamNumber}:${evidence.id}`,
+      recordType: 'preScout',
+      eventKey: evidence.eventKey,
+      username: 'pre-scout-cache',
+      deviceId: 'local-pre-scout-cache',
+      updatedAt: evidence.capturedAt || evidence.task.capturedAt || evidence.task.createdAt || 0,
+      deleted: false,
+      source: 'pre_scout_cache',
+      syncStatus: 'synced',
+      payload: evidence
+    })),
+    [preScoutEvidence]
+  );
+
   const recentRecords = useMemo(() => {
-    return records
+    return [...records, ...preScoutHistoryRows]
       .filter(record => !record.deleted)
       .sort((a, b) => {
         if ((a.recordType === 'match' || a.recordType === 'matchV4' || a.recordType === 'matchDefense') && (b.recordType === 'match' || b.recordType === 'matchV4' || b.recordType === 'matchDefense')) {
@@ -77,24 +247,58 @@ export default function HistoryView() {
 
         return b.updatedAt - a.updatedAt;
       });
-  }, [records]);
+  }, [preScoutHistoryRows, records]);
 
   const unsyncedRecords = useMemo(
-    () => recentRecords.filter(record => record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced'),
+    () => recentRecords.filter((record): record is ScoutArchiveRecord =>
+      isArchiveHistoryRow(record) && (record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced')
+    ),
     [recentRecords]
   );
   const deletedRecords = useMemo(
     () => records.filter(record => record.deleted).sort((a, b) => b.updatedAt - a.updatedAt),
     [records]
   );
+  const evidenceSummary = useMemo(() => {
+    const active = recentRecords;
+    const matchRows = active.filter(record => record.recordType === 'match' || record.recordType === 'matchV4');
+    const matchV4Rows = active.filter(record => record.recordType === 'matchV4');
+    const defenseRows = active.filter(record => record.recordType === 'matchDefense');
+    const pitRows = active.filter(record => record.recordType === 'pit');
+    const preScoutRows = active.filter(record => record.recordType === 'preScout');
+    const teamsCovered = new Set(active.map(getRecordTeamNumber).filter(Boolean)).size;
+    const ppaStrengthRows = preScoutRows.length + matchV4Rows.length + defenseRows.length;
+    return {
+      teamsCovered,
+      preScoutRows: preScoutRows.length,
+      matchRows: matchRows.length,
+      matchV4Rows: matchV4Rows.length,
+      defenseRows: defenseRows.length,
+      pitRows: pitRows.length,
+      ppaStrengthRows,
+      latestUpdate: active[0]?.updatedAt || 0
+    };
+  }, [recentRecords]);
+  const filteredRecentRecords = useMemo(() => {
+    if (activeFilter === 'all') return recentRecords;
+    if (activeFilter === 'preScout') return recentRecords.filter(record => record.recordType === 'preScout');
+    if (activeFilter === 'match') return recentRecords.filter(record => record.recordType === 'match' || record.recordType === 'matchV4');
+    if (activeFilter === 'defense') return recentRecords.filter(record => record.recordType === 'matchDefense');
+    if (activeFilter === 'pit') return recentRecords.filter(record => record.recordType === 'pit');
+    return recentRecords.filter(record => record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced');
+  }, [activeFilter, recentRecords]);
 
   const loadHistory = async () => {
     setIsLoading(true);
     setError('');
 
     try {
-      const localRecords = await listScoutArchiveRecords({ eventKey, includeDeleted: true });
+      const [localRecords, preScoutSheet] = await Promise.all([
+        listScoutArchiveRecords({ eventKey, includeDeleted: true }),
+        getCachedPreMatchSheet(eventKey).catch(() => null)
+      ]);
       setRecords(localRecords);
+      setPreScoutEvidence(preScoutSheet?.adminTaskEvidence || []);
     } catch (loadError) {
       console.error('Failed to load local history', loadError);
       setError('Unable to load the local IndexedDB history right now.');
@@ -153,7 +357,7 @@ export default function HistoryView() {
     }
   };
 
-  const handleEdit = (record: HistoryRow) => {
+  const handleEdit = (record: ScoutArchiveRecord) => {
     if (record.recordType === 'matchV4') {
       localStorage.setItem('match_scout_v4_draft', JSON.stringify(record.payload));
       localStorage.setItem('match_scout_v4_edit_mode', 'true');
@@ -181,7 +385,7 @@ export default function HistoryView() {
     navigate('/pit');
   };
 
-  const handleDelete = async (record: HistoryRow) => {
+  const handleDelete = async (record: ScoutArchiveRecord) => {
     try {
       await tombstoneScoutArchiveRecord(record.recordId);
       await loadHistory();
@@ -199,15 +403,28 @@ export default function HistoryView() {
 
     try {
       const bundle = await buildScoutArchiveBundle(archiveUsername);
+      const evidenceBundle = {
+        ...bundle,
+        preScoutEvidence,
+        evidenceLedger: {
+          eventKey,
+          exportedAt: Date.now(),
+          preScoutEvidenceRows: preScoutEvidence.length,
+          teamsCovered: evidenceSummary.teamsCovered,
+          matchRows: evidenceSummary.matchRows,
+          defenseRows: evidenceSummary.defenseRows,
+          pitRows: evidenceSummary.pitRows
+        }
+      };
       const filename = `${archiveUsername || 'scout'}_${eventKey}_${new Date(bundle.exportedAt).toISOString().replace(/[:.]/g, '-')}.json`;
-      downloadJson(filename, JSON.stringify(bundle, null, 2));
+      downloadJson(filename, JSON.stringify(evidenceBundle, null, 2));
     } catch (exportError) {
       console.error('Failed to build scout archive export', exportError);
       setError('Unable to export the local JSON archive right now.');
     }
   };
 
-  const handleRetrySync = async (record: HistoryRow) => {
+  const handleRetrySync = async (record: ScoutArchiveRecord) => {
     const result = await syncScoutArchiveRecordToFirebase(record);
     if (result.outcome === 'conflict') {
       setError('This local record conflicts with Firebase and remains unsynced for manual resolution.');
@@ -264,15 +481,16 @@ export default function HistoryView() {
 
       <div className="flex flex-col gap-4 border-b border-white/10 pb-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-fuchsia-500">
-            MY HISTORY
+          <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Device Evidence</div>
+          <h1 className="mt-1 text-3xl font-black text-white md:text-4xl">
+            Local Scouting Ledger
           </h1>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-            Local IndexedDB archive for {eventKey}
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+            This device's evidence chain for {eventKey}: Pre Scout context, pit priors, match rows, defense impact, sync health, and the raw rows Admin V4 uses for PPA, forecasts, pick lists, charts, and reports.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-500">
+          <label className="admin-g2-sm flex items-center gap-2 border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-wider text-slate-500">
             Event
             <input
               type="text"
@@ -285,29 +503,29 @@ export default function HistoryView() {
           <button
             onClick={() => void handleRetryAllUnsynced()}
             disabled={isBulkSyncing || unsyncedRecords.length === 0}
-            className="bg-amber-600 px-4 py-2 rounded-lg font-bold text-sm text-white hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="admin-g2-sm flex items-center gap-2 border border-amber-400/30 bg-amber-500/15 px-4 py-2 text-sm font-black text-amber-50 hover:bg-amber-500/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <UploadCloud className={`w-4 h-4 ${isBulkSyncing ? 'animate-bounce' : ''}`} />
             Sync Unsynced ({unsyncedRecords.length})
           </button>
           <button
             onClick={() => void handleDownloadArchive()}
-            className="bg-cyan-600 px-4 py-2 rounded-lg font-bold text-sm text-white hover:bg-cyan-500 flex items-center gap-2"
+            className="admin-g2-sm flex items-center gap-2 border border-cyan-400/30 bg-cyan-500/15 px-4 py-2 text-sm font-black text-cyan-50 hover:bg-cyan-500/25"
           >
             <Download className="w-4 h-4" />
-            Download JSON
+            Download Evidence JSON
           </button>
           <button
             onClick={() => void handleRefresh()}
             disabled={isLoading}
-            className="bg-slate-800 px-4 py-2 rounded-lg font-bold text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-50 flex items-center gap-2"
+            className="admin-g2-sm flex items-center gap-2 border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           <button
             onClick={() => navigate('/')}
-            className="bg-slate-800 px-4 py-2 rounded-lg font-bold text-sm text-slate-300 hover:bg-slate-700 flex items-center gap-2"
+            className="admin-g2-sm flex items-center gap-2 border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-black text-slate-200 hover:bg-slate-800"
           >
             <ArrowLeft className="w-4 h-4" />
             Back
@@ -316,63 +534,210 @@ export default function HistoryView() {
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
+        <div className="admin-g2-sm border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200">
           {error}
         </div>
       )}
 
       {syncMessage && (
-        <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">
+        <div className="admin-g2-sm border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">
           {syncMessage}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <HistorySummaryCard label="Active Records" value={recentRecords.length} />
-        <HistorySummaryCard label="Unsynced" value={unsyncedRecords.length} tone="amber" />
-        <HistorySummaryCard label="Deleted Tombstones" value={deletedRecords.length} tone="rose" />
-        <HistorySummaryCard label="JSON Export" value="All details preserved" tone="cyan" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-7">
+        <HistorySummaryCard label="Teams Covered" value={evidenceSummary.teamsCovered} tone="cyan" />
+        <HistorySummaryCard label="Pre Scout" value={evidenceSummary.preScoutRows} tone="violet" />
+        <HistorySummaryCard label="Match Evidence" value={evidenceSummary.matchRows} />
+        <HistorySummaryCard label="V4 Shape Rows" value={evidenceSummary.matchV4Rows} tone="cyan" />
+        <HistorySummaryCard label="Defense Impact" value={evidenceSummary.defenseRows} tone="rose" />
+        <HistorySummaryCard label="Pit Priors" value={evidenceSummary.pitRows} tone="emerald" />
+        <HistorySummaryCard label="Unsynced" value={unsyncedRecords.length} tone={unsyncedRecords.length > 0 ? 'amber' : 'slate'} />
       </div>
 
-      <div className="rounded-3xl border border-slate-800 bg-slate-900/80 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+        <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Evidence Pipeline</div>
+              <h2 className="mt-1 text-xl font-black text-white">What this device can prove</h2>
+            </div>
+            <div className="text-sm font-semibold text-slate-400">Latest: {formatRecordTime(evidenceSummary.latestUpdate)}</div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <EvidencePipelineCard
+              icon={<Database className="h-4 w-4" />}
+              title="Public Context"
+              value={`${evidenceSummary.preScoutRows} pre row${evidenceSummary.preScoutRows === 1 ? '' : 's'}`}
+              detail="Pre Scout returns public-context gaps and early guardrails before pit and match rows exist."
+              toneClass={getMissionToneClasses('violet')}
+            />
+            <EvidencePipelineCard
+              icon={<Wrench className="h-4 w-4" />}
+              title="Capability Priors"
+              value={`${evidenceSummary.pitRows} pit row${evidenceSummary.pitRows === 1 ? '' : 's'}`}
+              detail="Before enough matches exist, these rows seed compatibility, mechanism risk, and questions to verify."
+              toneClass={getMissionToneClasses('emerald')}
+            />
+            <EvidencePipelineCard
+              icon={<BarChart3 className="h-4 w-4" />}
+              title="PPA Shape Evidence"
+              value={`${evidenceSummary.ppaStrengthRows} strong row${evidenceSummary.ppaStrengthRows === 1 ? '' : 's'}`}
+              detail="V4 match and defense evidence strengthen expected value, floor, ceiling, role, and TailGuard risk."
+              toneClass={getMissionToneClasses('cyan')}
+            />
+            <EvidencePipelineCard
+              icon={<Database className="h-4 w-4" />}
+              title="Admin Data Workflow"
+              value={unsyncedRecords.length > 0 ? `${unsyncedRecords.length} unsynced` : 'Sync clear'}
+              detail="Synced or exported rows are the evidence Admin V4 can audit, model, visualize, and report."
+              toneClass={unsyncedRecords.length > 0 ? getMissionToneClasses('amber') : 'border-slate-700 bg-slate-950 text-slate-200'}
+            />
+          </div>
+        </section>
+
+        <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-slate-500">Used Next</div>
+          <h2 className="mt-1 text-xl font-black text-white">Where these rows matter</h2>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {Object.values(SCOUTING_USE_MOMENTS).map(moment => (
+              <div key={moment.key} className="admin-g2-sm border border-slate-800 bg-slate-950/65 px-3 py-2">
+                <div className="font-black text-white">{moment.title}</div>
+                <div className="mt-1 text-xs font-semibold leading-relaxed text-slate-400">{moment.needs.slice(0, 3).join(' / ')}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="admin-g2 border border-slate-800 bg-slate-900/80 overflow-hidden">
+        <div className="flex flex-col gap-4 px-5 py-4 border-b border-slate-800 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-2 text-slate-300">
             <Clock3 className="w-4 h-4" />
-            <span className="font-black uppercase tracking-wider text-sm">Active Local Records</span>
+            <span className="font-black uppercase tracking-wider text-sm">Active Evidence Rows</span>
           </div>
-          <div className="text-xs font-mono text-slate-400">
-            {recentRecords.length} active item{recentRecords.length === 1 ? '' : 's'}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: 'all' as const, label: `All ${recentRecords.length}` },
+              { key: 'preScout' as const, label: `Pre ${evidenceSummary.preScoutRows}` },
+              { key: 'match' as const, label: `Match ${evidenceSummary.matchRows}` },
+              { key: 'defense' as const, label: `Defense ${evidenceSummary.defenseRows}` },
+              { key: 'pit' as const, label: `Pit ${evidenceSummary.pitRows}` },
+              { key: 'unsynced' as const, label: `Unsynced ${unsyncedRecords.length}` }
+            ].map(filter => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setActiveFilter(filter.key)}
+                className={`admin-g2-sm border px-3 py-2 text-xs font-black transition-colors ${
+                  activeFilter === filter.key
+                    ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-50'
+                    : 'border-slate-800 bg-slate-950 text-slate-300 hover:border-slate-700'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
         </div>
 
         {isLoading ? (
           <div className="px-5 py-10 text-center text-slate-400 font-semibold">Loading local history...</div>
-        ) : recentRecords.length === 0 ? (
+        ) : filteredRecentRecords.length === 0 ? (
           <div className="px-5 py-10 text-center text-slate-400 font-semibold">
-            No local scouting datasets found for this event yet.
+            No local scouting datasets match this evidence filter yet.
           </div>
         ) : (
           <div className="divide-y divide-slate-800">
-            {recentRecords.map((record) => (
-              <div key={record.recordId} className="px-5 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-2">
-                  {record.recordType === 'matchV4' ? (
+            {filteredRecentRecords.map((record) => {
+              const meta = getEvidenceMeta(record);
+              const mission = SCOUTING_MISSIONS[meta.missionKey];
+              const adminTask = getRecordAdminTask(record);
+              return (
+              <div key={record.recordId} className="px-5 py-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className={`admin-g2-sm border px-3 py-3 ${meta.toneClass}`}>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{mission.shortTitle}</div>
+                        <div className="mt-1 text-sm font-black text-white">{meta.title}</div>
+                        <div className="mt-1 text-xs font-semibold leading-relaxed opacity-80">{meta.ppaSignal}</div>
+                      </div>
+                      <div className="admin-g2-sm shrink-0 border border-white/15 bg-white/10 px-3 py-2 text-sm font-black text-white">
+                        {meta.value}
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {meta.tags.slice(0, 5).map(tag => (
+                        <span key={tag} className="admin-g2-sm border border-white/10 bg-slate-950/45 px-2 py-1 text-[11px] font-semibold text-slate-100">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-xs font-semibold leading-relaxed opacity-80">{meta.decisionUse}</div>
+                  </div>
+                  {record.recordType === 'preScout' ? (
+                    (() => {
+                      const preScoutPayload = record.payload as PreScoutAdminTaskEvidence;
+                      return (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="admin-g2-sm bg-violet-500/15 px-3 py-1 text-xs font-black tracking-wider text-violet-200">
+                              PRE SCOUT
+                            </span>
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                              Team {preScoutPayload.teamNumber}
+                            </span>
+                            {preScoutPayload.teamName && (
+                              <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                                {preScoutPayload.teamName}
+                              </span>
+                            )}
+                            <span className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${preScoutPayload.profileAvailable ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/15 text-amber-200'}`}>
+                              {preScoutPayload.profileAvailable ? 'Public context found' : 'Public context missing'}
+                            </span>
+                            {preScoutPayload.qualificationStatus && (
+                              <span className="admin-g2-sm bg-violet-500/15 px-3 py-1 text-xs font-black tracking-wider text-violet-200">
+                                {preScoutPayload.qualificationStatus}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-sm text-slate-300">
+                            <span className="font-bold text-white">Pre Scout cache</span>
+                            {' • '}
+                            {formatRecordTime(record.updatedAt)}
+                          </div>
+
+                          {(preScoutPayload.missingFromTba.length > 0 || preScoutPayload.manualRequired.length > 0) && (
+                            <div className="flex max-w-3xl flex-wrap gap-2">
+                              {[...preScoutPayload.missingFromTba, ...preScoutPayload.manualRequired].slice(0, 5).map(item => (
+                                <span key={item} className="admin-g2-sm border border-violet-300/20 bg-violet-500/10 px-2 py-1 text-xs font-semibold text-violet-100">
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : record.recordType === 'matchV4' ? (
                     (() => {
                       const matchPayload = record.payload as MatchScoutingV4;
                       return (
                         <>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-fuchsia-500/15 px-3 py-1 text-xs font-black tracking-wider text-fuchsia-200">
+                            <span className="admin-g2-sm bg-fuchsia-500/15 px-3 py-1 text-xs font-black tracking-wider text-fuchsia-200">
                               MATCH V4
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               {matchPayload.matchKey.toUpperCase()}
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               Team {matchPayload.teamNumber}
                             </span>
                             <span
-                              className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${
+                              className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${
                                 matchPayload.alliance === 'Red'
                                   ? 'bg-red-500/15 text-red-200'
                                   : matchPayload.alliance === 'Blue'
@@ -382,11 +747,11 @@ export default function HistoryView() {
                             >
                               {matchPayload.alliance || 'No Alliance'}
                             </span>
-                            <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
+                            <span className="admin-g2-sm bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
                               {matchPayload.totalMatchPoints} pts
                             </span>
                             {record.syncStatus !== 'synced' && (
-                              <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
+                              <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
                                 {record.syncStatus === 'pending_sync' ? 'Pending Sync' : 'Unsynced'}
                               </span>
                             )}
@@ -395,7 +760,7 @@ export default function HistoryView() {
                           <div className="text-sm text-slate-300">
                             <span className="font-bold text-white">{matchPayload.scoutName || 'Unknown Scout'}</span>
                             {' • '}
-                            {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                            {formatRecordTime(record.updatedAt)}
                           </div>
 
                           {matchPayload.notes && (
@@ -412,17 +777,17 @@ export default function HistoryView() {
                       return (
                         <>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-purple-500/15 px-3 py-1 text-xs font-black tracking-wider text-purple-200">
+                            <span className="admin-g2-sm bg-purple-500/15 px-3 py-1 text-xs font-black tracking-wider text-purple-200">
                               MATCH V3
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               {matchPayload.matchKey.toUpperCase()}
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               Team {matchPayload.teamNumber}
                             </span>
                             <span
-                              className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${
+                              className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${
                                 matchPayload.alliance === 'Red'
                                   ? 'bg-red-500/15 text-red-200'
                                   : matchPayload.alliance === 'Blue'
@@ -433,12 +798,12 @@ export default function HistoryView() {
                               {matchPayload.alliance || 'No Alliance'}
                             </span>
                             {matchPayload.legacyDerived && (
-                              <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-black tracking-wider text-amber-200">
+                              <span className="admin-g2-sm bg-amber-500/15 px-3 py-1 text-xs font-black tracking-wider text-amber-200">
                                 Legacy Import
                               </span>
                             )}
                             {record.syncStatus !== 'synced' && (
-                              <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
+                              <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
                                 {record.syncStatus === 'pending_sync' ? 'Pending Sync' : 'Unsynced'}
                               </span>
                             )}
@@ -447,7 +812,7 @@ export default function HistoryView() {
                           <div className="text-sm text-slate-300">
                             <span className="font-bold text-white">{matchPayload.scoutName || 'Unknown Scout'}</span>
                             {' • '}
-                            {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                            {formatRecordTime(record.updatedAt)}
                           </div>
 
                           {matchPayload.generalEvaluation && (
@@ -465,17 +830,17 @@ export default function HistoryView() {
                       return (
                         <>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black tracking-wider text-emerald-200">
+                            <span className="admin-g2-sm bg-emerald-500/15 px-3 py-1 text-xs font-black tracking-wider text-emerald-200">
                               DEFENSE V1
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               {defensePayload.matchKey.toUpperCase()}
                             </span>
-                            <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                               Team {defensePayload.teamNumber}
                             </span>
                             <span
-                              className={`rounded-full px-3 py-1 text-xs font-black tracking-wider ${
+                              className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${
                                 defensePayload.alliance === 'Red'
                                   ? 'bg-red-500/15 text-red-200'
                                   : defensePayload.alliance === 'Blue'
@@ -485,11 +850,11 @@ export default function HistoryView() {
                             >
                               {defensePayload.alliance || 'No Alliance'}
                             </span>
-                            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-black tracking-wider text-emerald-200">
+                            <span className="admin-g2-sm bg-emerald-500/15 px-3 py-1 text-xs font-black tracking-wider text-emerald-200">
                               {((defensePayload.defenseMetric || 0) * 100).toFixed(2)}%
                             </span>
                             {record.syncStatus !== 'synced' && (
-                              <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
+                              <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
                                 {record.syncStatus === 'pending_sync' ? 'Pending Sync' : 'Unsynced'}
                               </span>
                             )}
@@ -498,7 +863,7 @@ export default function HistoryView() {
                           <div className="text-sm text-slate-300">
                             <span className="font-bold text-white">{defensePayload.scoutName || 'Unknown Scout'}</span>
                             {' • '}
-                            {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                            {formatRecordTime(record.updatedAt)}
                           </div>
 
                           {defensePayload.defenseComments && (
@@ -512,17 +877,17 @@ export default function HistoryView() {
                   ) : (
                     <>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
+                        <span className="admin-g2-sm bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
                           PIT
                         </span>
-                        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                        <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                           Team {(record.payload as PitScoutingV2).teamNumber}
                         </span>
-                        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                        <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
                           {(record.payload as PitScoutingV2).teamName}
                         </span>
                         {record.syncStatus !== 'synced' && (
-                          <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
+                          <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">
                             {record.syncStatus === 'pending_sync' ? 'Pending Sync' : 'Unsynced'}
                           </span>
                         )}
@@ -533,7 +898,7 @@ export default function HistoryView() {
                           {(record.payload as PitScoutingV2).scoutName || 'Pit Scout'}
                         </span>
                         {' • '}
-                        {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                        {formatRecordTime(record.updatedAt)}
                       </div>
 
                       {(record.payload as PitScoutingV2).notes && (
@@ -544,9 +909,9 @@ export default function HistoryView() {
                     </>
                   )}
 
-                  {record.syncStatus !== 'synced' && record.lastFirebaseError && (
+                  {record.recordType !== 'preScout' && record.syncStatus !== 'synced' && record.lastFirebaseError && (
                     <div
-                      className={`max-w-3xl rounded-xl px-3 py-2 text-xs font-bold ${
+                      className={`admin-g2-sm max-w-3xl px-3 py-2 text-xs font-bold ${
                         record.lastFirebaseError.toLowerCase().includes('conflict')
                           ? 'border border-rose-500/40 bg-rose-500/10 text-rose-100'
                           : 'border border-amber-500/40 bg-amber-500/10 text-amber-100'
@@ -555,13 +920,15 @@ export default function HistoryView() {
                       {record.lastFirebaseError}
                     </div>
                   )}
+
+                  <AdminTaskEvidencePanel task={adminTask} />
                 </div>
 
-                <div className="flex items-center gap-2 self-start md:self-center">
-                  {record.syncStatus !== 'synced' && (
+                <div className="flex flex-wrap items-center gap-2 self-start xl:self-center">
+                  {record.recordType !== 'preScout' && record.syncStatus !== 'synced' && (
                     <button
                       onClick={() => void handleRetrySync(record)}
-                      className="bg-amber-600 hover:bg-amber-500 text-white font-black tracking-wide px-4 py-2 rounded-xl flex items-center gap-2"
+                      className="admin-g2-sm flex items-center gap-2 border border-amber-400/30 bg-amber-500/15 px-4 py-2 font-black tracking-wide text-amber-50 hover:bg-amber-500/25"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Retry Sync
@@ -570,27 +937,30 @@ export default function HistoryView() {
                   {(record.recordType === 'matchV4' || record.recordType === 'pit') && (
                     <button
                       onClick={() => handleEdit(record)}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black tracking-wide px-4 py-2 rounded-xl flex items-center gap-2"
+                      className="admin-g2-sm flex items-center gap-2 border border-emerald-400/30 bg-emerald-500/15 px-4 py-2 font-black tracking-wide text-emerald-50 hover:bg-emerald-500/25"
                     >
                       <Edit3 className="w-4 h-4" />
                       Edit
                     </button>
                   )}
-                  <button
-                    onClick={() => void handleDelete(record)}
-                    className="bg-rose-600 hover:bg-rose-500 text-white font-black tracking-wide px-4 py-2 rounded-xl flex items-center gap-2"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
+                  {record.recordType !== 'preScout' && (
+                    <button
+                      onClick={() => void handleDelete(record)}
+                      className="admin-g2-sm flex items-center gap-2 border border-rose-400/30 bg-rose-500/15 px-4 py-2 font-black tracking-wide text-rose-50 hover:bg-rose-500/25"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>
 
-      <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 overflow-hidden">
+      <div className="admin-g2 border border-rose-500/20 bg-rose-500/10 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-rose-500/20">
           <div className="font-black uppercase tracking-wider text-sm text-rose-100">Deleted Tombstones</div>
           <div className="text-xs font-mono text-rose-100/70">{deletedRecords.length} preserved item{deletedRecords.length === 1 ? '' : 's'}</div>
@@ -605,13 +975,13 @@ export default function HistoryView() {
               <div key={record.recordId} className="flex flex-col gap-2 px-5 py-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-black uppercase text-rose-100">
+                    <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black uppercase text-rose-100">
                       Deleted
                     </span>
-                    <span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
+                    <span className="admin-g2-sm bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
                       {record.recordType}
                     </span>
-                    <span className="rounded-full bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
+                    <span className="admin-g2-sm bg-slate-950/70 px-3 py-1 text-xs font-mono font-black text-rose-50">
                       {record.logicalId}
                     </span>
                   </div>
@@ -620,13 +990,163 @@ export default function HistoryView() {
                   </div>
                 </div>
                 <div className="text-xs font-mono text-rose-100/70">
-                  {record.updatedAt ? new Date(record.updatedAt).toLocaleString() : 'No timestamp'}
+                  {formatRecordTime(record.updatedAt)}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function EvidencePipelineCard({
+  icon,
+  title,
+  value,
+  detail,
+  toneClass
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  detail: string;
+  toneClass: string;
+}) {
+  return (
+    <div className={`admin-g2-sm border p-4 ${toneClass}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] opacity-75">
+            {icon}
+            {title}
+          </div>
+          <div className="mt-2 text-lg font-black text-white">{value}</div>
+        </div>
+      </div>
+      <div className="mt-2 text-xs font-semibold leading-relaxed opacity-80">{detail}</div>
+    </div>
+  );
+}
+
+const formatTaskMetric = (value: number | null | undefined, digits = 1) =>
+  value == null || !Number.isFinite(value) ? 'N/A' : value.toFixed(digits);
+
+const formatTaskPercent = (value: number | null | undefined) =>
+  value == null || !Number.isFinite(value) ? 'N/A' : `${Math.round(value * 100)}%`;
+
+function AdminTaskEvidencePanel({ task }: { task?: ScoutEvidenceAdminTask }) {
+  if (!task) return null;
+  const ppaRange = formatScoutEvidenceAdminTaskPpaRange(task);
+  const asks = task.ppa?.asks || [];
+  const warnings = task.ppa?.warnings || [];
+  const decisionUse = describeScoutEvidenceAdminTaskDecisionUse(task);
+  return (
+    <div className="admin-g2-sm max-w-4xl border border-sky-400/30 bg-sky-500/10 p-3 text-xs font-semibold text-sky-50">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="font-black uppercase tracking-[0.18em] text-sky-200/80">Admin Task Closed</div>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1 font-black">
+              {formatScoutEvidenceAdminTaskMission(task)}
+            </span>
+            <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+              Team {task.teamNumber}{task.teamName ? ` ${task.teamName}` : ''}
+            </span>
+            {(task.matchKey || task.matchNumber) && (
+              <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+                {task.matchKey || `${task.matchType || 'Match'} ${task.matchNumber}`}
+              </span>
+            )}
+            {task.reason && (
+              <span className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1">
+                {task.reason}
+              </span>
+            )}
+          </div>
+          {(task.context || task.detail) && (
+            <div className="mt-2 max-w-3xl leading-relaxed text-sky-100/80">
+              {[task.context, task.detail].filter(Boolean).join(' | ')}
+            </div>
+          )}
+        </div>
+        {task.capturedAt && (
+          <div className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-sky-100/60">
+            Captured {formatRecordTime(task.capturedAt)}
+          </div>
+        )}
+      </div>
+
+      {task.ppa && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <TaskPill label="PPA Floor / Exp / Ceiling" value={ppaRange || 'N/A'} />
+          <TaskPill label="Role" value={task.ppa.role || 'Unknown'} />
+          <TaskPill label="Risk" value={`${task.ppa.uncertainty || 'Unknown'} / ${task.ppa.tailRisk || 'Unknown'}`} />
+          <TaskPill label="Scout Trust" value={formatTaskPercent(task.ppa.scoutConfidence)} />
+          <TaskPill label="Normal Band" value={`${formatTaskMetric(task.ppa.normalLow)} - ${formatTaskMetric(task.ppa.normalHigh)}`} />
+          <TaskPill label="Coverage" value={task.ppa.coverage || 'Unknown'} />
+          <TaskPill label="Model" value={task.ppa.model || 'Unknown'} />
+          <TaskPill label="Expected" value={formatTaskMetric(task.ppa.expected)} />
+        </div>
+      )}
+
+      {decisionUse && (
+        <div className="admin-g2-sm mt-3 border border-emerald-300/20 bg-emerald-500/10 p-3">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="font-black uppercase tracking-[0.16em] text-emerald-100/70">{decisionUse.title}</div>
+              <div className="mt-1 leading-relaxed text-emerald-50/90">{decisionUse.summary}</div>
+              <div className="mt-1 leading-relaxed text-emerald-50/75">{decisionUse.modelEffect}</div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-1.5 lg:max-w-xs lg:justify-end">
+              {decisionUse.feeds.map(feed => (
+                <span key={feed} className="admin-g2-sm border border-emerald-200/15 bg-slate-950/45 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-50">
+                  {feed}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(asks.length > 0 || warnings.length > 0) && (
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {asks.length > 0 && (
+            <div>
+              <div className="font-black uppercase tracking-[0.16em] text-sky-200/70">What Admin Asked To Prove</div>
+              <div className="mt-1 space-y-1">
+                {asks.slice(0, 4).map(ask => (
+                  <div key={ask} className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-2 py-1.5 text-sky-50">
+                    {ask}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {warnings.length > 0 && (
+            <div>
+              <div className="font-black uppercase tracking-[0.16em] text-sky-200/70">Model Warnings At Assignment</div>
+              <div className="mt-1 space-y-1">
+                {warnings.slice(0, 4).map(warning => (
+                  <div key={warning} className="admin-g2-sm border border-amber-300/20 bg-amber-500/10 px-2 py-1.5 text-amber-50">
+                    {warning}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="admin-g2-sm border border-sky-300/20 bg-slate-950/45 px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-sky-200/60">{label}</div>
+      <div className="mt-1 text-sm font-black text-white">{value}</div>
     </div>
   );
 }
@@ -638,7 +1158,7 @@ function HistorySummaryCard({
 }: {
   label: string;
   value: number | string;
-  tone?: 'slate' | 'amber' | 'rose' | 'cyan';
+  tone?: 'slate' | 'amber' | 'rose' | 'cyan' | 'emerald' | 'violet';
 }) {
   const toneClass =
     tone === 'amber'
@@ -647,9 +1167,13 @@ function HistorySummaryCard({
         ? 'border-rose-500/30 bg-rose-500/10 text-rose-100'
         : tone === 'cyan'
           ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100'
+          : tone === 'emerald'
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+            : tone === 'violet'
+              ? 'border-violet-500/30 bg-violet-500/10 text-violet-100'
           : 'border-slate-800 bg-slate-900/80 text-white';
   return (
-    <div className={`rounded-3xl border px-5 py-4 ${toneClass}`}>
+    <div className={`admin-g2 border px-5 py-4 ${toneClass}`}>
       <div className="text-xs font-black uppercase tracking-widest opacity-70">{label}</div>
       <div className="mt-2 text-2xl font-black">{value}</div>
     </div>

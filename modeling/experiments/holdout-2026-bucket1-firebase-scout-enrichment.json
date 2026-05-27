@@ -1,0 +1,25 @@
+{
+  "name": "holdout-2026-bucket1-firebase-scout-enrichment",
+  "description": "2026 event-key bucket-1 holdout after live Firebase scout import. Replay all cached 2026 matches chronologically, but score only one deterministic event bucket to check whether sparse scout enrichment survives outside the full-year leaderboard.",
+  "year": 2026,
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [1],
+    "label": "2026 Firebase scout-enrichment bucket-1 holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2026-bucket1-firebase-scout-enrichment",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future Compact Ridge L2=10",
+    "No-Future Compact Robust Ridge L2=10",
+    "No-Future Compact Elastic Net a=0.5 L=0.04",
+    "No-Future Minimal Ridge L2=10"
+  ],
+  "notes": [
+    "This is a holdout confirmation check, not a tuning response to earlier Firebase results.",
+    "Walk-forward state updates use prior matches chronologically; reported metrics are restricted to event-key hash bucket 1.",
+    "A scout-aware model should not be promoted unless this and the other buckets support it without leakage or instability."
+  ]
+}

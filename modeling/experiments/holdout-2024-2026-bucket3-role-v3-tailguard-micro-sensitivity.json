@@ -1,0 +1,26 @@
+{
+  "name": "holdout-2024-2026-bucket3-role-v3-tailguard-micro-sensitivity",
+  "description": "Broad 2024-2026 event-key holdout bucket 3 for the RoleV3 TailGuard micro-sensitivity pass around TW=0.20.",
+  "years": [2024, 2025, 2026],
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [3],
+    "label": "2024-2026 RoleV3 TailGuard micro-sensitivity holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket3-role-v3-tailguard-micro-sensitivity",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.15 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.18 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.21 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.22 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.23 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.25 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "Walk-forward state updates still use all prior cached matches; metrics are restricted to the held-out event bucket.",
+    "TW=0.21, TW=0.22, or TW=0.23 need holdout confirmation before they can replace TW=0.20 in the final defended claim."
+  ]
+}

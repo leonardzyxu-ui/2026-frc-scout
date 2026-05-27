@@ -23,6 +23,38 @@ export interface PitScoutData {
   fuelIntakeMethod: string;
 }
 
+export interface ScoutEvidenceAdminTask {
+  source: 'adminv4';
+  missionKey: string;
+  teamNumber: string;
+  teamName?: string;
+  eventKey?: string;
+  matchKey?: string;
+  matchType?: string;
+  matchNumber?: number;
+  alliance?: string;
+  reason?: string;
+  detail?: string;
+  context?: string;
+  createdAt: number;
+  capturedAt: number;
+  ppa?: {
+    expected?: number | null;
+    floor?: number | null;
+    ceiling?: number | null;
+    normalLow?: number | null;
+    normalHigh?: number | null;
+    role?: string;
+    uncertainty?: string;
+    tailRisk?: string;
+    scoutConfidence?: number | null;
+    coverage?: string;
+    model?: string;
+    warnings?: string[];
+    asks?: string[];
+  };
+}
+
 export interface PitScoutingV2 {
   teamNumber: string;
   teamName: string;
@@ -53,6 +85,7 @@ export interface PitScoutingV2 {
   notes: string;
   deviceId?: string;
   timestamp?: number;
+  adminTask?: ScoutEvidenceAdminTask;
 }
 
 export interface PitAssignment {
@@ -131,6 +164,7 @@ export interface MatchDefenseScoutingV1 {
   alliance: MatchScoutingV3Alliance;
   deviceId?: string;
   timestamp?: number;
+  adminTask?: ScoutEvidenceAdminTask;
   defenseMetric: number;
   defenseComments: string;
   generalComments: string;
@@ -194,6 +228,7 @@ export interface MatchScoutingV4 {
   deviceId?: string;
   timestamp?: number;
   editHistory?: { timestamp: number; editor: string; changes: string }[];
+  adminTask?: ScoutEvidenceAdminTask;
 
   autoPoints: number;
   autoCycles: number;

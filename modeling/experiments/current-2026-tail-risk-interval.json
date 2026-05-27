@@ -1,0 +1,15 @@
+{
+  "name": "current-2026-tail-risk-interval",
+  "description": "2026 replay testing learned-tail as asymmetric interval widening instead of a mean-score correction.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-tail-risk-interval",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskInterval Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TU=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskInterval Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TU=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "These candidates keep expected scores unchanged and use no-future learned-tail signal only to widen asymmetric score intervals.",
+    "The test checks whether coverage and Brier improve enough to justify wider bands."
+  ]
+}

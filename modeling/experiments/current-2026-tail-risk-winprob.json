@@ -1,0 +1,15 @@
+{
+  "name": "current-2026-tail-risk-winprob",
+  "description": "Full 2026 replay testing learned-tail as win-probability uncertainty only, with mean scores and score intervals unchanged.",
+  "year": 2026,
+  "outputDir": "modeling/artifacts/runs/current-2026-tail-risk-winprob",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.25 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "TailRisk interval widening improved Brier but was rejected as a universal interval overlay on later buckets.",
+    "This run tests whether the value is really probability de-overconfidence, without changing expected scores or score intervals."
+  ]
+}

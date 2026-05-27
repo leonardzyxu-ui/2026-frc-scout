@@ -1,0 +1,19 @@
+{
+  "name": "holdout-2024-2026-bucket1-conditional-learned-championship-tail",
+  "description": "Broad 2024-2026 event-key bucket-1 holdout test for conditional no-future learned championship tail residual correction.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [1],
+    "label": "2024-2026 conditional learned championship tail checkpoint holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket1-conditional-learned-championship-tail",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future ConditionalLearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.50 TL=15 TN=16 TC=35 F=PRS POS G=8/R4/F20",
+    "No-Future ConditionalLearnedTail Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20"
+  ],
+  "notes": [
+    "Bucket 1 rejected ungated learned-tail on point metrics, so this is a targeted failure-mode check.",
+    "The conditional learned-tail gate uses prior event residual evidence only; the replay updates on all cached 2024-2026 matches chronologically while reported metrics are restricted to bucket 1."
+  ]
+}

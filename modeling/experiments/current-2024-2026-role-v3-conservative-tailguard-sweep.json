@@ -1,0 +1,19 @@
+{
+  "name": "current-2024-2026-role-v3-conservative-tailguard-sweep",
+  "description": "Broad 2024-2026 replay testing whether smaller RoleV3 TailGuard weights generalize beyond the 2026-only last-mile sweep.",
+  "years": [2024, 2025, 2026],
+  "outputDir": "modeling/artifacts/runs/current-2024-2026-role-v3-conservative-tailguard-sweep",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.10 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.15 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.35 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=55 C=35",
+    "No-Future Strong RoleV2 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=70 C=35"
+  ],
+  "notes": [
+    "This is the broad confirmation companion to the 2026-only conservative TailGuard shrinkage check.",
+    "Promotion should not change unless a smaller TailGuard weight beats the defended TW=0.20 candidate under the same no-future replay discipline."
+  ]
+}

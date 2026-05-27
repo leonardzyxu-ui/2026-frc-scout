@@ -1,0 +1,20 @@
+{
+  "name": "holdout-2024-2026-bucket2-conditional-tail-risk-winprob",
+  "description": "Broad 2024-2026 bucket-2 holdout testing stricter TailRiskWinProb gates.",
+  "evaluationEventKeyHashFilter": {
+    "modulus": 5,
+    "buckets": [2],
+    "label": "2024-2026 conditional tail-risk win-probability bucket 2 holdout"
+  },
+  "outputDir": "modeling/artifacts/runs/holdout-2024-2026-bucket2-conditional-tail-risk-winprob",
+  "modelNames": [
+    "No-Future Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40",
+    "No-Future TailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/F20",
+    "No-Future ConditionalTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=0.75 TL=40 TN=24 TC=25 F=PR G=8/R4/S8/F20/MIN",
+    "No-Future ConditionalTailRiskWinProb Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.25 L=30 C=40 TP=1.00 TL=40 TN=24 TC=25 F=PR G=8/R4/S12/F20/MIN"
+  ],
+  "notes": [
+    "Bucket 2 is the first rejection slice for TailRiskWinProb by relative benchmark.",
+    "The conditional gates are deliberately stricter and probability-only; score means and score intervals should remain unchanged."
+  ]
+}

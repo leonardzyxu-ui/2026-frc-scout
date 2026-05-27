@@ -1,0 +1,19 @@
+{
+  "name": "event-2026mnum-firebase-scout-enrichment",
+  "description": "Focused 2026 Minnesota North Star event replay after live Firebase scout import. This checks whether real scout/PPC/defense rows help on the event where coverage is concentrated.",
+  "eventKey": "2026mnum",
+  "outputDir": "modeling/artifacts/runs/event-2026mnum-firebase-scout-enrichment",
+  "modelNames": [
+    "No-Future Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35",
+    "No-Future TailGuarded Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future TailGuard+TailRiskWinProb Strong RoleV3 Residual-Ridge Scaled-Archetype Ensemble K=1.10 W=0.20 P=0.00 S=0.15 M=8 CR=0.100 DR=0.050 RW=0.40 L=75 C=35 TW=0.20 TP=0.75 TL=50 TN=32 TC=20 F=PR G=8/R4/F20",
+    "No-Future Compact Ridge L2=10",
+    "No-Future Compact Robust Ridge L2=10",
+    "No-Future Compact Elastic Net a=0.5 L=0.04",
+    "No-Future Minimal Ridge L2=10"
+  ],
+  "notes": [
+    "This run is intentionally event-focused because the live Firebase scout import is concentrated in 2026mnum.",
+    "A scout-aware model should not be promoted unless it survives broader 2026 replay and leakage diagnostics."
+  ]
+}
