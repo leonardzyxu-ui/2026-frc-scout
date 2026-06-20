@@ -9,6 +9,8 @@ test('Firestore rules define an admin role contract', () => {
   assert.match(firestoreRules, /function hasAdminClaim/);
   assert.match(firestoreRules, /function hasAdminRoleDoc/);
   assert.match(firestoreRules, /match \/adminRoles\/\{uid\}/);
+  assert.match(firestoreRules, /match \/adminSecrets\/\{docId\}/);
+  assert.match(firestoreRules, /match \/adminSecrets\/\{docId\}[\s\S]*allow read, write: if isAdmin\(\)/);
 });
 
 test('Firestore rules protect scouting collections with admin read/delete and scout writes', () => {

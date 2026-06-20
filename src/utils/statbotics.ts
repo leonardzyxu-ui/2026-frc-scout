@@ -178,6 +178,7 @@ export const fetchEventStatboticsEpa = async (
 
   settled.forEach((result, index) => {
     const teamNumber = uniqueTeamNumbers[index];
+    if (!teamNumber) return;
     if (result.status !== 'fulfilled' || !result.value) {
       missingTeams.push(teamNumber);
       return;

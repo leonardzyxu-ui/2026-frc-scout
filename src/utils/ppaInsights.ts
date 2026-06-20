@@ -1,6 +1,6 @@
 import { TeamPerformanceProfile } from '../types';
 
-export type PpaRoleRecommendation = 'Primary Scorer' | 'Defender' | 'Flex' | 'Unknown';
+export type PpaRoleRecommendation = 'Primary Scorer' | 'Defender' | 'Flex' | 'Needs Role Evidence';
 export type PpaRiskLevel = 'Low' | 'Medium' | 'High';
 
 export interface PpaInsight {
@@ -76,7 +76,7 @@ export interface BuildPpaInsightsInput {
 }
 
 export const PROMOTED_PPA_MODEL = {
-  displayName: 'Conservative TailGuard Strong RoleV3',
+  displayName: 'Conservative Role Forecast',
   validationLine: 'Weighted MAE 36.32 score / 49.73 margin, weighted Brier 0.1648, deployment score 0.126'
 };
 
@@ -95,7 +95,7 @@ const describeCoverage = (matchesLogged: number, scoutConfidence: number) => {
   if (matchesLogged >= 5 && scoutConfidence >= 0.72) return 'Strong local scouting';
   if (matchesLogged >= 3 && scoutConfidence >= 0.5) return 'Usable local scouting';
   if (matchesLogged > 0) return 'Thin local scouting';
-  return 'Public/model fallback only';
+  return 'Needs local scout rows';
 };
 
 const buildRole = (
@@ -107,7 +107,7 @@ const buildRole = (
   const defenseValue = defenseImpact;
   if (offenseValue == null && defenseValue == null) {
     return {
-      label: 'Unknown',
+      label: 'Needs Role Evidence',
       offenseValue,
       defenseValue,
       reason: 'No trusted scoring or defense signal has reached this device yet.'
@@ -161,7 +161,7 @@ const buildUncertainty = (
   let score = 0;
   if (rating == null) {
     score += 35;
-    reasons.push('No PPA rating is available.');
+    reasons.push('No expected-range rating is available.');
   }
   if (!profile || profile.matchesPlayed === 0) {
     score += 30;
@@ -202,7 +202,7 @@ const buildTailRisk = (profile: TeamPerformanceProfile | undefined): PpaInsight[
   if (!profile) {
     return {
       level: 'High',
-      label: 'Unknown floor',
+      label: 'Floor needs evidence',
       reasons: ['No performance curve is available yet.']
     };
   }
@@ -285,7 +285,7 @@ export const buildPpaInsightForTeam = ({
   const warnings = [
     uncertainty.level === 'High' ? 'Treat this team as a range, not a point estimate.' : '',
     tailRisk.level === 'High' ? 'Check match history before assigning a must-score role.' : '',
-    matchesLogged === 0 ? 'No local scout row backs this PPA yet.' : ''
+    matchesLogged === 0 ? 'No local scout row backs this expected range yet.' : ''
   ].filter(Boolean);
 
   return {
@@ -323,7 +323,7 @@ export const buildPpaInsightForTeam = ({
       modelSource: sourceModel,
       validationLine: PROMOTED_PPA_MODEL.validationLine
     },
-    explanation: `${sourceModelName} says Team ${teamNumber} is best treated as ${role.label.toLowerCase()} with ${uncertainty.level.toLowerCase()} uncertainty.`,
+    explanation: `Treat Team ${teamNumber} as ${role.label.toLowerCase()} with ${uncertainty.level.toLowerCase()} uncertainty until newer scout evidence says otherwise.`,
     warnings
   };
 };
@@ -388,10 +388,10 @@ export const summarizePpaAlliance = (
     ceiling,
     defenseValue,
     confidenceLabel: levelFromScore(averageUncertainty) === 'High'
-      ? 'Low confidence'
+      ? 'Use carefully'
       : levelFromScore(averageUncertainty) === 'Medium'
-        ? 'Medium confidence'
-        : 'High confidence',
+        ? 'Check local evidence'
+        : 'Trust for plan',
     rolePlan,
     riskNotes: [
       highUncertaintyTeams.length ? `High uncertainty: ${highUncertaintyTeams.join(', ')}` : '',

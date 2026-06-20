@@ -1,5 +1,5 @@
-import { MatchDefenseScoutingV1, MatchScoutingV3, MatchScoutingV4 } from '../types';
-import { TBAMatch } from './mathEngine';
+import type { MatchDefenseScoutingV1, MatchScoutingV3, MatchScoutingV4 } from '../types.ts';
+import type { TBAMatch } from './mathEngine.ts';
 
 export interface TeamHistoricalAverageRow {
   teamNumber: string;
@@ -47,12 +47,40 @@ export interface TeamDefenseMetricRow {
   avgDefenseMetric: number;
 }
 
+export interface DefenseMetricGuardrailSummary {
+  totalRecords: number;
+  adjustedRecords: number;
+  invalidRecords: number;
+}
+
 const normalizeTeamNumber = (teamKey: string) => teamKey.replace(/^frc/i, '');
 
 const isPlayedMatch = (match: TBAMatch) =>
   match.alliances.red.score !== -1 && match.alliances.blue.score !== -1;
 
 const getMatchShortKey = (match: TBAMatch) => match.key.split('_')[1]?.toUpperCase() || match.key.toUpperCase();
+
+const numericDefenseMetric = (value: unknown) => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+};
+
+export const clampAdminDefenseMetric = (value: unknown) => {
+  const numeric = numericDefenseMetric(value);
+  if (numeric == null) return 0;
+  return Math.min(1, Math.max(0, Number(numeric.toFixed(4))));
+};
+
+export const isAdminDefenseMetricAdjusted = (value: unknown) => {
+  const numeric = numericDefenseMetric(value);
+  return numeric == null || numeric < 0 || numeric > 1;
+};
+
+export const summarizeDefenseMetricGuardrails = (records: MatchDefenseScoutingV1[]): DefenseMetricGuardrailSummary => ({
+  totalRecords: records.length,
+  adjustedRecords: records.filter(record => isAdminDefenseMetricAdjusted(record.defenseMetric)).length,
+  invalidRecords: records.filter(record => numericDefenseMetric(record.defenseMetric) == null).length
+});
 
 export const buildTeamHistoricalAverages = (records: MatchScoutingV3[]): TeamHistoricalAverageRow[] => {
   const buckets = new Map<string, MatchScoutingV3[]>();
@@ -224,7 +252,7 @@ export const buildTeamDefenseMetrics = (records: MatchDefenseScoutingV1[]): Team
       avgDefenseMetric:
         teamRecords.length === 0
           ? 0
-          : teamRecords.reduce((sum, record) => sum + record.defenseMetric, 0) / teamRecords.length
+          : teamRecords.reduce((sum, record) => sum + clampAdminDefenseMetric(record.defenseMetric), 0) / teamRecords.length
     }))
     .sort((left, right) => {
       const defenseDelta = right.avgDefenseMetric - left.avgDefenseMetric;

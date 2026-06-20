@@ -114,7 +114,7 @@ const parsePracticeMatchNumber = (matchKey: string) => {
   const normalized = (matchKey || '').trim().toLowerCase();
   const directMatch = normalized.match(/pm(\d+)/);
   if (directMatch) {
-    return parseInt(directMatch[1], 10) || 0;
+    return parseInt(directMatch[1] ?? '0', 10) || 0;
   }
 
   const firstNumber = normalized.match(/\d+/);
@@ -123,7 +123,7 @@ const parsePracticeMatchNumber = (matchKey: string) => {
 
 const toPracticeMatchLabel = (matchKey: string) => {
   const matchNumber = parsePracticeMatchNumber(matchKey);
-  return matchNumber > 0 ? `PM ${matchNumber}` : (matchKey || 'Unknown').toUpperCase();
+  return matchNumber > 0 ? `PM ${matchNumber}` : (matchKey || 'Match label missing').toUpperCase();
 };
 
 const hasFailure = (record: MatchScoutingV2) =>

@@ -1,10 +1,12 @@
-import {
+import type {
   MatchDefenseScoutingV1,
   MatchScoutingV3Alliance,
-  MatchScoutingV3MatchType,
+  MatchScoutingV3MatchType
+} from '../types.ts';
+import {
   initialMatchDefenseScoutingV1
-} from '../types';
-import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3 } from './matchScoutingV3';
+} from '../types.ts';
+import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3 } from './matchScoutingV3.ts';
 
 const normalizeAlliance = (value: unknown): MatchScoutingV3Alliance =>
   value === 'Red' || value === 'Blue' ? value : '';

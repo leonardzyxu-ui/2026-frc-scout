@@ -1,4 +1,4 @@
-import {
+import type {
   MatchScoutingV2,
   MatchScoutingV3,
   MatchScoutingV3Alliance,
@@ -6,16 +6,18 @@ import {
   MatchScoutingV3MatchType,
   MatchScoutingV3ShootingStyle,
   MatchScoutingV3StartingPosition,
-  MatchScoutingV3SubstituteScoutName,
+  MatchScoutingV3SubstituteScoutName
+} from '../types.ts';
+import {
   initialMatchScoutingV3
-} from '../types';
+} from '../types.ts';
 import {
   buildMatchKey,
   normalizeEventKey,
   normalizeTeamNumber,
   parseMatchNumber,
   parseMatchType
-} from './keys';
+} from './keys.ts';
 
 export const sanitizeEventKeyV3 = (value: string) => normalizeEventKey(value);
 

@@ -1,3 +1,5 @@
+import { buildAdminV4Route } from './adminV4Routes';
+
 export type ScoutingMissionKey = 'preScout' | 'pitScout' | 'matchScout' | 'defenseScout';
 export type ScoutingUseMomentKey = 'now' | 'matches' | 'pickList' | 'visualize' | 'data';
 
@@ -34,7 +36,7 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     rawInputs: ['TBA team list', 'robot media', 'season results', 'manual research gaps'],
     processedSignals: ['pre-event coverage gaps', 'public context', 'pit priority list'],
     usedFor: ['pit scouting priorities', 'early qualification expectations', 'judge/demo context'],
-    modelImpact: 'Starts the public fallback context before local scouting has enough rows.',
+    modelImpact: 'Starts the public-only context before local scouting has enough rows.',
     tone: 'violet'
   },
   pitScout: {
@@ -58,9 +60,9 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     when: 'During practice and qualification matches, one assigned robot at a time.',
     question: 'What did the robot actually contribute, and how stable was it?',
     rawInputs: ['auto points/cycles', 'teleop points/cycles', 'endgame', 'role played', 'failures', 'reliability'],
-    processedSignals: ['PPC', 'PPA expected range', 'role fit', 'volatility', 'scout confidence'],
+    processedSignals: ['scouted point contribution', 'expected range', 'role fit', 'volatility', 'scout confidence'],
     usedFor: ['future qual forecasts', 'manual simulator', 'team profiles', 'pick-list ordering'],
-    modelImpact: 'This is the strongest local signal for PPA, TailGuard risk, and future match prediction.',
+    modelImpact: 'This is the strongest local signal for expected range, downside risk, and future match prediction.',
     tone: 'cyan'
   },
   defenseScout: {
@@ -73,7 +75,7 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     rawInputs: ['defense target', 'defense duration', 'defense intensity', 'defense comments'],
     processedSignals: ['Defense Impact', 'role recommendation', 'opponent suppression context'],
     usedFor: ['next-match strategy', 'defender assignment', 'pick-list role balance'],
-    modelImpact: 'Separates true defensive value from low scoring and protects PPA from role confusion.',
+    modelImpact: 'Separates true defensive value from low scoring and protects the expected range from role confusion.',
     tone: 'rose'
   }
 };
@@ -90,7 +92,7 @@ export const SCOUTING_USE_MOMENTS: Record<ScoutingUseMomentKey, ScoutingUseMomen
     key: 'matches',
     title: 'Matches',
     when: 'Preparing our next qual or simulating a custom what-if.',
-    needs: ['PPA expected range', 'role fit', 'confidence', 'defense impact'],
+    needs: ['expected range', 'role fit', 'confidence', 'defense impact'],
     fedBy: ['matchScout', 'defenseScout', 'pitScout']
   },
   pickList: {
@@ -121,6 +123,21 @@ export const getScoutingMission = (key: ScoutingMissionKey) => SCOUTING_MISSIONS
 export const getMissionUseMoments = (key: ScoutingMissionKey) =>
   Object.values(SCOUTING_USE_MOMENTS).filter(moment => moment.fedBy.includes(key));
 
+export const getAdminUseMomentRoute = (key: ScoutingUseMomentKey, currentSearch: string | URLSearchParams = '') => {
+  switch (key) {
+    case 'now':
+      return buildAdminV4Route(currentSearch, { tab: 'now' });
+    case 'matches':
+      return buildAdminV4Route(currentSearch, { tab: 'matches' });
+    case 'pickList':
+      return buildAdminV4Route(currentSearch, { tab: 'pick-list' });
+    case 'visualize':
+      return buildAdminV4Route(currentSearch, { tab: 'visualize' });
+    case 'data':
+      return buildAdminV4Route(currentSearch, { tab: 'data', panel: 'collection' });
+  }
+};
+
 export const getMissionToneClasses = (tone: ScoutingMission['tone']) => {
   switch (tone) {
     case 'cyan':
@@ -136,12 +153,12 @@ export const getMissionToneClasses = (tone: ScoutingMission['tone']) => {
   }
 };
 
-export const PPA_COLLECTION_FIELDS = [
+export const EXPECTED_RANGE_COLLECTION_FIELDS = [
   'Auto/teleop/endgame points define the expected value.',
   'Cycles help explain whether the score is repeatable.',
   'Role, defended team, and defender faced prevent role confusion.',
   'Reliability and failures define the floor and tail risk.',
-  'Strategy notes explain why a number changed.'
+  'Strategy notes explain why the expected range changed.'
 ];
 
 export const SCOUTING_DAY_SEQUENCE = [
@@ -153,21 +170,21 @@ export const SCOUTING_DAY_SEQUENCE = [
   {
     step: 'During each match',
     action: 'Match Scout captures scoring, role, reliability, and notes.',
-    result: 'PPA expected value, volatility, scout confidence, and trend start moving.'
+    result: 'Expected value, volatility, scout confidence, and trend start moving.'
   },
   {
     step: 'When defense matters',
     action: 'Defense Scout records whether points were actually denied.',
-    result: 'PPA and match plans stop confusing useful defense with weak offense.'
+    result: 'Expected ranges and match plans stop confusing useful defense with weak offense.'
   },
   {
     step: 'After data lands',
-    action: 'Admin V4 turns evidence into forecasts, pick lists, charts, reports, and warnings.',
+    action: 'The admin decision view turns evidence into forecasts, pick lists, charts, reports, and warnings.',
     result: 'The head scout gets the right decision surface for the current moment.'
   }
 ];
 
-export const PPA_SHAPE_OUTPUTS = [
+export const EXPECTED_RANGE_OUTPUTS = [
   {
     label: 'Expected',
     detail: 'The central contribution used for future quals and simulator estimates.'
@@ -182,6 +199,6 @@ export const PPA_SHAPE_OUTPUTS = [
   },
   {
     label: 'Role + Risk',
-    detail: 'The explanation layer: scorer, defender, flex, confidence, and TailGuard caution.'
+    detail: 'The explanation layer: scorer, defender, flex, confidence, and downside-risk caution.'
   }
 ];

@@ -6,7 +6,7 @@ export interface FirstEventsCredentials {
   savedAt: number;
 }
 
-export interface AdminV2CacheEntry<T = unknown> {
+export interface AdminV4CacheEntry<T = unknown> {
   id: string;
   eventKey: string;
   year: number;
@@ -16,8 +16,18 @@ export interface AdminV2CacheEntry<T = unknown> {
   payload: T;
 }
 
+export interface AdminV4AuditLogEntry {
+  id: string;
+  eventKey: string;
+  action: string;
+  detail: string;
+  severity: 'info' | 'warning' | 'danger';
+  createdAt: number;
+}
+
+// Keep the original DB name and store names so existing local credentials/cache survive the Admin V4 rename.
 const DB_NAME = 'rebuilt-2026-admin-v2-local';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const SETTINGS_STORE = 'settings';
 const CACHE_STORE = 'cache';
 const POWERCOIN_BETS_STORE = 'powerCoinBets';
@@ -25,6 +35,7 @@ const POWERCOIN_LEDGER_STORE = 'powerCoinLedger';
 const SCOUT_PLANS_STORE = 'scoutAssignmentPlans';
 const MODEL_SNAPSHOTS_STORE = 'modelSnapshots';
 const MODEL_FEATURE_SNAPSHOTS_STORE = 'modelFeatureSnapshots';
+const AUDIT_LOG_STORE = 'adminAuditLog';
 const FIRST_CREDENTIALS_KEY = 'first_events_credentials';
 const TBA_API_KEY_SETTINGS_KEY = 'tba_api_key';
 const STARTING_POWERCOINS = 1000;
@@ -34,7 +45,7 @@ const openDb = async (): Promise<IDBDatabase | null> => {
 
   return await new Promise<IDBDatabase>((resolve, reject) => {
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error ?? new Error('Failed to open Admin V2 IndexedDB.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to open Admin V4 IndexedDB.'));
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(SETTINGS_STORE)) db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
@@ -65,6 +76,11 @@ const openDb = async (): Promise<IDBDatabase | null> => {
         const store = db.createObjectStore(MODEL_FEATURE_SNAPSHOTS_STORE, { keyPath: 'id' });
         store.createIndex('eventKey', 'eventKey', { unique: false });
         store.createIndex('modelName', 'modelName', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(AUDIT_LOG_STORE)) {
+        const store = db.createObjectStore(AUDIT_LOG_STORE, { keyPath: 'id' });
+        store.createIndex('eventKey', 'eventKey', { unique: false });
+        store.createIndex('createdAt', 'createdAt', { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -143,8 +159,8 @@ export const clearTbaApiKey = async () =>
     request.onsuccess = () => resolve();
   });
 
-export const putAdminV2CacheEntry = async <T>(entry: Omit<AdminV2CacheEntry<T>, 'id' | 'timestamp'>) => {
-  const cacheEntry: AdminV2CacheEntry<T> = {
+export const putAdminV4CacheEntry = async <T>(entry: Omit<AdminV4CacheEntry<T>, 'id' | 'timestamp'>) => {
+  const cacheEntry: AdminV4CacheEntry<T> = {
     ...entry,
     id: `${eventKeyOf(entry.eventKey)}:${entry.year}:${entry.source}:${entry.key}`,
     eventKey: eventKeyOf(entry.eventKey),
@@ -152,17 +168,17 @@ export const putAdminV2CacheEntry = async <T>(entry: Omit<AdminV2CacheEntry<T>, 
   };
   await withStore<void>(CACHE_STORE, 'readwrite', (store, resolve, reject) => {
     const request = store.put(cacheEntry);
-    request.onerror = () => reject(request.error ?? new Error('Failed to save Admin V2 cache entry.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to save Admin V4 cache entry.'));
     request.onsuccess = () => resolve();
   });
   return cacheEntry;
 };
 
-export const restoreAdminV2CacheEntries = async (entries: AdminV2CacheEntry[]) => {
+export const restoreAdminV4CacheEntries = async (entries: AdminV4CacheEntry[]) => {
   let restored = 0;
   for (const entry of entries) {
     if (!entry?.eventKey || !entry?.source || !entry?.key) continue;
-    const normalizedEntry: AdminV2CacheEntry = {
+    const normalizedEntry: AdminV4CacheEntry = {
       ...entry,
       id: entry.id || `${eventKeyOf(entry.eventKey)}:${entry.year}:${entry.source}:${entry.key}`,
       eventKey: eventKeyOf(entry.eventKey),
@@ -170,7 +186,7 @@ export const restoreAdminV2CacheEntries = async (entries: AdminV2CacheEntry[]) =
     };
     await withStore<void>(CACHE_STORE, 'readwrite', (store, resolve, reject) => {
       const request = store.put(normalizedEntry);
-      request.onerror = () => reject(request.error ?? new Error('Failed to restore Admin V2 cache entry.'));
+      request.onerror = () => reject(request.error ?? new Error('Failed to restore Admin V4 cache entry.'));
       request.onsuccess = () => resolve();
     });
     restored += 1;
@@ -178,19 +194,46 @@ export const restoreAdminV2CacheEntries = async (entries: AdminV2CacheEntry[]) =
   return restored;
 };
 
-export const listAdminV2CacheEntries = async (eventKey?: string) => {
-  const entries = await withStore<AdminV2CacheEntry[]>(CACHE_STORE, 'readonly', (store, resolve, reject) => {
+export const listAdminV4CacheEntries = async (eventKey?: string) => {
+  const entries = await withStore<AdminV4CacheEntry[]>(CACHE_STORE, 'readonly', (store, resolve, reject) => {
     const request = store.getAll();
-    request.onerror = () => reject(request.error ?? new Error('Failed to list Admin V2 cache entries.'));
-    request.onsuccess = () => resolve((request.result as AdminV2CacheEntry[] | undefined) ?? []);
+    request.onerror = () => reject(request.error ?? new Error('Failed to list Admin V4 cache entries.'));
+    request.onsuccess = () => resolve((request.result as AdminV4CacheEntry[] | undefined) ?? []);
   });
   return entries.filter(entry => (eventKey ? entry.eventKey === eventKeyOf(eventKey) : true));
+};
+
+export const appendAdminV4AuditLogEntry = async (entry: Omit<AdminV4AuditLogEntry, 'id' | 'createdAt'>) => {
+  const createdAt = Date.now();
+  const auditEntry: AdminV4AuditLogEntry = {
+    ...entry,
+    id: `${eventKeyOf(entry.eventKey)}:${createdAt}:${Math.random().toString(36).slice(2, 8)}`,
+    eventKey: eventKeyOf(entry.eventKey),
+    createdAt
+  };
+  await withStore<void>(AUDIT_LOG_STORE, 'readwrite', (store, resolve, reject) => {
+    const request = store.put(auditEntry);
+    request.onerror = () => reject(request.error ?? new Error('Failed to save Admin V4 audit log entry.'));
+    request.onsuccess = () => resolve();
+  });
+  return auditEntry;
+};
+
+export const listAdminV4AuditLogEntries = async (eventKey: string) => {
+  const entries = await withStore<AdminV4AuditLogEntry[]>(AUDIT_LOG_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.getAll();
+    request.onerror = () => reject(request.error ?? new Error('Failed to list Admin V4 audit log entries.'));
+    request.onsuccess = () => resolve((request.result as AdminV4AuditLogEntry[] | undefined) ?? []);
+  });
+  return entries
+    .filter(entry => entry.eventKey === eventKeyOf(eventKey))
+    .sort((left, right) => right.createdAt - left.createdAt);
 };
 
 export const upsertPowerCoinBet = async (bet: PowerCoinBet) => {
   await withStore<void>(POWERCOIN_BETS_STORE, 'readwrite', (store, resolve, reject) => {
     const request = store.put({ ...bet, eventKey: eventKeyOf(bet.eventKey) });
-    request.onerror = () => reject(request.error ?? new Error('Failed to save PowerCoin bet.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to save scout reward prediction.'));
     request.onsuccess = () => resolve();
   });
 };
@@ -198,7 +241,7 @@ export const upsertPowerCoinBet = async (bet: PowerCoinBet) => {
 export const listPowerCoinBets = async (eventKey: string) => {
   const bets = await withStore<PowerCoinBet[]>(POWERCOIN_BETS_STORE, 'readonly', (store, resolve, reject) => {
     const request = store.getAll();
-    request.onerror = () => reject(request.error ?? new Error('Failed to list PowerCoin bets.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to list scout reward predictions.'));
     request.onsuccess = () => resolve((request.result as PowerCoinBet[] | undefined) ?? []);
   });
   return bets.filter(bet => bet.eventKey === eventKeyOf(eventKey));
@@ -207,7 +250,7 @@ export const listPowerCoinBets = async (eventKey: string) => {
 export const listPowerCoinLedger = async (eventKey: string) => {
   const entries = await withStore<PowerCoinLedgerEntry[]>(POWERCOIN_LEDGER_STORE, 'readonly', (store, resolve, reject) => {
     const request = store.getAll();
-    request.onerror = () => reject(request.error ?? new Error('Failed to list PowerCoin ledger.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to list scout reward ledger.'));
     request.onsuccess = () => resolve((request.result as PowerCoinLedgerEntry[] | undefined) ?? []);
   });
   return entries.filter(entry => entry.eventKey === eventKeyOf(eventKey));
@@ -216,7 +259,7 @@ export const listPowerCoinLedger = async (eventKey: string) => {
 export const upsertPowerCoinLedgerEntry = async (entry: PowerCoinLedgerEntry) => {
   await withStore<void>(POWERCOIN_LEDGER_STORE, 'readwrite', (store, resolve, reject) => {
     const request = store.put({ ...entry, eventKey: eventKeyOf(entry.eventKey) });
-    request.onerror = () => reject(request.error ?? new Error('Failed to save PowerCoin ledger entry.'));
+    request.onerror = () => reject(request.error ?? new Error('Failed to save scout reward ledger entry.'));
     request.onsuccess = () => resolve();
   });
 };

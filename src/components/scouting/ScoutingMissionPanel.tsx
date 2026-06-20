@@ -1,5 +1,10 @@
 import React from 'react';
-import { getMissionToneClasses, getScoutingMission, PPA_COLLECTION_FIELDS, ScoutingMissionKey } from '../../utils/scoutingWorkflow';
+import {
+  getMissionToneClasses,
+  getScoutingMission,
+  EXPECTED_RANGE_COLLECTION_FIELDS,
+  ScoutingMissionKey
+} from '../../utils/scoutingWorkflow';
 
 export default function ScoutingMissionPanel({
   missionKey,
@@ -16,27 +21,36 @@ export default function ScoutingMissionPanel({
   if (compact) {
     return (
       <div className={`admin-g2-sm border px-4 py-3 ${toneClass} ${className}`}>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.42fr)]">
-          <CompactMissionList title="Collect Now" items={mission.rawInputs} />
-          <CompactMissionList title="Used For" items={mission.usedFor.slice(0, 3)} />
-        </div>
+        <CompactMissionList title="Collect Now" items={mission.rawInputs} />
+
+        <details className="admin-g2-sm mt-3 border border-white/10 bg-slate-950/35 px-3 py-2">
+          <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.18em] text-slate-100/85">
+            Where this evidence goes
+          </summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <CompactMissionList title="Creates" items={mission.processedSignals} />
+            <CompactMissionList title="Used For" items={mission.usedFor.slice(0, 3)} />
+          </div>
+        </details>
 
         {missionKey === 'matchScout' && (
-          <div className="admin-g2-sm mt-3 border border-white/10 bg-slate-950/35 px-3 py-2">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">PPA safety checks</div>
-                <div className="mt-1 text-xs font-semibold text-slate-100/80">Capture these so the model can separate ceiling, floor, and role.</div>
+          <details className="admin-g2-sm mt-3 border border-white/10 bg-slate-950/35 px-3 py-2">
+            <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.18em] text-slate-100/85">
+              Open expected-range checklist
+            </summary>
+            <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="text-xs font-semibold text-slate-100/80">
+                Capture these after the basics so Admin can separate ceiling, floor, and role.
               </div>
               <div className="flex flex-wrap gap-2 md:justify-end">
-                {PPA_COLLECTION_FIELDS.slice(0, 3).map(item => (
-                <span key={item} className="admin-g2-sm border border-white/10 bg-slate-950/45 px-2 py-1 text-[11px] font-semibold text-slate-100">
-                  {item}
-                </span>
+                {EXPECTED_RANGE_COLLECTION_FIELDS.slice(0, 3).map(item => (
+                  <span key={item} className="admin-g2-sm border border-white/10 bg-slate-950/45 px-2 py-1 text-[11px] font-semibold text-slate-100">
+                    {item}
+                  </span>
                 ))}
               </div>
             </div>
-          </div>
+          </details>
         )}
       </div>
     );
@@ -59,23 +73,33 @@ export default function ScoutingMissionPanel({
         {mission.question}
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-4">
         <MissionList title="Collect" items={mission.rawInputs} />
-        <MissionList title="Creates" items={mission.processedSignals} />
-        <MissionList title="Used For" items={mission.usedFor} />
       </div>
 
+      <details className="admin-g2-sm mt-4 border border-white/10 bg-slate-950/45 p-4">
+        <summary className="cursor-pointer list-none text-sm font-black text-white">
+          Where this evidence goes
+        </summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <MissionList title="Creates" items={mission.processedSignals} />
+          <MissionList title="Used For" items={mission.usedFor} />
+        </div>
+      </details>
+
       {missionKey === 'matchScout' && (
-        <div className="admin-g2-sm mt-4 border border-white/10 bg-slate-950/45 p-4">
-          <div className="text-xs font-black uppercase tracking-[0.18em] opacity-75">PPA Needs</div>
+        <details className="admin-g2-sm mt-4 border border-white/10 bg-slate-950/45 p-4">
+          <summary className="cursor-pointer list-none text-xs font-black uppercase tracking-[0.18em] opacity-75">
+            Expected Range Needs
+          </summary>
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            {PPA_COLLECTION_FIELDS.map(item => (
+            {EXPECTED_RANGE_COLLECTION_FIELDS.map(item => (
               <div key={item} className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
                 {item}
               </div>
             ))}
           </div>
-        </div>
+        </details>
       )}
     </section>
   );

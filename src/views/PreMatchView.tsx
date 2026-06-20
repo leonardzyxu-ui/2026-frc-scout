@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Database, Download, RefreshCw, Search, Shield } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PreMatchTeamProfile, QualificationStatus } from '../types';
 import { fetchEventTeamNumbers, fetchPreMatchTeamProfile } from '../utils/preMatchScouting';
-import { getCachedPreMatchSheet, setCachedPreMatchSheet } from '../utils/preMatchCache';
+import { getCachedPreMatchSheet, recordPreScoutAdminTaskEvidence, setCachedPreMatchSheet } from '../utils/preMatchCache';
 import { TBA_API_KEY } from '../config';
 import { DEFAULT_EVENT_KEY, getStoredEventKey } from '../utils/sharedEventState';
-import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
+import { loadTbaApiKey } from '../utils/adminV4LocalStore';
+import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
 
 type SortField =
   | 'team'
@@ -58,7 +61,7 @@ const QUALIFICATION_STYLES: Record<QualificationStatus, string> = {
 const QUALIFICATION_LABELS: Record<QualificationStatus, string> = {
   likely_qualified: 'Likely Qualified',
   likely_not_qualified: 'Likely Not Qualified',
-  unknown: 'Unknown'
+  unknown: 'Needs event result'
 };
 
 const qualificationSortRank: Record<QualificationStatus, number> = {
@@ -381,6 +384,23 @@ function PreScoutBriefing({
   const unknownQualification = rows.filter(row => row.profile.qualificationStatus === 'unknown').length;
   const missingPublicContext = rows.filter(row => row.missingFromTba.length > 0).length;
   const pitPriorityRows = getPitPriorityRows(rows, 4);
+  const publicContextRows = rows.filter(row => row.profile.mediaAssets.length > 0 || row.profile.robotMetadata.length > 0);
+  const thinPpaContextRows = rows.filter(row =>
+    row.profile.qualificationStatus === 'unknown' ||
+    row.profile.seasonEvents.length === 0 ||
+    row.missingFromTba.length >= 3
+  );
+  const matchScoutWatchRows = [...rows]
+    .sort((left, right) => {
+      const scoreRow = (row: SpreadsheetRow) =>
+        (row.profile.qualificationStatus === 'unknown' ? 3 : 0) +
+        (row.profile.seasonEvents.length === 0 ? 2 : 0) +
+        (row.profile.mediaAssets.length === 0 ? 1 : 0) +
+        (row.profile.robotMetadata.length === 0 ? 1 : 0) +
+        (row.profile.seasonAwards.length === 0 ? 1 : 0);
+      return scoreRow(right) - scoreRow(left) || Number(left.profile.teamNumber) - Number(right.profile.teamNumber);
+    })
+    .slice(0, 4);
   const sourceLabel = loading
     ? 'Refreshing live TBA'
     : showingCachedData
@@ -391,19 +411,30 @@ function PreScoutBriefing({
 
   const cards = [
     {
-      label: 'Public Coverage',
-      value: `${coveragePercent}%`,
-      detail: 'Media or robot registry exists before pit scouting starts.'
+      label: 'Public Context',
+      value: rows.length ? `${publicContextRows.length}/${rows.length}` : 'No event',
+      detail: 'Teams with media or robot registry context before local scouting starts.'
     },
     {
-      label: 'Pit Priority',
-      value: String(missingPublicContext),
-      detail: 'Teams with missing public context should be checked first.'
+      label: 'Pit Queue',
+      value: pitPriorityRows[0]?.profile.teamNumber || String(missingPublicContext),
+      detail: pitPriorityRows[0]
+        ? `Start with ${pitPriorityRows[0].profile.teamNumber}: ${pitPriorityRows[0].missingFromTba[0]?.label || 'manual verification'}`
+        : 'Teams with missing public context should be checked first.'
     },
     {
-      label: 'Early Confidence',
-      value: String(unknownQualification),
-      detail: 'Unknown qualification status lowers pre-event certainty.'
+      label: 'Match Scout Watch',
+      value: matchScoutWatchRows[0]?.profile.teamNumber || 'Pending',
+      detail: matchScoutWatchRows[0]
+        ? 'First local match rows should prove or disprove this thin public context.'
+        : 'Load an event before match-watch priorities can be produced.'
+    },
+    {
+      label: 'Range Guardrail',
+      value: rows.length ? `${Math.max(0, rows.length - thinPpaContextRows.length)}/${rows.length}` : sourceLabel,
+      detail: rows.length
+        ? 'Teams with enough public context to start a range read, not final proof.'
+        : 'Old cache is shown immediately while new TBA data refreshes.'
     },
     {
       label: 'Source Freshness',
@@ -420,10 +451,10 @@ function PreScoutBriefing({
           <h2 className="mt-1 text-xl font-black text-white">Know what is public, then assign what humans must verify</h2>
         </div>
         <div className="text-sm font-semibold text-violet-50/75">
-          Creates public fallback context, pit priorities, and early confidence guardrails.
+          Creates public context, pit priorities, and early confidence guardrails.
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {cards.map(card => (
           <div key={card.label} className="admin-g2-sm border border-violet-200/10 bg-slate-950/55 px-3 py-3">
             <div className="text-xs font-black uppercase tracking-wider text-violet-100">{card.label}</div>
@@ -431,6 +462,40 @@ function PreScoutBriefing({
             <div className="mt-2 text-xs font-semibold text-slate-300">{card.detail}</div>
           </div>
         ))}
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr]">
+        <div className="admin-g2-sm border border-violet-200/10 bg-slate-950/45 p-4">
+          <div className={labelClass}>Pre Scout Prior Map</div>
+          <div className="mt-3 text-sm font-semibold leading-relaxed text-slate-300">
+            Public context creates the first starting read. Missing context becomes pit priority. Thin context becomes match-scout watchlist. None of it is final expected range until local rows arrive.
+          </div>
+        </div>
+        <div className="admin-g2-sm border border-amber-300/20 bg-amber-400/10 p-4">
+          <div className={labelClass}>Verify First</div>
+          <div className="mt-3 text-sm font-black text-amber-100">
+            {pitPriorityRows[0]
+              ? `Pit Scout Team ${pitPriorityRows[0].profile.teamNumber}: ${pitPriorityRows[0].missingFromTba[0]?.label || 'manual robot context'}`
+              : 'Load an event, then verify teams with missing robot and public-context data.'}
+          </div>
+          <div className="mt-2 text-xs font-semibold leading-relaxed text-amber-50/75">
+            This is the first question that should leave Pre Scout and become a human scouting task.
+          </div>
+        </div>
+        <div className="admin-g2-sm border border-cyan-300/20 bg-cyan-400/10 p-4">
+          <div className={labelClass}>Watch In First Matches</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {matchScoutWatchRows.length > 0 ? matchScoutWatchRows.map(row => (
+              <span key={row.profile.teamKey} className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-2 py-1 font-mono text-xs font-black text-cyan-100">
+                {row.profile.teamNumber}
+              </span>
+            )) : (
+              <span className="text-sm font-semibold text-slate-400">Waiting for event data.</span>
+            )}
+          </div>
+          <div className="mt-2 text-xs font-semibold leading-relaxed text-cyan-50/75">
+            These teams need early local rows before Admin trusts public-only context.
+          </div>
+        </div>
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
         <div className="admin-g2-sm border border-white/10 bg-slate-950/45 p-4">
@@ -466,12 +531,21 @@ function PreScoutBriefing({
 
 export default function PreMatchView({
   isEmbedded = false,
-  eventKey: propEventKey
+  eventKey: propEventKey,
+  onCacheChanged
 }: {
   isEmbedded?: boolean;
   eventKey?: string;
+  onCacheChanged?: () => void | Promise<void>;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const taskHandoff = useMemo(() => getScoutTaskHandoff('preScout', location.search), [location.search]);
+  const taskHandoffKey = taskHandoff
+    ? [taskHandoff.teamNumber, taskHandoff.eventKey, taskHandoff.reason].join(':')
+    : '';
+  const [completedAdminTaskKey, setCompletedAdminTaskKey] = useState('');
+  const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
   const [rows, setRows] = useState<SpreadsheetRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -481,6 +555,8 @@ export default function PreMatchView({
   const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
   const [showingCachedData, setShowingCachedData] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [taskCaptureStatus, setTaskCaptureStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [taskCaptureMessage, setTaskCaptureMessage] = useState('');
   const [activeWorkspace, setActiveWorkspace] = useState<PreScoutWorkspaceKey>('briefing');
 
   const eventKey = propEventKey || getStoredEventKey() || DEFAULT_EVENT_KEY;
@@ -510,9 +586,20 @@ export default function PreMatchView({
         setShowingCachedData(false);
       }
 
-      const teamNumbers = await fetchEventTeamNumbers(eventKey, TBA_API_KEY);
+      const localTbaApiKey = await loadTbaApiKey().catch(() => null);
+      const effectiveTbaApiKey = localTbaApiKey || TBA_API_KEY;
+      if (!effectiveTbaApiKey) {
+        setError(
+          hydratedFromCache
+            ? 'Showing the IndexedDB cache. Upload a local TBA key in Admin V4 Settings to refresh Pre Scout live.'
+            : 'Pre Scout needs a TBA key before it can build public team research. Upload the local API key JSON in Admin V4 Settings.'
+        );
+        return;
+      }
+
+      const teamNumbers = await fetchEventTeamNumbers(eventKey, effectiveTbaApiKey);
       const results = await Promise.allSettled(
-        teamNumbers.map(teamNumber => fetchPreMatchTeamProfile(teamNumber, eventKey, TBA_API_KEY))
+        teamNumbers.map(teamNumber => fetchPreMatchTeamProfile(teamNumber, eventKey, effectiveTbaApiKey))
       );
 
       const profiles = results
@@ -529,12 +616,13 @@ export default function PreMatchView({
       const cachedAt = await setCachedPreMatchSheet(eventKey, profiles);
       setCacheTimestamp(cachedAt);
       setShowingCachedData(false);
+      await onCacheChanged?.();
       if (rejectedCount > 0) {
         setError(`${rejectedCount} team profile${rejectedCount === 1 ? '' : 's'} failed to load from TBA. The rest of the sheet is still available.`);
       }
     } catch (err) {
-      console.error('Error loading pre-match sheet:', err);
       const message = err instanceof Error ? err.message : 'Failed to load the pre-match sheet.';
+      console.warn('Pre Scout live refresh failed', message);
       if (!hydratedFromCache) {
         setRows([]);
         setShowingCachedData(false);
@@ -550,6 +638,12 @@ export default function PreMatchView({
   useEffect(() => {
     void loadEventSheet();
   }, [eventKey]);
+
+  useEffect(() => {
+    if (!activeTaskHandoff?.teamNumber) return;
+    setFilter(activeTaskHandoff.teamNumber);
+    setActiveWorkspace('sheet');
+  }, [activeTaskHandoff, taskHandoffKey]);
 
   const filteredRows = useMemo(() => {
     const query = filter.trim().toLowerCase();
@@ -577,6 +671,12 @@ export default function PreMatchView({
   }, [rows]);
 
   const priorityRows = useMemo(() => getPitPriorityRows(rows, 8), [rows]);
+  const activeTaskRow = useMemo(
+    () => activeTaskHandoff?.teamNumber
+      ? rows.find(row => row.profile.teamNumber === activeTaskHandoff.teamNumber) || null
+      : null,
+    [activeTaskHandoff, rows]
+  );
   const workspaceCounts = useMemo<Record<PreScoutWorkspaceKey, string>>(() => ({
     briefing: `${summary.total}`,
     priorities: `${priorityRows.length}`,
@@ -718,6 +818,50 @@ export default function PreMatchView({
     }
   };
 
+  const handleCapturePreScoutTask = async () => {
+    if (!activeTaskHandoff?.teamNumber) return;
+    const adminTask = buildScoutEvidenceAdminTask(activeTaskHandoff);
+    if (!adminTask) {
+      setTaskCaptureStatus('error');
+      setTaskCaptureMessage('Unable to capture this Pre Scout task because the admin handoff is missing a team.');
+      return;
+    }
+
+    setTaskCaptureStatus('saving');
+    setTaskCaptureMessage('');
+
+    try {
+      const row = activeTaskRow;
+      const updatedSheet = await recordPreScoutAdminTaskEvidence(eventKey, {
+        teamNumber: activeTaskHandoff.teamNumber,
+        teamName: activeTaskHandoff.teamName || row?.profile.nickname || '',
+        task: adminTask,
+        profileAvailable: Boolean(row),
+        qualificationStatus: row?.profile.qualificationStatus,
+        qualificationReason: row?.profile.qualificationReason,
+        missingFromTba: row
+          ? row.missingFromTba.map(item => `${item.label}: ${item.detail}`)
+          : ['No public profile row is loaded for this team yet.'],
+        manualRequired: (row ? row.manualRequired : buildManualOnlyItems(activeTaskHandoff.teamNumber))
+          .map(item => `${item.label}: ${item.detail}`)
+      });
+
+      if (updatedSheet) {
+        setCacheTimestamp(updatedSheet.cachedAt);
+      }
+      setCompletedAdminTaskKey(taskHandoffKey);
+      clearScoutTaskHandoff('preScout');
+      await onCacheChanged?.();
+      setTaskCaptureStatus('success');
+      setTaskCaptureMessage(`Captured Pre Scout admin evidence for Team ${activeTaskHandoff.teamNumber}.`);
+      window.setTimeout(() => setTaskCaptureMessage(''), 3000);
+    } catch (err) {
+      console.error('Failed to capture Pre Scout admin evidence:', err);
+      setTaskCaptureStatus('error');
+      setTaskCaptureMessage(err instanceof Error ? err.message : 'Failed to capture Pre Scout admin evidence.');
+    }
+  };
+
   const cacheLabel = useMemo(() => {
     if (!cacheTimestamp) return '';
     return new Intl.DateTimeFormat(undefined, {
@@ -800,18 +944,64 @@ export default function PreMatchView({
     <div className={isEmbedded ? 'pb-24' : 'min-h-screen bg-slate-950 text-slate-200 p-4 md:p-8 font-sans pb-24'}>
       <div className={isEmbedded ? 'space-y-8' : 'max-w-[1400px] mx-auto space-y-8'}>
         {!isEmbedded && (
-          <ScoutWorkflowHeader
-            missionKey="preScout"
-            title="Pre Scout"
-            subtitle="Build the event spreadsheet, find public context, and expose the gaps pit and match scouts must verify."
-            onBack={() => navigate('/')}
-            metric={(
-              <div className="admin-g2-sm hidden border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-right sm:block">
-                <div className="text-xs font-black uppercase tracking-widest text-violet-200">{eventKey}</div>
-                <div className="mt-1 text-2xl font-black text-white">{summary.total} teams</div>
+          <>
+            <ScoutWorkflowHeader
+              missionKey="preScout"
+              title="Pre Scout"
+              subtitle="Build the event spreadsheet, find public context, and expose the gaps pit and match scouts must verify."
+              handoff={activeTaskHandoff}
+              onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
+              metric={(
+                <div className="admin-g2-sm hidden border border-violet-400/30 bg-violet-500/10 px-4 py-3 text-right sm:block">
+                  <div className="text-xs font-black uppercase tracking-widest text-violet-200">{eventKey}</div>
+                  <div className="mt-1 text-2xl font-black text-white">{summary.total} teams</div>
+                </div>
+              )}
+            />
+            <ScoutingMissionPanel missionKey="preScout" compact />
+          </>
+        )}
+
+        {activeTaskHandoff && (
+          <div className="admin-g2 border border-violet-400/30 bg-violet-500/10 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.2em] text-violet-200">Admin Pre Scout Task</div>
+                <h3 className="mt-1 text-xl font-black text-white">Return public-context evidence for Team {activeTaskHandoff.teamNumber}</h3>
+                <p className="mt-2 max-w-3xl text-sm font-semibold text-violet-50/75">
+                  This records the visible TBA/public-context gaps against the admin task, so Data can show Pre Scout as returned evidence instead of an untracked viewing step.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-violet-50/80">
+                  <span className="admin-g2-sm border border-white/10 bg-slate-950/35 px-2 py-1">{activeTaskHandoff.reason || 'public context'}</span>
+                  <span className="admin-g2-sm border border-white/10 bg-slate-950/35 px-2 py-1">
+                    {activeTaskRow ? `${activeTaskRow.missingFromTba.length} TBA gaps` : 'profile row not loaded'}
+                  </span>
+                  {activeTaskHandoff.ppa?.coverage && (
+                    <span className="admin-g2-sm border border-white/10 bg-slate-950/35 px-2 py-1">{activeTaskHandoff.ppa.coverage}</span>
+                  )}
+                </div>
               </div>
-            )}
-          />
+              <button
+                type="button"
+                onClick={() => void handleCapturePreScoutTask()}
+                disabled={taskCaptureStatus === 'saving'}
+                className="admin-g2-sm inline-flex shrink-0 items-center justify-center gap-2 border border-violet-400/40 bg-violet-500/15 px-5 py-3 font-black text-violet-50 transition-colors hover:bg-violet-500/25 disabled:opacity-50"
+              >
+                <Shield className="h-4 w-4" />
+                {taskCaptureStatus === 'saving' ? 'CAPTURING...' : 'CAPTURE PRE SCOUT EVIDENCE'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {taskCaptureMessage && (
+          <div className={`admin-g2-sm border px-4 py-3 text-sm font-bold ${
+            taskCaptureStatus === 'error'
+              ? 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+              : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+          }`}>
+            {taskCaptureMessage}
+          </div>
         )}
 
         <PreScoutWorkspaceNav activeWorkspace={activeWorkspace} onChange={setActiveWorkspace} counts={workspaceCounts} />
@@ -903,6 +1093,7 @@ export default function PreMatchView({
             title="Export And Refresh"
             subtitle="Keep the event sheet fresh, then hand scouts a workbook with public context and manual verification columns."
           >
+            <ScoutSignalHandoff missionKey="preScout" />
             {dataActionBar}
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
@@ -914,10 +1105,10 @@ export default function PreMatchView({
                 </div>
               </div>
               <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
-                <div className={labelClass}>Model Use</div>
-                <div className="mt-3 text-sm font-semibold text-slate-300">
-                  This creates the public fallback and tells PPA where confidence is thin before local scouting rows arrive.
-                </div>
+              <div className={labelClass}>Model Use</div>
+              <div className="mt-3 text-sm font-semibold text-slate-300">
+                  This creates the public starting read and shows where trust is thin before local scouting rows arrive.
+              </div>
               </div>
               <div className="admin-g2-sm border border-slate-800 bg-slate-950/55 p-4">
                 <div className={labelClass}>Source State</div>
@@ -1007,7 +1198,7 @@ export default function PreMatchView({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-sm text-slate-500">Missing</div>
+                        <div className="text-sm text-slate-500">Needs pit check</div>
                       )}
                     </td>
                     <td className="px-4 py-4">

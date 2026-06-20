@@ -44,7 +44,7 @@ export const buildMatchKey = (matchType: ScoutMatchType, matchNumber: number) =>
 
 export const parseMatchNumber = (matchKey: unknown) => {
   const match = String(matchKey ?? '').match(/(\d+)/);
-  return match ? Math.max(1, parseInt(match[1], 10)) : 1;
+  return match ? Math.max(1, parseInt(match[1] ?? '1', 10)) : 1;
 };
 
 export const parseMatchType = (matchKey: unknown): ScoutMatchType =>

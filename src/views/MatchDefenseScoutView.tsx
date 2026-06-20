@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -8,6 +8,7 @@ import { MatchDefenseScoutingV1, initialMatchDefenseScoutingV1 } from '../types'
 import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventState';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
+import { loadTbaApiKey } from '../utils/adminV4LocalStore';
 import {
   buildMatchKeyV3
 } from '../utils/matchScoutingV3';
@@ -25,7 +26,9 @@ import {
 import { getMatchDefenseDocId, writeMatchDefenseScoutingRecord } from '../utils/scoutingWrites';
 import { SCOUT_ASSIGNMENTS } from '../utils/scoutAssignments';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
-import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
+import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
 
 export const MATCH_DEFENSE_EDIT_STORAGE_KEY = 'edit_match_defense_data_v1';
 
@@ -60,7 +63,7 @@ const DEFENSE_SCOUT_STEPS: Array<{
     key: 'impact',
     label: 'Impact',
     question: 'How much did the defense deny?',
-    output: 'defense metric for PPA role context'
+    output: 'defense metric for role context'
   },
   {
     key: 'evidence',
@@ -118,6 +121,13 @@ const getDefenseStrategyNote = (value: number) => {
   return 'Do not let weak scoring be excused as defense without evidence.';
 };
 
+const getDefenseModelGuardrail = (value: number) => {
+  if (value >= 0.75) return 'Strong role correction';
+  if (value >= 0.55) return 'Use as defense prior';
+  if (value >= 0.35) return 'Flag as situational defense';
+  return 'No role correction yet';
+};
+
 function ChoiceButton({
   active,
   label,
@@ -136,7 +146,7 @@ function ChoiceButton({
       disabled={disabled}
       className={`admin-g2-sm px-3 py-3 text-sm font-black transition-all ${
         active
-          ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/20'
+          ? 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-50'
           : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
       } ${disabled ? 'cursor-not-allowed opacity-50 hover:bg-slate-950' : ''}`}
     >
@@ -208,7 +218,7 @@ function DefenseStepFrame({
   step: DefenseScoutStepKey;
   children: React.ReactNode;
 }) {
-  const currentStep = DEFENSE_SCOUT_STEPS.find(item => item.key === step) || DEFENSE_SCOUT_STEPS[0];
+  const currentStep = DEFENSE_SCOUT_STEPS.find(item => item.key === step) || DEFENSE_SCOUT_STEPS[0]!;
   return (
     <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -296,31 +306,44 @@ function DefenseImpactStrip({ data }: { data: MatchDefenseScoutingV1 }) {
   const roleLabel = getDefenseRoleLabel(data.defenseMetric);
   const strategyNote = getDefenseStrategyNote(data.defenseMetric);
   const commentSignal = [data.defenseComments, data.generalComments].join(' ').trim();
+  const hasTargetTeam = Boolean(data.teamNumber.trim());
+  const hasDeniedAction = /(deny|denied|slow|slowed|block|blocked|stop|stopped|cycle|cycles|score|scoring|reef|coral|algae|station|route)/i.test(commentSignal);
+  const hasRiskNote = /(foul|fouls|penalty|pin|card|traffic|risk|contact|danger|avoid|safe)/i.test(commentSignal);
   const evidenceLabel = commentSignal.length >= 120
     ? 'Strong notes'
     : commentSignal.length >= 40
       ? 'Usable notes'
       : 'Needs evidence';
+  const proofChecklist = [
+    hasTargetTeam ? `Team ${data.teamNumber}` : 'team pending',
+    hasDeniedAction ? 'denial named' : 'denial missing',
+    hasRiskNote ? 'risk named' : 'risk missing'
+  ].join(' / ');
   const cards = [
     {
-      label: 'Suppression Signal',
+      label: 'Denied Output',
       value: formatDefensePercent(data.defenseMetric),
-      detail: 'Feeds the defense metric used by Teams, Pick List, and strategy.'
+      detail: 'Observable scoring or cycle suppression, not a vague excuse for low offense.'
     },
     {
-      label: 'Role Impact',
+      label: 'Role Guard',
+      value: getDefenseModelGuardrail(data.defenseMetric),
+      detail: 'Protects the model from punishing a robot whose job was targeted defense.'
+    },
+    {
+      label: 'Role Read',
       value: roleLabel,
-      detail: 'Prevents PPA from treating role sacrifice as weak offense.'
-    },
-    {
-      label: 'Match Strategy',
-      value: data.teamNumber ? `Team ${data.teamNumber}` : 'Team pending',
       detail: strategyNote
     },
     {
-      label: 'Evidence Quality',
+      label: 'Admin Uses',
+      value: hasTargetTeam ? `${data.alliance || 'Alliance'} ${data.teamNumber}` : 'Target pending',
+      detail: 'Feeds match plans, Pick List role fit, and opponent risk notes.'
+    },
+    {
+      label: 'Proof Status',
       value: evidenceLabel,
-      detail: 'Comments should name the target, effect, and foul or traffic risk.'
+      detail: proofChecklist
     }
   ];
 
@@ -328,14 +351,17 @@ function DefenseImpactStrip({ data }: { data: MatchDefenseScoutingV1 }) {
     <section className="admin-g2 border border-rose-400/25 bg-rose-500/10 p-5">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">Defense Impact Map</div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">Defense Evidence Map</div>
           <h2 className="mt-1 text-xl font-black text-white">Separate real denial from low scoring</h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold text-rose-50/75">
+            This row becomes a role correction for Admin V4: it can raise trust in a defender, lower risk in future-match plans, and stop the model from treating defensive sacrifice as bad scoring.
+          </p>
         </div>
         <div className="text-sm font-semibold text-rose-50/75">
           {data.matchKey.toUpperCase()} · {data.alliance || 'alliance pending'} · {roleLabel}
         </div>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {cards.map(card => (
           <div key={card.label} className="admin-g2-sm border border-rose-200/10 bg-slate-950/55 px-3 py-3">
             <div className="text-xs font-black uppercase tracking-wider text-rose-100">{card.label}</div>
@@ -350,11 +376,25 @@ function DefenseImpactStrip({ data }: { data: MatchDefenseScoutingV1 }) {
 
 export default function MatchDefenseScoutView() {
   const navigate = useNavigate();
-  const storedEventKey = sanitizeEventKey(localStorage.getItem(MATCH_DEFENSE_EVENT_KEY_STORAGE) || DEFAULT_EVENT_KEY);
+  const location = useLocation();
+  const taskHandoff = useMemo(() => getScoutTaskHandoff('defenseScout', location.search), [location.search]);
+  const taskHandoffKey = taskHandoff
+    ? [
+        taskHandoff.teamNumber,
+        taskHandoff.eventKey,
+        taskHandoff.matchType,
+        taskHandoff.matchNumber,
+        taskHandoff.alliance,
+        taskHandoff.reason
+      ].join(':')
+    : '';
+  const [completedAdminTaskKey, setCompletedAdminTaskKey] = useState('');
+  const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
+  const storedEventKey = sanitizeEventKey(activeTaskHandoff?.eventKey || localStorage.getItem(MATCH_DEFENSE_EVENT_KEY_STORAGE) || DEFAULT_EVENT_KEY);
   const storedAssignedScout = getStoredAssignedScout();
-  const storedMatchType = getStoredMatchType();
-  const storedMatchNumber = getStoredMatchNumber();
-  const storedTeamNumber = getStoredTeamNumber();
+  const storedMatchType = activeTaskHandoff?.matchType || getStoredMatchType();
+  const storedMatchNumber = activeTaskHandoff?.matchNumber || getStoredMatchNumber();
+  const storedTeamNumber = activeTaskHandoff?.teamNumber || getStoredTeamNumber();
   const persistentDeviceId = useMemo(() => getPersistentDeviceId(), []);
   const storedAssignment = useMemo(
     () => SCOUT_ASSIGNMENTS.find(assignment => assignment.name === storedAssignedScout) || null,
@@ -372,7 +412,7 @@ export default function MatchDefenseScoutView() {
       scoutName: storedAssignedScout,
       assignedScoutName: storedAssignedScout,
       assignedSlot: storedAssignment?.slotLabel || '',
-      alliance: storedAssignment?.alliance || '',
+      alliance: activeTaskHandoff?.alliance || storedAssignment?.alliance || '',
       deviceId: persistentDeviceId
     })
   );
@@ -395,6 +435,14 @@ export default function MatchDefenseScoutView() {
   const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
   const activeStepRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftSaveRef = useRef(false);
+  const shouldShowDefenseMap =
+    activeStep !== 'match' ||
+    Boolean(
+      data.teamNumber.trim() ||
+      data.defenseComments.trim() ||
+      data.generalComments.trim() ||
+      data.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric
+    );
 
   const selectedAssignment = useMemo(
     () => SCOUT_ASSIGNMENTS.find(assignment => assignment.name === data.assignedScoutName) || null,
@@ -417,6 +465,22 @@ export default function MatchDefenseScoutView() {
     setHasUsedStepNav(true);
     setActiveStep(step);
   };
+
+  useEffect(() => {
+    if (!bootResolved || !isDraftHydrated || !activeTaskHandoff || isEditing) return;
+    setActiveStep('match');
+    updateData({
+      eventKey: activeTaskHandoff.eventKey || data.eventKey,
+      matchType: activeTaskHandoff.matchType || data.matchType,
+      matchNumber: activeTaskHandoff.matchNumber || data.matchNumber,
+      teamNumber: activeTaskHandoff.teamNumber || data.teamNumber,
+      alliance: activeTaskHandoff.alliance || data.alliance
+    });
+    setNotification({
+      type: 'success',
+      message: `Admin task loaded: ${activeTaskHandoff.reason || 'collect defense read'} for Team ${activeTaskHandoff.teamNumber}.`
+    });
+  }, [activeTaskHandoff, bootResolved, isDraftHydrated, isEditing, taskHandoffKey]);
 
   useEffect(() => {
     if (!hasUsedStepNav) return;
@@ -574,14 +638,20 @@ export default function MatchDefenseScoutView() {
         }
       }
 
-      if (!TBA_API_KEY) {
-        setAssignmentWarning('TBA API key missing. Schedule auto-fill is unavailable; team and alliance remain manual.');
+      const localTbaApiKey = await loadTbaApiKey().catch(() => null);
+      const effectiveTbaApiKey = localTbaApiKey || TBA_API_KEY;
+      if (!effectiveTbaApiKey) {
+        setAssignmentWarning(
+          cachedMatches
+            ? 'Using cached schedule. Upload a local TBA key in Admin V4 Settings to refresh live auto-fill.'
+            : 'Schedule auto-fill needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
+        );
         return;
       }
 
       setIsLoadingSchedule(true);
       try {
-        const engine = new MathEngine(TBA_API_KEY);
+        const engine = new MathEngine(effectiveTbaApiKey);
         const matches = await engine.fetchEventMatches(data.eventKey, { includeUnplayed: true });
         setEventMatches(matches);
         localStorage.setItem(cacheKey, JSON.stringify(matches));
@@ -745,7 +815,8 @@ export default function MatchDefenseScoutView() {
         scoutName: data.substituteScoutName || data.assignedScoutName,
         deviceId: data.deviceId || persistentDeviceId,
         timestamp: Date.now(),
-        matchKey: buildMatchKeyV3(data.matchType, data.matchNumber)
+        matchKey: buildMatchKeyV3(data.matchType, data.matchNumber),
+        adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
       });
 
       const docId = getMatchDefenseDocId(payload);
@@ -755,6 +826,10 @@ export default function MatchDefenseScoutView() {
         lastFirebaseAttemptAt: Date.now(),
         lastFirebaseError: ''
       });
+      if (activeTaskHandoff) {
+        setCompletedAdminTaskKey(taskHandoffKey);
+        clearScoutTaskHandoff('defenseScout');
+      }
       await deleteScoutDraft(activeDraftKey);
       skipNextDraftSaveRef.current = true;
       let syncMessage = isEditing ? 'Defense record updated successfully.' : 'Defense record submitted successfully.';
@@ -835,7 +910,7 @@ export default function MatchDefenseScoutView() {
     <div className="flex h-full flex-col overflow-y-auto bg-slate-950 p-4 pb-24 text-white md:p-6">
       {notification && (
         <div
-          className={`admin-g2-sm fixed left-1/2 top-4 z-50 -translate-x-1/2 px-6 py-3 font-bold shadow-2xl ${
+          className={`admin-g2-sm fixed left-1/2 top-4 z-50 -translate-x-1/2 px-6 py-3 font-bold shadow-md shadow-slate-950/30 ${
             notification.type === 'error' ? 'bg-red-500 text-white' : 'bg-emerald-500 text-white'
           }`}
         >
@@ -857,7 +932,8 @@ export default function MatchDefenseScoutView() {
         missionKey="defenseScout"
         title={isEditing ? 'Edit Defense Scout' : 'Defense Scout'}
         subtitle="Capture whether defense actually denied points, who it affected, and how it should influence role planning."
-        onBack={() => navigate('/')}
+        handoff={activeTaskHandoff}
+        onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
         metric={(
           <div className="admin-g2-sm hidden border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-right sm:block sm:px-5 sm:py-4">
             <div className="text-xs font-black uppercase tracking-widest text-rose-200">Defense Metric</div>
@@ -866,8 +942,11 @@ export default function MatchDefenseScoutView() {
         )}
       />
 
+      <ScoutingMissionPanel missionKey="defenseScout" compact className="mt-6" />
+
       <div className="space-y-6">
         <DefenseStepNav activeStep={activeStep} data={data} onChange={handleStepChange} />
+        {shouldShowDefenseMap && <DefenseImpactStrip data={data} />}
 
         <div ref={activeStepRef} className="scroll-mt-4">
           {activeStep === 'match' && (
@@ -1014,8 +1093,7 @@ export default function MatchDefenseScoutView() {
 
           {activeStep === 'impact' && (
             <DefenseStepFrame step="impact">
-              <DefenseImpactStrip data={data} />
-              <div className="mt-5">
+              <div>
                 <DefenseMetricSlider value={data.defenseMetric} onChange={value => updateData({ defenseMetric: value })} />
               </div>
               <div className="mt-5">
@@ -1049,6 +1127,11 @@ export default function MatchDefenseScoutView() {
               <div className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100">
                 Good evidence names the target, the denied action, the match context, and whether the defense created foul or traffic risk.
               </div>
+              <div className="mt-3 grid gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-300 sm:grid-cols-3">
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">1. Target defended</div>
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">2. Action denied</div>
+                <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-3 py-2">3. Foul or traffic risk</div>
+              </div>
               <div className="mt-5">
                 <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
               </div>
@@ -1057,7 +1140,7 @@ export default function MatchDefenseScoutView() {
 
           {activeStep === 'handoff' && (
             <DefenseStepFrame step="handoff">
-              <DefenseImpactStrip data={data} />
+              <ScoutSignalHandoff missionKey="defenseScout" />
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
                 <div className="admin-g2 border border-slate-800 bg-slate-950/55 px-5 py-4">
                   <div className={labelClass}>Current Defense Metric</div>
@@ -1077,7 +1160,7 @@ export default function MatchDefenseScoutView() {
                     type="button"
                     onClick={handleSubmit}
                     disabled={isSubmitting}
-                    className="admin-g2 bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-4 text-lg font-black text-white shadow-xl transition-all hover:from-emerald-500 hover:to-cyan-500 disabled:opacity-50"
+                    className="admin-g2 border border-emerald-400/40 bg-emerald-500/15 px-6 py-4 text-lg font-black text-emerald-50 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
                   >
                     {isSubmitting ? 'SAVING...' : isEditing ? 'UPDATE DEFENSE ENTRY' : 'SUBMIT DEFENSE ENTRY'}
                   </button>
@@ -1103,14 +1186,15 @@ export default function MatchDefenseScoutView() {
             </button>
             <h3 className="mb-3 text-xl font-black text-slate-900">Defense Offline QR Export</h3>
             <p className="mb-5 text-center text-sm text-slate-600">
-              Scan this from an admin device if internet access is unavailable.
+              Scan this in Admin V4 Data when internet access is unavailable.
             </p>
             <QRCodeSVG
               value={compressMatchDefenseData(
                 normalizeMatchDefenseScoutingV1({
                   ...data,
                   scoutName: archiveUsername || data.scoutName,
-                  matchKey: buildMatchKeyV3(data.matchType, data.matchNumber)
+                  matchKey: buildMatchKeyV3(data.matchType, data.matchNumber),
+                  adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
                 })
               )}
               size={280}

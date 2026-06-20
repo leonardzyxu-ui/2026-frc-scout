@@ -1,7 +1,8 @@
-import { QualificationBonusMetrics, TBAEliminationAlliance, TBAEventSummary } from './matchPredictor';
-import { TBAMatch } from './mathEngine';
+import type { QualificationBonusMetrics, TBAEliminationAlliance, TBAEventSummary } from './matchPredictor';
+import type { TBAMatch } from './mathEngine';
 
-const STORAGE_KEY_PREFIX = 'adminv2_tba_csv_pack:';
+const STORAGE_KEY_PREFIX = 'adminv4_tba_csv_pack:';
+const LEGACY_STORAGE_KEY_PREFIX = 'adminv2_tba_csv_pack:';
 
 export interface UploadedTbaCsvCoprsData {
   fileName: string;
@@ -90,6 +91,7 @@ type JsonRecord = Record<string, unknown>;
 const normalizeEventKey = (eventKey: string) => eventKey.trim().toLowerCase();
 
 const getStorageKey = (eventKey: string) => `${STORAGE_KEY_PREFIX}${normalizeEventKey(eventKey)}`;
+const getLegacyStorageKey = (eventKey: string) => `${LEGACY_STORAGE_KEY_PREFIX}${normalizeEventKey(eventKey)}`;
 
 const normalizeHeader = (value: string) => value.trim().toLowerCase();
 
@@ -121,7 +123,7 @@ const parseClockTime = (value: string) => {
   const match = value.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (!match) return null;
 
-  const [, hoursString, minutes, meridiem] = match;
+  const [, hoursString = '0', minutes = '00', meridiem = 'AM'] = match;
   let hours = Number.parseInt(hoursString, 10);
   if (meridiem.toUpperCase() === 'PM' && hours !== 12) {
     hours += 12;
@@ -220,7 +222,7 @@ const parseCsvObjects = (text: string) => {
     return { headers: [] as string[], objects: [] as CsvRow[] };
   }
 
-  const headers = rows[0].map(normalizeHeader);
+  const headers = (rows[0] ?? []).map(normalizeHeader);
   const objects = rows.slice(1).map(row => {
     const record: CsvRow = {};
     headers.forEach((header, index) => {
@@ -245,8 +247,8 @@ const inferFlatMatchDetails = (matchKey: string) => {
   }
 
   return {
-    compLevel: match[1].toLowerCase(),
-    matchNumber: Number.parseInt(match[2], 10) || 0,
+    compLevel: (match[1] ?? '').toLowerCase(),
+    matchNumber: Number.parseInt(match[2] ?? '0', 10) || 0,
     setNumber: 1
   };
 };
@@ -673,8 +675,10 @@ const parseCoprsJson = (fileName: string, payload: unknown): UploadedTbaCsvCoprs
   const componentPoints = buildComponentPointsFromComponentMaps(componentMaps);
   const bonusMetrics: Record<string, QualificationBonusMetrics> = {};
   Object.keys(componentPoints).forEach(teamNumber => {
-    const towerPoints = componentPoints[teamNumber].towerPoints;
-    const fuelPoints = componentPoints[teamNumber].fuelPoints;
+    const points = componentPoints[teamNumber];
+    if (!points) return;
+    const towerPoints = points.towerPoints;
+    const fuelPoints = points.fuelPoints;
     if (towerPoints != null || fuelPoints != null) {
       bonusMetrics[teamNumber] = {
         towerEPA: towerPoints ?? 0,
@@ -766,7 +770,7 @@ const classifyJsonFile = (fileName: string, payload: unknown): ParsedCsvFile['ty
 
     const valueObjects = Object.values(payload).filter(isObject);
     if (valueObjects.length > 0) {
-      const sampleEntry = valueObjects[0];
+      const sampleEntry = valueObjects[0] ?? {};
       const sampleValue = Object.values(sampleEntry)[0];
       if (typeof sampleValue === 'number') {
         return 'coprs';
@@ -844,7 +848,7 @@ export const loadUploadedTbaCsvPack = (eventKey: string): UploadedTbaCsvPack | n
   if (typeof window === 'undefined') return null;
 
   try {
-    const stored = window.localStorage.getItem(getStorageKey(eventKey));
+    const stored = window.localStorage.getItem(getStorageKey(eventKey)) || window.localStorage.getItem(getLegacyStorageKey(eventKey));
     if (!stored) return null;
     return JSON.parse(stored) as UploadedTbaCsvPack;
   } catch (error) {
@@ -856,14 +860,14 @@ export const loadUploadedTbaCsvPack = (eventKey: string): UploadedTbaCsvPack | n
 export const saveUploadedTbaCsvPack = (eventKey: string, pack: UploadedTbaCsvPack) => {
   if (typeof window === 'undefined') return;
 
-  window.localStorage.setItem(
-    getStorageKey(eventKey),
-    JSON.stringify({
-      ...pack,
-      eventKey: normalizeEventKey(eventKey),
-      loadedAt: Date.now()
-    } satisfies UploadedTbaCsvPack)
-  );
+  const serializedPack = JSON.stringify({
+    ...pack,
+    eventKey: normalizeEventKey(eventKey),
+    loadedAt: Date.now()
+  } satisfies UploadedTbaCsvPack);
+
+  window.localStorage.setItem(getStorageKey(eventKey), serializedPack);
+  window.localStorage.setItem(getLegacyStorageKey(eventKey), serializedPack);
 };
 
 export const importUploadedTbaCsvFiles = async (

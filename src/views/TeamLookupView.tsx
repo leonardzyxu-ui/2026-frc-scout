@@ -226,7 +226,7 @@ export default function TeamLookupView({
                         />
                         <DetailRow
                           label="Traversal"
-                          value={getTraversalLabel(pitData) || 'Unknown'}
+                          value={getTraversalLabel(pitData) || 'Needs pit verification'}
                         />
                         <DetailRow
                           label="Chassis Speed"
@@ -288,7 +288,7 @@ export default function TeamLookupView({
                         <h4 className="text-xs font-black uppercase tracking-widest text-slate-500">
                           Submission
                         </h4>
-                        <DetailRow label="Submitted By" value={pitData.scoutName || 'Unknown'} />
+                        <DetailRow label="Submitted By" value={pitData.scoutName || 'Scout name missing'} />
                       </div>
 
                       {pitData.notes && (

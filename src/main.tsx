@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
+import { firebaseReady } from './firebase';
 
 // Register service worker for PWA
 const updateSW = registerSW({
@@ -15,8 +16,14 @@ const updateSW = registerSW({
   },
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const renderApp = () => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+};
+
+void firebaseReady.catch(error => {
+  console.warn('Firebase startup did not finish before render. Continuing in local-first mode.', error);
+}).finally(renderApp);

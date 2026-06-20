@@ -8,10 +8,13 @@ export default defineConfig({
   },
   use: {
     baseURL: 'http://127.0.0.1:3000',
+    launchOptions: {
+      executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+    },
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'npm run dev',
+    command: 'VITE_LOCAL_MODE=true npm run build && VITE_LOCAL_MODE=true npm run preview -- --host 127.0.0.1 --port 3000',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: true,
     timeout: 120000

@@ -35,7 +35,10 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const fitLinearCalibration = (pairs: Array<{ predicted: number; actual: number }>): LinearCalibration => {
   if (pairs.length === 0) return { slope: 1, intercept: 0 };
-  if (pairs.length === 1) return { slope: 1, intercept: pairs[0].actual - pairs[0].predicted };
+  if (pairs.length === 1) {
+    const pair = pairs[0]!;
+    return { slope: 1, intercept: pair.actual - pair.predicted };
+  }
 
   const meanPredicted = pairs.reduce((sum, pair) => sum + pair.predicted, 0) / pairs.length;
   const meanActual = pairs.reduce((sum, pair) => sum + pair.actual, 0) / pairs.length;
@@ -64,7 +67,8 @@ function ComparisonTooltip({
   payload?: Array<{ payload: ChartComparisonRow }>;
 }) {
   if (!active || !payload?.length) return null;
-  const row = payload[0].payload;
+  const row = payload[0]?.payload;
+  if (!row) return null;
 
   return (
     <div className="rounded-xl border border-slate-700 bg-slate-950/95 px-4 py-3 shadow-2xl">

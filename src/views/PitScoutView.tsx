@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, QrCode, Save, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PitScoutingV2 } from '../types';
 import {
   DEFAULT_EVENT_KEY,
@@ -24,7 +24,9 @@ import {
   upsertPitArchiveRecord
 } from '../utils/scoutArchive';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
-import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
+import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
 
 const PIT_EDIT_STORAGE_KEY = 'edit_pit_data';
 const PIT_SCOUT_NAME_STORAGE_KEY = 'pit_scout_name';
@@ -54,7 +56,7 @@ const PIT_SCOUT_STEPS: Array<{
     key: 'scoring',
     label: 'Scoring Prior',
     question: 'What do they claim they can score?',
-    output: 'early PPA capability prior'
+    output: 'early expected-range prior'
   },
   {
     key: 'endgame',
@@ -134,11 +136,11 @@ function ChoiceButton({
   disabled?: boolean;
 }) {
   const activeClasses = {
-    emerald: 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20',
-    blue: 'bg-blue-600 text-white shadow-lg shadow-blue-900/20',
-    amber: 'bg-amber-600 text-white shadow-lg shadow-amber-900/20',
-    purple: 'bg-purple-600 text-white shadow-lg shadow-purple-900/20',
-    rose: 'bg-rose-600 text-white shadow-lg shadow-rose-900/20'
+    emerald: 'border border-emerald-400/40 bg-emerald-500/15 text-emerald-50',
+    blue: 'border border-blue-400/40 bg-blue-500/15 text-blue-50',
+    amber: 'border border-amber-400/40 bg-amber-500/15 text-amber-50',
+    purple: 'border border-purple-400/40 bg-purple-500/15 text-purple-50',
+    rose: 'border border-rose-400/40 bg-rose-500/15 text-rose-50'
   };
 
   return (
@@ -224,7 +226,7 @@ function PitStepFrame({
   step: PitScoutStepKey;
   children: React.ReactNode;
 }) {
-  const currentStep = PIT_SCOUT_STEPS.find(item => item.key === step) || PIT_SCOUT_STEPS[0];
+  const currentStep = PIT_SCOUT_STEPS.find(item => item.key === step) || PIT_SCOUT_STEPS[0]!;
   return (
     <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -282,33 +284,54 @@ function PitPriorStrip({ form }: { form: PitScoutingV2 }) {
   const traversalLabel = getTraversalLabel(form) || 'Path unknown';
   const climbLabel = getClimbCapabilityLabel(form) || 'Endgame unknown';
   const speedLabel = formatPitChassisSpeed(form);
+  const claimedScoring = form.expectedHubBallsPerMatch || form.expectedAutoBalls + form.expectedTeleopBalls;
+  const unknownCount = [shooterLabel === 'Shooter unknown', traversalLabel === 'Path unknown', climbLabel === 'Endgame unknown']
+    .filter(Boolean)
+    .length;
+  const stabilityMultiplier = Math.max(0.25, 0.72 - unknownCount * 0.12 + (form.canUseHopper ? 0.08 : 0) + (form.hoodAdjustable ? 0.05 : 0));
+  const floorPrior = Math.max(0, Math.round(claimedScoring * stabilityMultiplier));
+  const climbUpside = form.canClimbL3 ? 15 : form.canClimbL2 ? 10 : form.canClimbL1 ? 5 : 0;
+  const throughputUpside = Math.min(8, Math.max(0, form.ballsPerSecond * 2 + (form.hopperCapacity ? form.hopperCapacity / 4 : 0)));
+  const ceilingPrior = Math.max(claimedScoring, Math.round(claimedScoring + climbUpside + throughputUpside));
+  const rolePrior =
+    form.noClimbCapability
+      ? 'Scoring-only prior'
+      : form.canClimbL3 || form.canClimbL2
+        ? 'Endgame anchor prior'
+        : form.canCrossTrench || speedLabel !== 'N/A'
+          ? 'Traffic runner prior'
+          : shooterLabel !== 'Shooter unknown'
+            ? 'Scoring prior'
+            : 'Role unknown';
   const verificationQuestions = [
     form.expectedHubBallsPerMatch ? '' : 'Ask match scouts to verify scoring volume.',
     form.expectedAutoBalls || form.expectedTeleopBalls ? '' : 'Ask for auto/teleop split.',
+    form.canUseHopper && form.hopperCapacity === 0 ? 'Confirm whether the hopper capacity claim is real.' : '',
+    form.ballsPerSecond > 0 ? 'Check whether claimed shot rate survives defense and traffic.' : '',
     climbLabel === 'Endgame unknown' ? 'Watch if the climb works under defense and time pressure.' : '',
     traversalLabel === 'Path unknown' ? 'Confirm field pathing before assigning traffic-heavy roles.' : ''
   ].filter(Boolean);
 
   const cards = [
     {
-      label: 'Capability Prior',
-      value: form.robotBaseType || shooterLabel !== 'Shooter unknown' ? [form.robotBaseType, shooterLabel].filter(Boolean).join(' / ') : 'Ask robot design',
-      detail: 'Creates the human prior before enough match rows exist.'
+      label: 'Claimed Expected',
+      value: claimedScoring > 0 ? `${claimedScoring} balls` : 'Need scoring claim',
+      detail: `${form.expectedAutoBalls || 0} auto / ${form.expectedTeleopBalls || 0} teleop becomes the early expected-range prior.`
     },
     {
-      label: 'Scoring Split',
-      value: `${form.expectedAutoBalls || 0} auto / ${form.expectedTeleopBalls || 0} teleop`,
-      detail: `${form.expectedHubBallsPerMatch || 0} expected total balls for match scouts to verify.`
+      label: 'Floor Watch',
+      value: claimedScoring > 0 ? `${floorPrior} ball floor` : 'Untrusted floor',
+      detail: unknownCount > 0 ? `${unknownCount} unknown capability area${unknownCount === 1 ? '' : 's'} lower trust.` : 'Claim has enough context for match scouts to test.'
     },
     {
-      label: 'Compatibility',
-      value: `${traversalLabel} · ${speedLabel}`,
-      detail: 'Used for role fit, traffic planning, and alliance compatibility.'
+      label: 'Ceiling Clue',
+      value: claimedScoring > 0 || climbUpside > 0 ? `${ceilingPrior} upside` : 'Need upside clue',
+      detail: `${climbLabel}; throughput and endgame are upside, not proof.`
     },
     {
-      label: 'Pick-List Context',
-      value: climbLabel,
-      detail: verificationQuestions[0] || 'Pit prior is usable; match data should confirm it.'
+      label: 'Role Prior',
+      value: rolePrior,
+      detail: `${shooterLabel} · ${traversalLabel} · ${speedLabel}`
     }
   ];
 
@@ -332,17 +355,25 @@ function PitPriorStrip({ form }: { form: PitScoutingV2 }) {
           </div>
         ))}
       </div>
-      {verificationQuestions.length > 0 && (
-        <div className="admin-g2-sm mt-3 border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-100">
-          Verify next: {verificationQuestions.slice(0, 2).join(' ')}
-        </div>
-      )}
+      <div className="admin-g2-sm mt-3 border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-100">
+        Verify first: {verificationQuestions[0] || 'Match scouts should confirm the claimed role, scoring split, and endgame reliability under real defense.'}
+      </div>
+      <div className="mt-2 text-xs font-semibold leading-relaxed text-emerald-50/70">
+        This is not the final expected range. It is the human prior Admin V4 uses before enough match rows exist, and it tells match scouts what to prove or disprove.
+      </div>
     </section>
   );
 }
 
 export default function PitScoutView() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const taskHandoff = useMemo(() => getScoutTaskHandoff('pitScout', location.search), [location.search]);
+  const taskHandoffKey = taskHandoff
+    ? [taskHandoff.teamNumber, taskHandoff.teamName, taskHandoff.eventKey, taskHandoff.reason].join(':')
+    : '';
+  const [completedAdminTaskKey, setCompletedAdminTaskKey] = useState('');
+  const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
   const [eventKey, setEventKey] = useState(() => DEFAULT_EVENT_KEY);
   const [form, setForm] = useState<PitScoutingV2>(() => createInitialPitForm());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -507,6 +538,20 @@ export default function PitScoutView() {
     localStorage.setItem(PIT_SCOUT_NAME_STORAGE_KEY, form.scoutName || '');
   }, [form.scoutName]);
 
+  useEffect(() => {
+    if (!bootModeResolved || !isDraftHydrated || !activeTaskHandoff || isEditing) return;
+    setEventKey(activeTaskHandoff.eventKey || DEFAULT_EVENT_KEY);
+    setActiveStep('identity');
+    setForm(prev => ({
+      ...prev,
+      teamNumber: activeTaskHandoff.teamNumber || prev.teamNumber,
+      teamName: activeTaskHandoff.teamName || prev.teamName,
+      scoutName: prev.scoutName || archiveUsername || pendingArchiveUsername
+    }));
+    setError('');
+    setSuccessMessage(`Admin task loaded: ${activeTaskHandoff.reason || 'collect pit prior'} for Team ${activeTaskHandoff.teamNumber}.`);
+  }, [activeTaskHandoff, archiveUsername, bootModeResolved, isDraftHydrated, isEditing, pendingArchiveUsername, taskHandoffKey]);
+
   const handleBaseTypeSelect = (robotBaseType: PitScoutingV2['robotBaseType']) => {
     updateForm({
       robotBaseType,
@@ -600,7 +645,7 @@ export default function PitScoutView() {
       ...form,
       teamNumber: form.teamNumber.trim(),
       teamName: form.teamName.trim(),
-      scoutName: form.scoutName.trim(),
+      scoutName: archiveUsername.trim(),
       customTurretCount: form.turretCount === 'More' ? form.customTurretCount.trim() : '',
       noClimbCapability: form.noClimbCapability,
       canClimbL1: form.noClimbCapability ? false : form.canClimbL1,
@@ -610,7 +655,8 @@ export default function PitScoutView() {
       chassisSpeedDistanceUnit: normalizedChassisSpeed.chassisSpeedDistanceUnit,
       chassisSpeedTimeUnit: normalizedChassisSpeed.chassisSpeedTimeUnit,
       deviceId: getPersistentDeviceId(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
     };
   };
 
@@ -648,6 +694,10 @@ export default function PitScoutView() {
         lastFirebaseAttemptAt: Date.now(),
         lastFirebaseError: ''
       });
+      if (activeTaskHandoff) {
+        setCompletedAdminTaskKey(taskHandoffKey);
+        clearScoutTaskHandoff('pitScout');
+      }
       await deleteScoutDraft(activeDraftKey);
       skipNextDraftSaveRef.current = true;
 
@@ -722,7 +772,8 @@ export default function PitScoutView() {
           missionKey="pitScout"
           title={isEditing ? 'Edit Pit Scout' : 'Pit Scout'}
           subtitle="Interview the team for capability priors, compatibility notes, and the questions match scouts should verify."
-          onBack={() => navigate('/')}
+          handoff={activeTaskHandoff}
+          onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
           metric={(
             <div className="admin-g2-sm border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-right">
               <div className="text-xs font-black uppercase tracking-widest text-emerald-200">{eventKey}</div>
@@ -732,6 +783,8 @@ export default function PitScoutView() {
             </div>
           )}
         />
+
+        <ScoutingMissionPanel missionKey="pitScout" compact />
 
         {error && (
           <div className="admin-g2-sm border border-red-500 bg-red-900/50 p-3 text-sm font-medium text-red-200">
@@ -746,6 +799,9 @@ export default function PitScoutView() {
         )}
 
         <PitStepNav activeStep={activeStep} form={form} onChange={handleStepChange} />
+        {(activeStep !== 'identity' || form.teamNumber.trim() || form.teamName.trim()) && (
+          <PitPriorStrip form={form} />
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div ref={activeStepRef} className="scroll-mt-4">
@@ -779,16 +835,16 @@ export default function PitScoutView() {
                   <label className={labelClass}>Scout Name</label>
                   <input
                     type="text"
-                    value={form.scoutName}
-                    onChange={(e) => updateForm({ scoutName: e.target.value })}
+                    value={archiveUsername || form.scoutName}
+                    readOnly
                     className={inputClass}
-                    placeholder="Required"
+                    placeholder="Locked to this device identity"
                     required
                   />
                 </div>
               </div>
               <div className="admin-g2-sm mt-4 border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100">
-                This anchors every pit claim to team profile, pick list, match prep, and model fallback context.
+                This anchors every pit claim to team profile, pick list, match prep, and public-only context.
               </div>
               <div className="mt-5">
                 <PitStepFooter activeStep={activeStep} onChange={handleStepChange} />
@@ -1087,7 +1143,7 @@ export default function PitScoutView() {
 
           {activeStep === 'handoff' && (
             <PitStepFrame step="handoff">
-              <PitPriorStrip form={form} />
+              <ScoutSignalHandoff missionKey="pitScout" />
               <div className="mt-5 space-y-3">
                 <div>
                   <h3 className="text-lg font-black text-white">Verification Notes</h3>
@@ -1105,14 +1161,14 @@ export default function PitScoutView() {
                 <button
                   type="button"
                   onClick={() => setShowQr(true)}
-                  className="admin-g2-sm col-span-1 flex items-center justify-center bg-slate-800 py-4 font-black text-white shadow-xl transition-all hover:bg-slate-700 active:scale-95"
+                  className="admin-g2-sm col-span-1 flex items-center justify-center border border-slate-700 bg-slate-950 py-4 font-black text-slate-100 transition-colors hover:bg-slate-900 active:scale-95"
                 >
                   <QrCode className="w-8 h-8" />
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="admin-g2-sm col-span-3 flex items-center justify-center gap-2 bg-emerald-600 py-4 text-lg font-black text-white shadow-lg shadow-emerald-900/20 transition-all hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="admin-g2-sm col-span-3 flex items-center justify-center gap-2 border border-emerald-400/40 bg-emerald-500/15 py-4 text-lg font-black text-emerald-50 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSubmitting ? 'SAVING...' : isEditing ? 'UPDATE PIT DATA' : 'SAVE PIT DATA'}
                   {!isSubmitting && <Save className="w-5 h-5" />}
@@ -1139,7 +1195,7 @@ export default function PitScoutView() {
             </button>
             <h3 className="text-xl font-black text-slate-900 mb-4">Offline Pit QR Export</h3>
             <p className="text-center text-sm text-slate-600 mb-6">
-              Scan this code from the Admin device if internet is unavailable.
+              Scan this code in Admin V4 Data when internet is unavailable.
             </p>
             <div className="admin-g2-sm bg-white p-4 shadow-lg">
               <QRCodeSVG
@@ -1153,7 +1209,7 @@ export default function PitScoutView() {
               />
             </div>
             <div className="mt-5 text-center text-xs font-mono text-slate-500 break-all">
-              Team {form.teamNumber || 'TBD'} / {form.scoutName || 'Unknown Scout'}
+              Team {form.teamNumber || 'TBD'} / {form.scoutName || 'Scout name missing'}
             </div>
           </div>
         </div>

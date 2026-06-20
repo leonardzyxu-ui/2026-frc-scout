@@ -92,7 +92,7 @@ interface QualificationAssessment {
 
 const getSeasonYearFromEventKey = (eventKey: string) => {
   const match = eventKey.match(/^(\d{4})/);
-  return match ? parseInt(match[1], 10) : new Date().getFullYear();
+  return match ? parseInt(match[1] ?? `${new Date().getFullYear()}`, 10) : new Date().getFullYear();
 };
 
 const getLocationLabel = (city?: string, state?: string, country?: string) =>

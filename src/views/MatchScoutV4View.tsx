@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Coins, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
 import { MatchScoutingV4, MatchScoutingV4Role, initialMatchScoutingV4 } from '../types';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { SCOUT_ASSIGNMENTS, getScoutAssignmentByName } from '../utils/scoutAssignments';
@@ -9,16 +9,20 @@ import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventSt
 import { buildMatchKeyV4, normalizeMatchScoutingV4 } from '../utils/matchScoutingV4';
 import {
   getScoutArchiveUsername,
+  renameScoutArchiveUsername,
   setScoutArchiveUsername,
   updateScoutArchiveRecordSyncState,
   upsertMatchArchiveRecordV4
 } from '../utils/scoutArchive';
 import { writeMatchScoutingV4Record } from '../utils/scoutingWrites';
 import { compressMatchDataV4 } from '../utils/qrCompression';
-import { getPowerCoinBalance, listPowerCoinBets, upsertPowerCoinBet } from '../utils/adminV2LocalStore';
+import { loadTbaApiKey } from '../utils/adminV4LocalStore';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
-import ScoutWorkflowHeader from '../components/scouting/ScoutWorkflowHeader';
+import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
+import { verifyScoutIdentityUnlockPassphrase } from '../utils/scoutIdentityLock';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
@@ -41,7 +45,7 @@ const MATCH_SCOUT_STEPS: Array<{
     key: 'score',
     label: 'Score Signal',
     question: 'What points and cycles did this robot create?',
-    output: 'PPA expected value and repeatability'
+    output: 'expected value and repeatability'
   },
   {
     key: 'role',
@@ -68,8 +72,8 @@ const FAILURE_TOGGLES: Array<{ key: 'robotDied' | 'commsLost' | 'mechanismBroke'
   { key: 'mechanismBroke', label: 'Mechanism Broke' },
   { key: 'tippedOver', label: 'Tipped Over' }
 ];
-const PPA_SIGNAL_STEPS = [
-  { key: 'expected', label: 'Expected Value', detail: 'Auto, teleop, and endgame points set the central PPA estimate.' },
+const EXPECTED_RANGE_SIGNAL_STEPS = [
+  { key: 'expected', label: 'Expected Value', detail: 'Auto, teleop, and endgame points set the central expected range.' },
   { key: 'repeatability', label: 'Repeatability', detail: 'Cycles explain whether the score was stable or a one-off spike.' },
   { key: 'role', label: 'Role Context', detail: 'Role and defense fields prevent the model from confusing strategy with weakness.' },
   { key: 'floor', label: 'Floor Risk', detail: 'Reliability and failures define how low the team can realistically fall.' }
@@ -102,10 +106,35 @@ const NumberCounter = ({
   steps?: number[];
 }) => {
   const [lastValue, setLastValue] = useState<number | null>(null);
+  const [resetArmed, setResetArmed] = useState(false);
+  const resetArmTimeoutRef = useRef<number | null>(null);
+  const cancelResetArm = () => {
+    if (resetArmTimeoutRef.current != null) {
+      window.clearTimeout(resetArmTimeoutRef.current);
+      resetArmTimeoutRef.current = null;
+    }
+    setResetArmed(false);
+  };
+  const armReset = () => {
+    setResetArmed(true);
+    if (resetArmTimeoutRef.current != null) {
+      window.clearTimeout(resetArmTimeoutRef.current);
+    }
+    resetArmTimeoutRef.current = window.setTimeout(() => {
+      resetArmTimeoutRef.current = null;
+      setResetArmed(false);
+    }, 3000);
+  };
   const commitChange = (nextValue: number) => {
+    cancelResetArm();
     setLastValue(value);
     onChange(nextValue);
   };
+  useEffect(() => () => {
+    if (resetArmTimeoutRef.current != null) {
+      window.clearTimeout(resetArmTimeoutRef.current);
+    }
+  }, []);
 
   return (
     <div className="admin-g2 border border-slate-800 bg-slate-900/80 p-5">
@@ -122,7 +151,7 @@ const NumberCounter = ({
             key={step}
             type="button"
             onClick={() => commitChange(value + step)}
-            className="admin-g2-sm bg-cyan-600 px-3 py-3 text-lg font-black text-white shadow-lg transition hover:bg-cyan-500 active:scale-95"
+            className="admin-g2-sm border border-cyan-400/40 bg-cyan-500/15 px-3 py-3 text-lg font-black text-cyan-50 transition-colors hover:bg-cyan-500/25 active:scale-95"
           >
             +{step}
           </button>
@@ -138,10 +167,21 @@ const NumberCounter = ({
         </button>
         <button
           type="button"
-          onClick={() => commitChange(0)}
-          className="admin-g2-sm bg-rose-950 px-3 py-2 text-sm font-bold text-rose-200 hover:bg-rose-900"
+          onClick={() => {
+            if (value === 0) return;
+            if (!resetArmed) {
+              armReset();
+              return;
+            }
+            commitChange(0);
+          }}
+          disabled={value === 0}
+          aria-label={resetArmed ? `Confirm reset ${label} to zero` : `Arm reset ${label}`}
+          className={`admin-g2-sm px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-600 ${
+            resetArmed ? 'bg-rose-500 text-white hover:bg-rose-400' : 'bg-rose-950 text-rose-200 hover:bg-rose-900'
+          }`}
         >
-          Reset
+          {resetArmed ? 'Confirm Reset' : 'Reset...'}
         </button>
         <button
           type="button"
@@ -156,78 +196,14 @@ const NumberCounter = ({
           Revert Last
         </button>
       </div>
+      {resetArmed && (
+        <div className="mt-2 text-xs font-bold text-rose-200">
+          Tap Confirm Reset within 3 seconds to zero {label}. Revert Last can restore it.
+        </div>
+      )}
     </div>
   );
 };
-
-const getStepReadiness = (step: MatchScoutStepKey, data: MatchScoutingV4, canOpenForm: boolean) => {
-  const totalCycles = data.autoCycles + data.teleopCycles;
-  const activeFailures = FAILURE_TOGGLES.some(({ key }) => data[key]);
-  switch (step) {
-    case 'setup':
-      return Boolean(data.teamNumber && data.assignedScoutName && data.alliance && canOpenForm);
-    case 'score':
-      return data.totalMatchPoints > 0 || totalCycles > 0;
-    case 'role':
-      return Boolean(data.rolePlayed || data.defendedTeamNumber || data.defenderFacedTeamNumber || data.defenseDurationSeconds > 0 || data.defenseIntensity > 0);
-    case 'risk':
-      return data.reliabilityScore < 1 || data.fouls > 0 || data.techFouls > 0 || activeFailures || Boolean(data.failureReason.trim());
-    case 'handoff':
-      return Boolean(data.notes.trim() || data.strategyNotes.trim());
-  }
-};
-
-function MatchScoutStepNav({
-  activeStep,
-  data,
-  canOpenForm,
-  onChange
-}: {
-  activeStep: MatchScoutStepKey;
-  data: MatchScoutingV4;
-  canOpenForm: boolean;
-  onChange: (step: MatchScoutStepKey) => void;
-}) {
-  return (
-    <nav className="admin-g2 border border-slate-800 bg-slate-900/70 p-3">
-      <div className="grid auto-cols-[minmax(180px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-5 lg:overflow-visible lg:pb-0">
-        {MATCH_SCOUT_STEPS.map((step, index) => {
-          const isActive = activeStep === step.key;
-          const locked = !canOpenForm && step.key !== 'setup';
-          const ready = getStepReadiness(step.key, data, canOpenForm);
-          return (
-            <button
-              key={step.key}
-              type="button"
-              disabled={locked}
-              onClick={() => onChange(step.key)}
-              className={`admin-g2-sm border p-3 text-left transition ${
-                isActive
-                  ? 'border-cyan-300 bg-cyan-400/15 text-cyan-50 ring-1 ring-cyan-300/40'
-                  : locked
-                    ? 'cursor-not-allowed border-slate-800 bg-slate-950/50 text-slate-600'
-                    : 'border-slate-800 bg-slate-950/65 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
-                  {index + 1}
-                </span>
-                {ready ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                ) : (
-                  <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-cyan-300' : 'bg-slate-700'}`} />
-                )}
-              </div>
-              <div className="mt-2 text-sm font-black text-white">{step.label}</div>
-              <div className="mt-1 text-xs font-semibold text-slate-400">{step.question}</div>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
-  );
-}
 
 function StepFrame({
   step,
@@ -236,7 +212,7 @@ function StepFrame({
   step: MatchScoutStepKey;
   children: React.ReactNode;
 }) {
-  const currentStep = MATCH_SCOUT_STEPS.find(item => item.key === step) || MATCH_SCOUT_STEPS[0];
+  const currentStep = MATCH_SCOUT_STEPS.find(item => item.key === step) || MATCH_SCOUT_STEPS[0]!;
   return (
     <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -253,52 +229,43 @@ function StepFrame({
   );
 }
 
-function MatchScoutStepFooter({
-  activeStep,
-  canOpenForm,
-  onChange
-}: {
-  activeStep: MatchScoutStepKey;
-  canOpenForm: boolean;
-  onChange: (step: MatchScoutStepKey) => void;
-}) {
-  const activeIndex = MATCH_SCOUT_STEPS.findIndex(step => step.key === activeStep);
-  const previousStep = MATCH_SCOUT_STEPS[activeIndex - 1];
-  const nextStep = MATCH_SCOUT_STEPS[activeIndex + 1];
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <button
-        type="button"
-        disabled={!previousStep}
-        onClick={() => previousStep && onChange(previousStep.key)}
-        className="admin-g2-sm inline-flex items-center gap-2 border border-slate-800 bg-slate-900 px-4 py-3 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Back Step
-      </button>
-      {nextStep && (
-        <button
-          type="button"
-          disabled={!canOpenForm && nextStep.key !== 'setup'}
-          onClick={() => onChange(nextStep.key)}
-          className="admin-g2-sm inline-flex items-center gap-2 bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
-        >
-          Next: {nextStep.label}
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  );
-}
-
 function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
   const totalCycles = data.autoCycles + data.teleopCycles;
   const activeFailures = FAILURE_TOGGLES.filter(({ key }) => data[key]).length;
+  const failurePenalty = activeFailures * 8 + data.fouls * 1.5 + data.techFouls * 4;
+  const reliabilityFloor = Math.max(0, data.totalMatchPoints * data.reliabilityScore - failurePenalty);
+  const cycleBonus = Math.min(18, totalCycles * 1.25);
+  const roleBonus =
+    data.rolePlayed === 'Defense'
+      ? data.defenseIntensity * 10 + Math.min(8, data.defenseDurationSeconds / 15)
+      : data.rolePlayed === 'Mixed'
+        ? data.defenseIntensity * 5 + Math.min(6, data.defenseDurationSeconds / 25)
+        : data.rolePlayed === 'Support'
+          ? 3
+          : 0;
+  const ceilingSignal = Math.max(data.totalMatchPoints, data.totalMatchPoints + cycleBonus + roleBonus);
+  const floorLabel = `${Math.round(reliabilityFloor)} pts`;
+  const ceilingLabel = `${Math.round(ceilingSignal)} pts`;
+  const roleLabel = data.rolePlayed || 'Choose role';
+  const headScoutRead = (() => {
+    if (data.rolePlayed === 'Disabled' || activeFailures > 1 || data.reliabilityScore < 0.55) {
+      return 'Treat this as floor-risk evidence until another clean row confirms recovery.';
+    }
+    if (data.rolePlayed === 'Defense' || data.defenseIntensity >= 0.5 || data.defenseDurationSeconds >= 45) {
+      return 'Tell strategy whether the defense was worth the scoring tradeoff.';
+    }
+    if (data.totalMatchPoints > 0 && totalCycles === 0) {
+      return 'Add cycles or notes so Admin can tell spike scoring from repeatable scoring.';
+    }
+    if (!data.rolePlayed) {
+      return 'Pick the role before submit; the model needs to know why the points happened.';
+    }
+    return 'Good row shape: expected value, repeatability, role, and floor risk are all represented.';
+  })();
   const signalValues: Record<string, string> = {
     expected: `${data.totalMatchPoints} pts`,
     repeatability: `${totalCycles} cycles`,
-    role: data.rolePlayed || 'Choose role',
+    role: roleLabel,
     floor: `${(data.reliabilityScore * 100).toFixed(0)}% / ${activeFailures} flags`
   };
 
@@ -306,7 +273,7 @@ function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
     <section className="admin-g2 border border-cyan-400/25 bg-cyan-500/10 p-5">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">PPA Capture Path</div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Evidence Capture Path</div>
           <h2 className="mt-1 text-xl font-black text-white">Collect the shape, not just the score</h2>
         </div>
         <div className="text-sm font-semibold text-cyan-50/75">
@@ -314,7 +281,7 @@ function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
         </div>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
-        {PPA_SIGNAL_STEPS.map(item => (
+        {EXPECTED_RANGE_SIGNAL_STEPS.map(item => (
           <div key={item.label} className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-3 py-3">
             <div className="text-xs font-black uppercase tracking-wider text-cyan-100">{item.label}</div>
             <div className="mt-2 text-2xl font-black text-white">{signalValues[item.key]}</div>
@@ -322,25 +289,61 @@ function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
           </div>
         ))}
       </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1.4fr]">
+        <div className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-3 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Row Expected</div>
+          <div className="mt-1 text-xl font-black text-cyan-100">{data.totalMatchPoints} pts</div>
+          <div className="mt-1 text-xs font-semibold text-slate-400">Direct contribution recorded here.</div>
+        </div>
+        <div className="admin-g2-sm border border-amber-200/10 bg-slate-950/55 px-3 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Floor Guard</div>
+          <div className="mt-1 text-xl font-black text-amber-100">{floorLabel}</div>
+          <div className="mt-1 text-xs font-semibold text-slate-400">Reliability minus fouls and failure flags.</div>
+        </div>
+        <div className="admin-g2-sm border border-violet-200/10 bg-slate-950/55 px-3 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Ceiling Clue</div>
+          <div className="mt-1 text-xl font-black text-violet-100">{ceilingLabel}</div>
+          <div className="mt-1 text-xs font-semibold text-slate-400">Points plus repeatability and role context.</div>
+        </div>
+        <div className="admin-g2-sm border border-emerald-200/10 bg-slate-950/55 px-3 py-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Head Scout Read</div>
+          <div className="mt-1 text-sm font-black text-emerald-100">{roleLabel}</div>
+          <div className="mt-1 text-xs font-semibold leading-relaxed text-slate-300">{headScoutRead}</div>
+        </div>
+      </div>
+      <div className="mt-3 text-xs font-semibold leading-relaxed text-cyan-50/70">
+        This is a live evidence preview for this row only. Admin V4 combines it with prior rows, defense scouting, public context, and the promoted model before producing the final expected-range read.
+      </div>
     </section>
   );
 }
 
 export default function MatchScoutV4View() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const taskHandoff = useMemo(() => getScoutTaskHandoff('matchScout', location.search), [location.search]);
+  const taskHandoffKey = taskHandoff
+    ? [
+        taskHandoff.teamNumber,
+        taskHandoff.eventKey,
+        taskHandoff.matchType,
+        taskHandoff.matchNumber,
+        taskHandoff.alliance,
+        taskHandoff.reason
+      ].join(':')
+    : '';
+  const [completedAdminTaskKey, setCompletedAdminTaskKey] = useState('');
+  const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
   const deviceId = useMemo(() => getPersistentDeviceId(), []);
   const [archiveUsername, setArchiveUsername] = useState('');
   const [pendingUsername, setPendingUsername] = useState('');
+  const [renameGateOpen, setRenameGateOpen] = useState(false);
+  const [identityUnlockPassphrase, setIdentityUnlockPassphrase] = useState('');
+  const [identityUnlockError, setIdentityUnlockError] = useState('');
   const [isUsernameResolved, setIsUsernameResolved] = useState(false);
   const [data, setData] = useState<MatchScoutingV4>(() => getDefaultData(deviceId));
   const [statusMessage, setStatusMessage] = useState('');
   const [showQr, setShowQr] = useState(false);
-  const [betGateOpen, setBetGateOpen] = useState(false);
-  const [betSkipped, setBetSkipped] = useState(false);
-  const [betLockedMatchKey, setBetLockedMatchKey] = useState('');
-  const [betSide, setBetSide] = useState<'Red' | 'Blue'>('Red');
-  const [betAmount, setBetAmount] = useState(50);
-  const [powerCoinBalance, setPowerCoinBalance] = useState(1000);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eventMatches, setEventMatches] = useState<TBAMatch[]>([]);
   const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
@@ -349,9 +352,6 @@ export default function MatchScoutV4View() {
   const [teamWarning, setTeamWarning] = useState('');
   const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
   const [teamManuallyEdited, setTeamManuallyEdited] = useState(false);
-  const [activeStep, setActiveStep] = useState<MatchScoutStepKey>('setup');
-  const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
-  const activeStepRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
   const totalPoints = normalizedData.totalMatchPoints;
@@ -363,8 +363,7 @@ export default function MatchScoutV4View() {
     () => getScoutAssignmentByName(normalizedData.assignedScoutName),
     [normalizedData.assignedScoutName]
   );
-  const canOpenForm = (betGateOpen || betSkipped) && betLockedMatchKey === currentMatchKey;
-
+  const canOpenForm = Boolean(normalizedData.teamNumber && normalizedData.assignedScoutName && normalizedData.alliance);
   useEffect(() => {
     let cancelled = false;
     const hydrate = async () => {
@@ -406,49 +405,19 @@ export default function MatchScoutV4View() {
   }, [isUsernameResolved, normalizedData]);
 
   useEffect(() => {
-    let cancelled = false;
-    const hydrateBalance = async () => {
-      if (!archiveUsername) return;
-      try {
-        const balance = await getPowerCoinBalance(normalizedData.eventKey, archiveUsername);
-        if (!cancelled) setPowerCoinBalance(balance);
-      } catch (error) {
-        console.warn('Unable to load PowerCoin balance', error);
-      }
-    };
-    void hydrateBalance();
-    return () => {
-      cancelled = true;
-    };
-  }, [archiveUsername, normalizedData.eventKey]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const hydrateExistingBet = async () => {
-      if (!archiveUsername || !currentMatchKey) return;
-      try {
-        const bets = await listPowerCoinBets(normalizedData.eventKey);
-        const existingBet = bets.find(
-          bet =>
-            bet.matchKey === currentMatchKey &&
-            bet.scoutName.trim().toLowerCase() === archiveUsername.trim().toLowerCase()
-        );
-        if (!cancelled && existingBet) {
-          setBetGateOpen(true);
-          setBetSkipped(false);
-          setBetLockedMatchKey(currentMatchKey);
-          setBetSide(existingBet.side);
-          setBetAmount(existingBet.amount);
-        }
-      } catch (error) {
-        console.warn('Unable to check existing PowerCoin bet', error);
-      }
-    };
-    void hydrateExistingBet();
-    return () => {
-      cancelled = true;
-    };
-  }, [archiveUsername, currentMatchKey, normalizedData.eventKey]);
+    if (!isUsernameResolved || !activeTaskHandoff || isEditingExistingRecord) return;
+    setTeamManuallyEdited(Boolean(activeTaskHandoff.teamNumber));
+    setData(previous => normalizeMatchScoutingV4({
+      ...previous,
+      eventKey: activeTaskHandoff.eventKey || previous.eventKey,
+      matchType: activeTaskHandoff.matchType || previous.matchType,
+      matchNumber: activeTaskHandoff.matchNumber || previous.matchNumber,
+      matchKey: activeTaskHandoff.matchKey || buildMatchKeyV4(activeTaskHandoff.matchType || previous.matchType, activeTaskHandoff.matchNumber || previous.matchNumber),
+      teamNumber: activeTaskHandoff.teamNumber || previous.teamNumber,
+      alliance: activeTaskHandoff.alliance || previous.alliance
+    }));
+    setStatusMessage(`Admin task loaded: ${activeTaskHandoff.reason || 'collect evidence'} for Team ${activeTaskHandoff.teamNumber}.`);
+  }, [activeTaskHandoff, isEditingExistingRecord, isUsernameResolved, taskHandoffKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -480,14 +449,20 @@ export default function MatchScoutV4View() {
         }
       }
 
-      if (!TBA_API_KEY) {
-        setAssignmentWarning('TBA API key missing. Schedule auto-fill is unavailable; team and alliance remain manual.');
+      const localTbaApiKey = await loadTbaApiKey().catch(() => null);
+      const effectiveTbaApiKey = localTbaApiKey || TBA_API_KEY;
+      if (!effectiveTbaApiKey) {
+        setAssignmentWarning(
+          cachedMatches
+            ? 'Using cached schedule. Upload a local TBA key in Admin V4 Settings to refresh live auto-fill.'
+            : 'Schedule auto-fill needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
+        );
         return;
       }
 
       setIsLoadingSchedule(true);
       try {
-        const engine = new MathEngine(TBA_API_KEY);
+        const engine = new MathEngine(effectiveTbaApiKey);
         const matches = await engine.fetchEventMatches(normalizedData.eventKey, { includeUnplayed: true });
         if (cancelled) return;
         setEventMatches(matches);
@@ -582,26 +557,8 @@ export default function MatchScoutV4View() {
     setTeamWarning('');
   }, [normalizedData.eventKey, normalizedData.teamNumber, scheduledTeams]);
 
-  useEffect(() => {
-    if (!canOpenForm && activeStep !== 'setup') {
-      setActiveStep('setup');
-    }
-  }, [activeStep, canOpenForm]);
-
-  useEffect(() => {
-    if (!hasUsedStepNav) return;
-    window.setTimeout(() => {
-      activeStepRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
-    }, 0);
-  }, [activeStep, hasUsedStepNav]);
-
   const updateData = (patch: Partial<MatchScoutingV4>) => {
     setData(previous => normalizeMatchScoutingV4({ ...previous, ...patch }));
-  };
-
-  const handleStepChange = (step: MatchScoutStepKey) => {
-    setHasUsedStepNav(true);
-    setActiveStep(step);
   };
 
   const handleUsernameSave = async () => {
@@ -617,6 +574,36 @@ export default function MatchScoutV4View() {
     setStatusMessage('');
   };
 
+  const handleIdentityRename = async () => {
+    const normalized = pendingUsername.trim();
+    if (!normalized) {
+      setIdentityUnlockError('New scout username is required.');
+      return;
+    }
+
+    if (normalized === archiveUsername.trim()) {
+      setRenameGateOpen(false);
+      setIdentityUnlockError('');
+      setIdentityUnlockPassphrase('');
+      return;
+    }
+
+    const unlocked = await verifyScoutIdentityUnlockPassphrase(identityUnlockPassphrase);
+    if (!unlocked) {
+      setIdentityUnlockError('Admin unlock passphrase is incorrect.');
+      return;
+    }
+
+    await renameScoutArchiveUsername(normalized, 'unlock_passphrase');
+    setArchiveUsername(normalized);
+    setPendingUsername(normalized);
+    updateData({ scoutName: normalized });
+    setRenameGateOpen(false);
+    setIdentityUnlockError('');
+    setIdentityUnlockPassphrase('');
+    setStatusMessage('Scout identity renamed on this device.');
+  };
+
   const handleScoutSelection = (name: string) => {
     const assignment = getScoutAssignmentByName(name);
     if (!assignment) return;
@@ -627,57 +614,6 @@ export default function MatchScoutV4View() {
       substituteScoutName: ''
     });
     setTeamManuallyEdited(false);
-  };
-
-  const handleBetSubmit = async () => {
-    if (powerCoinBalance < 1) {
-      setStatusMessage('No PowerCoins available for betting. Skip betting to open the form.');
-      return;
-    }
-
-    const requestedAmount = Number.isFinite(betAmount) ? Math.round(betAmount) : 0;
-    if (requestedAmount < 1) {
-      setStatusMessage('PowerCoin bet must be at least 1 coin.');
-      return;
-    }
-
-    const amount = Math.min(powerCoinBalance, requestedAmount);
-
-    const matchKey = currentMatchKey;
-    const scoutName = (archiveUsername || normalizedData.scoutName).trim();
-    const existingBets = await listPowerCoinBets(normalizedData.eventKey).catch(() => []);
-    const existingBet = existingBets.find(
-      bet =>
-        bet.matchKey === matchKey &&
-        bet.scoutName.trim().toLowerCase() === scoutName.trim().toLowerCase()
-    );
-
-    if (existingBet) {
-      setBetGateOpen(true);
-      setBetSkipped(false);
-      setBetLockedMatchKey(matchKey);
-      setBetSide(existingBet.side);
-      setBetAmount(existingBet.amount);
-      setStatusMessage(`Existing PowerCoin bet is already locked: ${existingBet.amount} on ${existingBet.side}.`);
-      return;
-    }
-
-    await upsertPowerCoinBet({
-      id: `${normalizedData.eventKey}_${matchKey}_${scoutName}`,
-      eventKey: normalizedData.eventKey,
-      matchKey,
-      matchNumber: normalizedData.matchNumber,
-      matchType: normalizedData.matchType,
-      scoutName,
-      side: betSide,
-      amount,
-      placedAt: Date.now()
-    });
-    setBetGateOpen(true);
-    setBetSkipped(false);
-    setBetLockedMatchKey(matchKey);
-    setPowerCoinBalance(balance => Math.max(0, balance - amount));
-    setStatusMessage(`PowerCoins locked: ${amount} on ${betSide}.`);
   };
 
   const validate = () => {
@@ -694,7 +630,8 @@ export default function MatchScoutV4View() {
       scoutName: scoutNameOverride.trim(),
       matchKey: currentMatchKey,
       timestamp: Date.now(),
-      deviceId
+      deviceId,
+      adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
     });
 
   const resetFormAfterLocalSave = (scoutName = archiveUsername) => {
@@ -703,9 +640,6 @@ export default function MatchScoutV4View() {
     setIsEditingExistingRecord(false);
     setData(getDefaultData(deviceId, scoutName));
     setTeamManuallyEdited(false);
-    setBetGateOpen(false);
-    setBetSkipped(false);
-    setBetLockedMatchKey('');
   };
 
   const handleSubmit = async () => {
@@ -732,6 +666,10 @@ export default function MatchScoutV4View() {
         lastFirebaseAttemptAt: Date.now(),
         lastFirebaseError: ''
       });
+      if (activeTaskHandoff) {
+        setCompletedAdminTaskKey(taskHandoffKey);
+        clearScoutTaskHandoff('matchScout');
+      }
 
       try {
         const writeResult = await writeMatchScoutingV4Record(payload, { mode: isEditingExistingRecord ? 'replace' : 'strict' });
@@ -770,15 +708,26 @@ export default function MatchScoutV4View() {
     }
   };
 
-  const showUsernameGate = isUsernameResolved && !archiveUsername;
+  const showUsernameGate = isUsernameResolved && (!archiveUsername || renameGateOpen);
 
   return (
     <div className="h-full overflow-y-auto bg-slate-950 px-4 py-6 text-white md:px-8">
       {showUsernameGate && (
         <ScoutUsernameGate
+          currentUsername={archiveUsername}
+          errorMessage={identityUnlockError}
+          isUnlockMode={Boolean(archiveUsername && renameGateOpen)}
+          onCancel={() => {
+            setRenameGateOpen(false);
+            setPendingUsername(archiveUsername);
+            setIdentityUnlockError('');
+            setIdentityUnlockPassphrase('');
+          }}
           pendingUsername={pendingUsername}
           setPendingUsername={setPendingUsername}
-          onSave={() => void handleUsernameSave()}
+          unlockPassphrase={identityUnlockPassphrase}
+          setUnlockPassphrase={setIdentityUnlockPassphrase}
+          onSave={() => void (archiveUsername && renameGateOpen ? handleIdentityRename() : handleUsernameSave())}
         />
       )}
 
@@ -789,8 +738,9 @@ export default function MatchScoutV4View() {
         <ScoutWorkflowHeader
           missionKey="matchScout"
           title="Match Scout"
-          subtitle="Capture what the robot actually contributed, plus the role and reliability context PPA needs."
-          onBack={() => navigate('/')}
+          subtitle="Capture what the robot actually contributed, plus the role and reliability context the model needs."
+          handoff={activeTaskHandoff}
+          onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
           status={isEditingExistingRecord && (
             <div className="admin-g2-sm inline-flex border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-100">
               Editing existing V4 dataset
@@ -804,438 +754,385 @@ export default function MatchScoutV4View() {
           )}
         />
 
+        <ScoutingMissionPanel missionKey="matchScout" compact />
+
         {statusMessage && (
           <div className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
             {statusMessage}
           </div>
         )}
 
-        <MatchScoutStepNav
-          activeStep={activeStep}
-          data={normalizedData}
-          canOpenForm={canOpenForm}
-          onChange={handleStepChange}
-        />
-
         {canOpenForm && <PpaSignalStrip data={normalizedData} />}
 
-        <div ref={activeStepRef} className="scroll-mt-4">
-        {activeStep === 'setup' && (
+        <div className="scroll-mt-4">
           <StepFrame step="setup">
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="space-y-2">
-            <span className={fieldLabelClass}>Event</span>
-            <input
-              value={normalizedData.eventKey}
-              readOnly
-              className="admin-g2-sm w-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
-            />
-            <span className="block text-[11px] font-semibold text-slate-500">
-              Scout event is locked locally; Admin V4 settings do not change scout submissions.
-            </span>
-          </label>
-          <div className="space-y-2">
-            <div className={fieldLabelClass}>Match Type</div>
-            <div className="grid grid-cols-2 gap-2">
-              {(['Practice', 'Qualification'] as const).map(matchType => (
-                <button
-                  key={matchType}
-                  type="button"
-                  onClick={() => {
-                    setTeamManuallyEdited(false);
-                    updateData({ matchType, matchKey: buildMatchKeyV4(matchType, normalizedData.matchNumber) });
-                  }}
-                  className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.matchType === matchType ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {matchType}
-                </button>
-              ))}
-            </div>
-          </div>
-          <label className="space-y-2">
-            <span className={fieldLabelClass}>Match Number</span>
-            <input
-              type="number"
-              min={1}
-              value={normalizedData.matchNumber}
-              onChange={event => {
-                setTeamManuallyEdited(false);
-                updateData({ matchNumber: Number(event.target.value), matchKey: buildMatchKeyV4(normalizedData.matchType, Number(event.target.value)) });
-              }}
-              className={`${inputClass} font-mono font-bold`}
-            />
-          </label>
-          <label className="space-y-2">
-            <span className={fieldLabelClass}>Scout Username</span>
-            <input
-              value={archiveUsername}
-              onChange={event => {
-                setPendingUsername(event.target.value);
-                setArchiveUsername(event.target.value);
-                updateData({ scoutName: event.target.value });
-              }}
-              onBlur={() => void handleUsernameSave()}
-              className={`${inputClass} font-bold`}
-            />
-          </label>
-          <label className="space-y-2">
-            <span className={fieldLabelClass}>Team Number</span>
-            <input
-              value={normalizedData.teamNumber}
-              onChange={event => {
-                setTeamManuallyEdited(true);
-                updateData({ teamNumber: event.target.value.replace(/[^\d]/g, '') });
-              }}
-              className={`${inputClass} font-mono text-xl font-black`}
-            />
-          </label>
-          <div className="space-y-2">
-            <div className={fieldLabelClass}>Alliance</div>
-            <div className="grid grid-cols-2 gap-2">
-              {(['Red', 'Blue'] as const).map(alliance => (
-                <button
-                  key={alliance}
-                  type="button"
-                  onClick={() => updateData({ alliance })}
-                  className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.alliance === alliance ? (alliance === 'Red' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white') : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {alliance}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="admin-g2-sm mt-5 border border-slate-800 bg-slate-950/45 p-4">
-          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
-              <Target className="h-5 w-5 text-cyan-300" />
-              <div>
-                <h2 className="text-xl font-black text-white">Scout Slot</h2>
-                <p className="text-sm font-semibold text-slate-400">Choose the assigned robot slot first so the team can autofill from the match schedule.</p>
-              </div>
-            </div>
-            {isLoadingSchedule && (
-              <span className="admin-g2-sm inline-flex items-center gap-2 border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-200">
-                <RefreshCw className="h-4 w-4 animate-spin" />
-                Loading schedule
-              </span>
-            )}
-          </div>
-          <div className="grid gap-2 md:grid-cols-6">
-            {SCOUT_ASSIGNMENTS.map(assignment => (
-              <button
-                key={assignment.name}
-                type="button"
-                onClick={() => handleScoutSelection(assignment.name)}
-                className={`admin-g2-sm px-3 py-4 text-center font-black transition active:scale-95 ${
-                  normalizedData.assignedScoutName === assignment.name
-                    ? assignment.alliance === 'Red'
-                      ? 'bg-red-500 text-white'
-                      : 'bg-blue-500 text-white'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                <div>{assignment.name}</div>
-                <div className="text-xs opacity-80">{assignment.slotLabel}</div>
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className={`mr-2 self-center ${fieldLabelClass}`}>Substitute</span>
-            {SUBSTITUTES.map(name => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => updateData({ substituteScoutName: normalizedData.substituteScoutName === name ? '' : name })}
-                className={`admin-g2-sm px-4 py-2 text-sm font-black ${
-                  normalizedData.substituteScoutName === name ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-            Assigned slot: <span className="font-black text-white">{normalizedData.assignedSlot || 'Select scout'}</span>
-            {' • '}
-            Actual scout: <span className="font-black text-white">{normalizedData.substituteScoutName || archiveUsername || normalizedData.scoutName || 'Unassigned'}</span>
-          </div>
-          {(assignmentWarning || teamWarning) && (
-            <div className="mt-4 space-y-2">
-              {assignmentWarning && (
-                <div className="admin-g2-sm flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {assignmentWarning}
-                </div>
-              )}
-              {teamWarning && (
-                <div className="admin-g2-sm flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {teamWarning}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {!canOpenForm && (
-          <div className="admin-g2 mt-5 border border-yellow-400/30 bg-yellow-500/10 p-6">
-            <div className="mb-4 flex items-start gap-3">
-              <Coins className="h-6 w-6 text-yellow-300" />
-              <div>
-                <h2 className="text-2xl font-black text-white">Optional Prediction Bet</h2>
-                <p className="text-sm font-semibold text-yellow-100/80">
-                  This is separate from scouting. Lock a PowerCoins prediction or skip directly into data capture.
-                  Current balance: {powerCoinBalance.toFixed(0)} coins.
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-              <button
-                type="button"
-                onClick={() => setBetSide('Red')}
-                className={`admin-g2-sm px-4 py-4 font-black ${betSide === 'Red' ? 'bg-red-500 text-white' : 'bg-slate-800 text-slate-300'}`}
-              >
-                Bet Red
-              </button>
-              <button
-                type="button"
-                onClick={() => setBetSide('Blue')}
-                className={`admin-g2-sm px-4 py-4 font-black ${betSide === 'Blue' ? 'bg-blue-500 text-white' : 'bg-slate-800 text-slate-300'}`}
-              >
-                Bet Blue
-              </button>
-              <input
-                type="number"
-                min={1}
-                max={Math.max(1, powerCoinBalance)}
-                value={betAmount}
-                onChange={event => setBetAmount(Number(event.target.value))}
-                className="admin-g2-sm border border-slate-700 bg-slate-950 px-4 py-4 font-mono font-black text-white outline-none focus:border-yellow-300"
-              />
-              <button
-                type="button"
-                onClick={() => void handleBetSubmit()}
-                className="admin-g2-sm bg-yellow-400 px-6 py-4 font-black text-slate-950 hover:bg-yellow-300"
-              >
-                Place Bet
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setBetSkipped(true);
-                setBetGateOpen(false);
-                setBetLockedMatchKey(currentMatchKey);
-                setStatusMessage('PowerCoins skipped for this form.');
-              }}
-              className="admin-g2-sm mt-3 bg-slate-800 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-slate-700"
-            >
-              Skip and scout this match
-            </button>
-          </div>
-        )}
-        {canOpenForm && (
-          <div className="admin-g2-sm mt-5 border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-100">
-            Setup is ready. Move to Score Signal when the match starts.
-          </div>
-        )}
-        <div className="mt-5">
-          <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
-        </div>
-          </StepFrame>
-        )}
-
-        {canOpenForm && activeStep === 'score' && (
-          <>
-            <StepFrame step="score">
-            <section className="grid gap-4 md:grid-cols-3">
-              <NumberCounter label="Auto Points" description="Starts the expected-value signal before teleop noise." value={normalizedData.autoPoints} onChange={value => updateData({ autoPoints: value })} />
-              <NumberCounter label="Teleop Points" description="Main scoring contribution for expected PPA." value={normalizedData.teleopPoints} onChange={value => updateData({ teleopPoints: value })} />
-              <NumberCounter label="Endgame Points" description="Late-match contribution and role completeness." value={normalizedData.endgamePoints} onChange={value => updateData({ endgamePoints: value })} steps={[1, 5, 10, 15]} />
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2">
-              <NumberCounter label="Auto Cycles" description="Repeatability signal for autonomous scoring." value={normalizedData.autoCycles} onChange={value => updateData({ autoCycles: value })} steps={[1]} />
-              <NumberCounter label="Teleop Cycles" description="Repeatability signal behind teleop points." value={normalizedData.teleopCycles} onChange={value => updateData({ teleopCycles: value })} steps={[1]} />
-            </section>
-            <div className="mt-5">
-              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
-            </div>
-            </StepFrame>
-          </>
-        )}
-
-        {canOpenForm && activeStep === 'role' && (
-          <StepFrame step="role">
-            <section>
-              <div className="mb-4 flex items-start gap-3">
-                <Shield className="h-5 w-5 text-emerald-300" />
-                <div>
-                  <h2 className="text-xl font-black text-white">Role + Defense Context</h2>
-                  <p className="text-sm font-semibold text-slate-400">Tell PPA why the number happened, especially when a robot traded scoring for defense or support.</p>
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="md:col-span-3 grid gap-2 md:grid-cols-5">
-                  {ROLE_OPTIONS.map(role => (
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="space-y-2">
+                <span className={fieldLabelClass}>Event</span>
+                <input
+                  value={normalizedData.eventKey}
+                  readOnly
+                  className="admin-g2-sm w-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 font-mono font-bold text-cyan-50 outline-none"
+                />
+                <span className="block text-[11px] font-semibold text-slate-500">
+                  Scout event is locked locally; Admin V4 settings do not change scout submissions.
+                </span>
+              </label>
+              <div className="space-y-2">
+                <div className={fieldLabelClass}>Match Type</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Practice', 'Qualification'] as const).map(matchType => (
                     <button
-                      key={role}
+                      key={matchType}
                       type="button"
-                      onClick={() => updateData({ rolePlayed: role })}
-                      className={`admin-g2-sm px-3 py-3 font-black ${normalizedData.rolePlayed === role ? 'bg-emerald-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                      onClick={() => {
+                        setTeamManuallyEdited(false);
+                        updateData({ matchType, matchKey: buildMatchKeyV4(matchType, normalizedData.matchNumber) });
+                      }}
+                      className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.matchType === matchType ? 'bg-cyan-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                     >
-                      {role}
+                      {matchType}
                     </button>
                   ))}
                 </div>
-                <label className="space-y-2">
-                  <span className={fieldLabelClass}>Team they defended</span>
-                  <input
-                    value={normalizedData.defendedTeamNumber}
-                    onChange={event => updateData({ defendedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className={fieldLabelClass}>Defender faced</span>
-                  <input
-                    value={normalizedData.defenderFacedTeamNumber}
-                    onChange={event => updateData({ defenderFacedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className={fieldLabelClass}>Defense duration seconds</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={normalizedData.defenseDurationSeconds}
-                    onChange={event => updateData({ defenseDurationSeconds: Number(event.target.value) })}
-                    className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                  />
-                </label>
-                <label className="space-y-2 md:col-span-3">
-                  <span className={fieldLabelClass}>
-                    Defense Intensity: {(normalizedData.defenseIntensity * 100).toFixed(2)}%
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.0001}
-                    value={normalizedData.defenseIntensity}
-                    onChange={event => updateData({ defenseIntensity: Number(event.target.value) })}
-                    className="w-full accent-emerald-400"
-                  />
-                </label>
               </div>
-            </section>
-            <div className="mt-5">
-              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
-            </div>
-          </StepFrame>
-        )}
-
-        {canOpenForm && activeStep === 'risk' && (
-          <StepFrame step="risk">
-            <section>
-              <div className="mb-4 flex items-start gap-3">
-                <Trophy className="h-5 w-5 text-rose-300" />
-                <div>
-                  <h2 className="text-xl font-black text-white">Floor Risk + Reliability</h2>
-                  <p className="text-sm font-semibold text-slate-400">These fields protect strategy from trusting a ceiling when the robot had foul leakage, disconnects, or mechanical risk.</p>
+              <label className="space-y-2">
+                <span className={fieldLabelClass}>Match Number</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={normalizedData.matchNumber}
+                  onChange={event => {
+                    setTeamManuallyEdited(false);
+                    updateData({ matchNumber: Number(event.target.value), matchKey: buildMatchKeyV4(normalizedData.matchType, Number(event.target.value)) });
+                  }}
+                  className={`${inputClass} font-mono font-bold`}
+                />
+              </label>
+              <label className="space-y-2">
+                <span className={fieldLabelClass}>Scout Username</span>
+                <input
+                  value={archiveUsername}
+                  readOnly
+                  className={`${inputClass} border-slate-800 font-bold opacity-80`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingUsername(archiveUsername);
+                    setRenameGateOpen(true);
+                  }}
+                  className="admin-g2-sm mt-2 w-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-black text-cyan-100 hover:bg-cyan-500/20"
+                >
+                  Change With Admin Passphrase
+                </button>
+              </label>
+              <label className="space-y-2">
+                <span className={fieldLabelClass}>Team Number</span>
+                <input
+                  value={normalizedData.teamNumber}
+                  onChange={event => {
+                    setTeamManuallyEdited(true);
+                    updateData({ teamNumber: event.target.value.replace(/[^\d]/g, '') });
+                  }}
+                  className={`${inputClass} font-mono text-xl font-black`}
+                />
+              </label>
+              <div className="space-y-2">
+                <div className={fieldLabelClass}>Alliance</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['Red', 'Blue'] as const).map(alliance => (
+                    <button
+                      key={alliance}
+                      type="button"
+                      onClick={() => updateData({ alliance })}
+                      className={`admin-g2-sm px-4 py-3 font-black ${normalizedData.alliance === alliance ? (alliance === 'Red' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white') : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                    >
+                      {alliance}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="grid gap-4 md:grid-cols-4">
-                <label className="space-y-2">
-                  <span className={fieldLabelClass}>Fouls</span>
-                  <input type="number" min={0} value={normalizedData.fouls} onChange={event => updateData({ fouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
-                </label>
-                <label className="space-y-2">
-                  <span className={fieldLabelClass}>Tech Fouls</span>
-                  <input type="number" min={0} value={normalizedData.techFouls} onChange={event => updateData({ techFouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
-                </label>
-                <label className="space-y-2 md:col-span-2">
-                  <span className={fieldLabelClass}>Reliability: {(normalizedData.reliabilityScore * 100).toFixed(2)}%</span>
-                  <input type="range" min={0} max={1} step={0.0001} value={normalizedData.reliabilityScore} onChange={event => updateData({ reliabilityScore: Number(event.target.value) })} className="w-full accent-rose-400" />
-                </label>
+            </div>
+
+            <div className="admin-g2-sm mt-5 border border-slate-800 bg-slate-950/45 p-4">
+              <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <Target className="h-5 w-5 text-cyan-300" />
+                  <div>
+                    <h2 className="text-xl font-black text-white">Scout Slot</h2>
+                    <p className="text-sm font-semibold text-slate-400">Choose the assigned robot slot so the team can autofill from the match schedule.</p>
+                  </div>
+                </div>
+                {isLoadingSchedule && (
+                  <span className="admin-g2-sm inline-flex items-center gap-2 border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-200">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Loading schedule
+                  </span>
+                )}
               </div>
-              <div className="mt-4 grid gap-2 md:grid-cols-4">
-                {FAILURE_TOGGLES.map(({ key, label }) => (
+              <div className="grid gap-2 md:grid-cols-6">
+                {SCOUT_ASSIGNMENTS.map(assignment => (
                   <button
-                    key={key}
+                    key={assignment.name}
                     type="button"
-                    onClick={() => updateData({ [key]: !normalizedData[key] })}
-                    className={`admin-g2-sm px-3 py-3 font-black ${normalizedData[key] ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                    onClick={() => handleScoutSelection(assignment.name)}
+                    className={`admin-g2-sm px-3 py-4 text-center font-black transition active:scale-95 ${
+                      normalizedData.assignedScoutName === assignment.name
+                        ? assignment.alliance === 'Red'
+                          ? 'bg-red-500 text-white'
+                          : 'bg-blue-500 text-white'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
                   >
-                    {label}
+                    <div>{assignment.name}</div>
+                    <div className="text-xs opacity-80">{assignment.slotLabel}</div>
                   </button>
                 ))}
               </div>
-              <label className="mt-4 block space-y-2">
-                <span className={fieldLabelClass}>Failure Reason</span>
-                <input value={normalizedData.failureReason} onChange={event => updateData({ failureReason: event.target.value })} className={`${inputClass} focus:border-rose-400`} />
-              </label>
-            </section>
-            <div className="mt-5">
-              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
-            </div>
-          </StepFrame>
-        )}
-
-        {canOpenForm && activeStep === 'handoff' && (
-          <>
-            <StepFrame step="handoff">
-            <section className="grid gap-4 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className={fieldLabelClass}>What changed the number?</span>
-                <textarea value={normalizedData.notes} onChange={event => updateData({ notes: event.target.value })} rows={7} className={`${inputClass} min-h-36`} />
-              </label>
-              <label className="space-y-2">
-                <span className={fieldLabelClass}>What should strategy know?</span>
-                <textarea value={normalizedData.strategyNotes} onChange={event => updateData({ strategyNotes: event.target.value })} rows={7} className={`${inputClass} min-h-36`} />
-              </label>
-            </section>
-
-            <div className="admin-g2 flex flex-wrap items-center justify-end gap-3 border border-slate-800 bg-slate-900/70 p-4">
-              <button
-                type="button"
-                onClick={() => setShowQr(value => !value)}
-                className="admin-g2-sm inline-flex items-center gap-2 bg-slate-800 px-5 py-3 font-black text-slate-200 hover:bg-slate-700"
-              >
-                <QrCode className="h-5 w-5" />
-                QR Export
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleSubmit()}
-                disabled={isSubmitting}
-                className="admin-g2-sm inline-flex items-center gap-2 bg-emerald-500 px-8 py-3 text-lg font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
-              >
-                <Save className="h-5 w-5" />
-                Submit Local First
-              </button>
-            </div>
-            <div className="mt-5">
-              <MatchScoutStepFooter activeStep={activeStep} canOpenForm={canOpenForm} onChange={handleStepChange} />
-            </div>
-            </StepFrame>
-
-            {showQr && (
-              <div className="admin-g2 border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
-                <div className="admin-g2 mx-auto inline-block bg-white p-4">
-                  <QRCodeSVG value={compressMatchDataV4(buildCurrentPayload())} size={260} level="M" />
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className={`mr-2 self-center ${fieldLabelClass}`}>Substitute</span>
+                {SUBSTITUTES.map(name => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => updateData({ substituteScoutName: normalizedData.substituteScoutName === name ? '' : name })}
+                    className={`admin-g2-sm px-4 py-2 text-sm font-black ${
+                      normalizedData.substituteScoutName === name ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <div className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
+                Assigned slot: <span className="font-black text-white">{normalizedData.assignedSlot || 'Select scout'}</span>
+                {' • '}
+                Actual scout: <span className="font-black text-white">{normalizedData.substituteScoutName || archiveUsername || normalizedData.scoutName || 'Unassigned'}</span>
+              </div>
+              {(assignmentWarning || teamWarning) && (
+                <div className="mt-4 space-y-2">
+                  {assignmentWarning && (
+                    <div className="admin-g2-sm flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      {assignmentWarning}
+                    </div>
+                  )}
+                  {teamWarning && (
+                    <div className="admin-g2-sm flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      {teamWarning}
+                    </div>
+                  )}
                 </div>
-                <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
-                  <Download className="h-4 w-4" />
-                  Scan this in Admin V4 Data Control if Firebase is unavailable.
-                </p>
+              )}
+            </div>
+
+            {canOpenForm && (
+              <div className="admin-g2-sm mt-5 border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-100">
+                Setup is ready. Offense, defense, risk, and notes are all unlocked below.
               </div>
             )}
-          </>
-        )}
+          </StepFrame>
+
+          {canOpenForm && (
+            <section className="mt-6 space-y-5">
+              <div className="admin-g2 border border-emerald-400/25 bg-emerald-500/10 p-5">
+                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Live Match Capture</div>
+                <h2 className="mt-1 text-2xl font-black text-white">Score and defense can change at any time.</h2>
+                <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-emerald-50/80">
+                  Record the match in the order it actually happens. A robot can score, defend, get defended, recover, and score again without changing pages.
+                </p>
+              </div>
+
+              <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                <StepFrame step="score">
+                  <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                    <NumberCounter label="Auto Points" description="Expected-value signal before teleop noise." value={normalizedData.autoPoints} onChange={value => updateData({ autoPoints: value })} />
+                    <NumberCounter label="Teleop Points" description="Main scoring contribution." value={normalizedData.teleopPoints} onChange={value => updateData({ teleopPoints: value })} />
+                    <NumberCounter label="Endgame Points" description="Late-match contribution." value={normalizedData.endgamePoints} onChange={value => updateData({ endgamePoints: value })} steps={[1, 5, 10, 15]} />
+                  </section>
+
+                  <section className="mt-4 grid gap-4 md:grid-cols-2">
+                    <NumberCounter label="Auto Cycles" description="Autonomous repeatability." value={normalizedData.autoCycles} onChange={value => updateData({ autoCycles: value })} steps={[1]} />
+                    <NumberCounter label="Teleop Cycles" description="Teleop repeatability." value={normalizedData.teleopCycles} onChange={value => updateData({ teleopCycles: value })} steps={[1]} />
+                  </section>
+                </StepFrame>
+
+                <StepFrame step="role">
+                  <section>
+                    <div className="mb-4 flex items-start gap-3">
+                      <Shield className="h-5 w-5 text-emerald-300" />
+                      <div>
+                        <h2 className="text-xl font-black text-white">Role + Defense</h2>
+                        <p className="text-sm font-semibold text-slate-400">Use Mixed when they scored and defended in the same match.</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                      <div className="grid gap-2 md:col-span-3 md:grid-cols-5 xl:col-span-1 xl:grid-cols-1 2xl:col-span-3 2xl:grid-cols-5">
+                        {ROLE_OPTIONS.map(role => (
+                          <button
+                            key={role}
+                            type="button"
+                            onClick={() => updateData({ rolePlayed: role })}
+                            className={`admin-g2-sm px-3 py-3 font-black ${normalizedData.rolePlayed === role ? 'bg-emerald-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                          >
+                            {role}
+                          </button>
+                        ))}
+                      </div>
+                      <label className="space-y-2">
+                        <span className={fieldLabelClass}>Team they defended</span>
+                        <input
+                          value={normalizedData.defendedTeamNumber}
+                          onChange={event => updateData({ defendedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
+                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className={fieldLabelClass}>Defender faced</span>
+                        <input
+                          value={normalizedData.defenderFacedTeamNumber}
+                          onChange={event => updateData({ defenderFacedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
+                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
+                        />
+                      </label>
+                      <label className="space-y-2">
+                        <span className={fieldLabelClass}>Defense seconds</span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={normalizedData.defenseDurationSeconds}
+                          onChange={event => updateData({ defenseDurationSeconds: Number(event.target.value) })}
+                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
+                        />
+                      </label>
+                      <label className="space-y-2 md:col-span-3 xl:col-span-1 2xl:col-span-3">
+                        <span className={fieldLabelClass}>
+                          Defense Intensity: {(normalizedData.defenseIntensity * 100).toFixed(0)}%
+                        </span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.0001}
+                          value={normalizedData.defenseIntensity}
+                          onChange={event => updateData({ defenseIntensity: Number(event.target.value) })}
+                          className="w-full accent-emerald-400"
+                        />
+                      </label>
+                    </div>
+                  </section>
+                </StepFrame>
+              </div>
+
+              <StepFrame step="risk">
+                <section>
+                  <div className="mb-4 flex items-start gap-3">
+                    <Trophy className="h-5 w-5 text-rose-300" />
+                    <div>
+                      <h2 className="text-xl font-black text-white">Problems During The Match</h2>
+                      <p className="text-sm font-semibold text-slate-400">Only touch these if something happened. Otherwise leave them alone.</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <label className="space-y-2">
+                      <span className={fieldLabelClass}>Fouls</span>
+                      <input type="number" min={0} value={normalizedData.fouls} onChange={event => updateData({ fouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
+                    </label>
+                    <label className="space-y-2">
+                      <span className={fieldLabelClass}>Tech Fouls</span>
+                      <input type="number" min={0} value={normalizedData.techFouls} onChange={event => updateData({ techFouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
+                    </label>
+                    <label className="space-y-2 md:col-span-2">
+                      <span className={fieldLabelClass}>Reliability: {(normalizedData.reliabilityScore * 100).toFixed(0)}%</span>
+                      <input type="range" min={0} max={1} step={0.0001} value={normalizedData.reliabilityScore} onChange={event => updateData({ reliabilityScore: Number(event.target.value) })} className="w-full accent-rose-400" />
+                    </label>
+                  </div>
+                  <div className="mt-4 grid gap-2 md:grid-cols-4">
+                    {FAILURE_TOGGLES.map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => updateData({ [key]: !normalizedData[key] })}
+                        className={`admin-g2-sm px-3 py-3 font-black ${normalizedData[key] ? 'bg-rose-500 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="mt-4 block space-y-2">
+                    <span className={fieldLabelClass}>Failure Reason</span>
+                    <input value={normalizedData.failureReason} onChange={event => updateData({ failureReason: event.target.value })} className={`${inputClass} focus:border-rose-400`} />
+                  </label>
+                </section>
+              </StepFrame>
+
+              <StepFrame step="handoff">
+                <ScoutSignalHandoff missionKey="matchScout" />
+                <section className="grid gap-4 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className={fieldLabelClass}>What changed the number?</span>
+                    <textarea
+                      value={normalizedData.notes}
+                      onChange={event => updateData({ notes: event.target.value })}
+                      rows={6}
+                      className={`${inputClass} min-h-32`}
+                      placeholder="Examples: scored early, switched to defense, got defended hard, intake jammed, recovered and climbed."
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className={fieldLabelClass}>What should strategy know?</span>
+                    <textarea
+                      value={normalizedData.strategyNotes}
+                      onChange={event => updateData({ strategyNotes: event.target.value })}
+                      rows={6}
+                      className={`${inputClass} min-h-32`}
+                      placeholder="Examples: good second scorer, can defend without dying, avoid traffic near source, verify before pick list."
+                    />
+                  </label>
+                </section>
+
+                <div className="admin-g2 mt-4 flex flex-wrap items-center justify-end gap-3 border border-slate-800 bg-slate-900/70 p-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowQr(value => !value)}
+                    className="admin-g2-sm inline-flex items-center gap-2 bg-slate-800 px-5 py-3 font-black text-slate-200 hover:bg-slate-700"
+                  >
+                    <QrCode className="h-5 w-5" />
+                    Offline QR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmit()}
+                    disabled={isSubmitting}
+                    className="admin-g2-sm inline-flex items-center gap-2 bg-emerald-500 px-8 py-3 text-lg font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                  >
+                    <Save className="h-5 w-5" />
+                    Submit Local First
+                  </button>
+                </div>
+              </StepFrame>
+
+              {showQr && (
+                <div className="admin-g2 border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
+                  <div className="mx-auto max-w-xl text-left">
+                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100">Offline Backup</div>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-cyan-50/80">
+                      Use this only when Firebase sync is not available. Submit Local First still saves the row on this device.
+                    </p>
+                  </div>
+                  <div className="admin-g2 mx-auto mt-4 inline-block bg-white p-4">
+                    <QRCodeSVG value={compressMatchDataV4(buildCurrentPayload())} size={260} level="M" />
+                  </div>
+                  <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
+                    <Download className="h-4 w-4" />
+                    Scan this in Admin V4 Data if Firebase is unavailable.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </div>
     </div>

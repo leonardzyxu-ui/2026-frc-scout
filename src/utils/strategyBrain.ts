@@ -15,8 +15,10 @@ import {
   TeamPerformanceProfile
 } from '../types';
 import { calculateLegacyOprRatings, TBAMatch } from './mathEngine';
-import { TeamHistoricalAverageRow } from './adminV2Analytics';
+import { TeamHistoricalAverageRow } from './adminV4Analytics';
 import { rebuilt2026GameAdapter } from './seasonGameAdapter';
+
+type BacktestMetadata = Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>;
 
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
 
@@ -34,8 +36,10 @@ const percentile = (values: number[], target: number) => {
   const index = Math.min(sorted.length - 1, Math.max(0, (sorted.length - 1) * target));
   const lower = Math.floor(index);
   const upper = Math.ceil(index);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (sorted[upper] - sorted[lower]) * (index - lower);
+  const lowerValue = sorted[lower] ?? 0;
+  const upperValue = sorted[upper] ?? lowerValue;
+  if (lower === upper) return lowerValue;
+  return lowerValue + (upperValue - lowerValue) * (index - lower);
 };
 
 const linearSlope = (points: Array<{ x: number; y: number }>) => {
@@ -182,32 +186,38 @@ const countOfficialAppearancesBefore = (matches: TBAMatch[]) => {
 
 const solveLinearSystem = (matrix: number[][], vector: number[]) => {
   const size = vector.length;
-  const augmented = matrix.map((row, index) => [...row, vector[index]]);
+  const augmented = matrix.map((row, index) => [...row, vector[index] ?? 0]);
 
   for (let pivot = 0; pivot < size; pivot += 1) {
     let pivotRow = pivot;
     for (let row = pivot + 1; row < size; row += 1) {
-      if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[pivotRow][pivot])) {
+      if (Math.abs(augmented[row]?.[pivot] ?? 0) > Math.abs(augmented[pivotRow]?.[pivot] ?? 0)) {
         pivotRow = row;
       }
     }
-    [augmented[pivot], augmented[pivotRow]] = [augmented[pivotRow], augmented[pivot]];
+    const currentPivotRow = augmented[pivot] ?? Array.from({ length: size + 1 }, () => 0);
+    const swapPivotRow = augmented[pivotRow] ?? currentPivotRow;
+    augmented[pivot] = swapPivotRow;
+    augmented[pivotRow] = currentPivotRow;
 
-    const pivotValue = augmented[pivot][pivot] || 1e-9;
+    const activePivotRow = augmented[pivot] ?? Array.from({ length: size + 1 }, () => 0);
+    const pivotValue = activePivotRow[pivot] || 1e-9;
     for (let column = pivot; column <= size; column += 1) {
-      augmented[pivot][column] /= pivotValue;
+      activePivotRow[column] = (activePivotRow[column] ?? 0) / pivotValue;
     }
 
     for (let row = 0; row < size; row += 1) {
       if (row === pivot) continue;
-      const factor = augmented[row][pivot];
+      const activeRow = augmented[row];
+      if (!activeRow) continue;
+      const factor = activeRow[pivot] ?? 0;
       for (let column = pivot; column <= size; column += 1) {
-        augmented[row][column] -= factor * augmented[pivot][column];
+        activeRow[column] = (activeRow[column] ?? 0) - factor * (activePivotRow[column] ?? 0);
       }
     }
   }
 
-  return augmented.map(row => row[size]);
+  return augmented.map(row => row[size] ?? 0);
 };
 
 const trainRidgeRegression = (
@@ -215,29 +225,29 @@ const trainRidgeRegression = (
   lambda = 30
 ) => {
   if (samples.length === 0) return null;
-  const featureCount = samples[0].features.length + 1;
+  const featureCount = samples[0]!.features.length + 1;
   const xtx = Array.from({ length: featureCount }, () => Array.from({ length: featureCount }, () => 0));
   const xty = Array.from({ length: featureCount }, () => 0);
 
   samples.forEach(sample => {
     const row = [1, ...sample.features];
     row.forEach((leftValue, leftIndex) => {
-      xty[leftIndex] += leftValue * sample.target;
+      xty[leftIndex] = (xty[leftIndex] ?? 0) + leftValue * sample.target;
       row.forEach((rightValue, rightIndex) => {
-        xtx[leftIndex][rightIndex] += leftValue * rightValue;
+        xtx[leftIndex]![rightIndex] = (xtx[leftIndex]?.[rightIndex] ?? 0) + leftValue * rightValue;
       });
     });
   });
 
   for (let index = 1; index < featureCount; index += 1) {
-    xtx[index][index] += lambda;
+    xtx[index]![index] = (xtx[index]?.[index] ?? 0) + lambda;
   }
 
   return solveLinearSystem(xtx, xty);
 };
 
 const predictRidge = (weights: number[] | null, features: number[]) =>
-  weights ? weights.reduce((sum, weight, index) => sum + weight * (index === 0 ? 1 : features[index - 1]), 0) : 0;
+  weights ? weights.reduce((sum, weight, index) => sum + weight * (index === 0 ? 1 : features[index - 1] ?? 0), 0) : 0;
 
 const buildRidgeFeatureVector = ({
   match,
@@ -410,7 +420,7 @@ const evaluatePredictions = (
     blueScore: number;
     lowConfidence: boolean;
   }>,
-  metadata: Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>
+  metadata: BacktestMetadata
 ): ModelBacktestResult => {
   if (predictions.length === 0) {
     return {
@@ -512,13 +522,13 @@ export const backtestTimeAwareModels = ({
     'Rolling OPR': [],
     EPA: [],
     'Recency EPA': [],
-    'No-Future Blend': [],
-    'No-Future Ridge': [],
+    'Pre-Match Blend': [],
+    'Pre-Match Ridge': [],
     'Context Blend': [],
     'Context Ridge': []
   };
 
-  modelPredictions['No-Future Ridge'] = buildRidgePredictions({
+  modelPredictions['Pre-Match Ridge'] = buildRidgePredictions({
     playedQuals,
     v3Records,
     v4Records,
@@ -552,7 +562,7 @@ export const backtestTimeAwareModels = ({
     ];
 
     modelRatings.forEach(({ key, ratings }) => {
-      modelPredictions[key].push({
+      modelPredictions[key]?.push({
         match,
         redScore: scoreAlliance(redTeams, ratings),
         blueScore: scoreAlliance(blueTeams, ratings),
@@ -566,7 +576,7 @@ export const backtestTimeAwareModels = ({
           .filter((value): value is number => value != null && Number.isFinite(value));
         return sum + mean(values);
       }, 0);
-    modelPredictions['No-Future Blend'].push({
+    modelPredictions['Pre-Match Blend']?.push({
       match,
       redScore: noFutureBlendScore(redTeams),
       blueScore: noFutureBlendScore(blueTeams),
@@ -583,7 +593,7 @@ export const backtestTimeAwareModels = ({
           .filter((value): value is number => value != null && Number.isFinite(value));
         return sum + mean(values);
       }, 0);
-    modelPredictions['Context Blend'].push({
+    modelPredictions['Context Blend']?.push({
       match,
       redScore: contextBlendScore(redTeams),
       blueScore: contextBlendScore(blueTeams),
@@ -596,18 +606,24 @@ export const backtestTimeAwareModels = ({
   });
 
   const sourceLabels: Record<string, string> = {
-    PPC: 'No-future scouting average before each match',
-    'Rolling PPC': 'No-future last-three scouting average',
-    OPR: 'No-future official score least-squares',
-    'Rolling OPR': 'No-future rolling official score least-squares',
+    PPC: 'Before-match scouting average',
+    'Rolling PPC': 'Before-match last-three scouting average',
+    OPR: 'Before-match official score least-squares',
+    'Rolling OPR': 'Before-match rolling official score least-squares',
     EPA: 'Current Statbotics EPA context',
     'Recency EPA': 'Current Statbotics EPA recency proxy',
-    'No-Future Blend': 'No-future PPC/rolling PPC/OPR blend',
-    'No-Future Ridge': 'No-future ridge regression over PPC/OPR/match timing',
+    'Pre-Match Blend': 'Before-match PPC/rolling PPC/OPR blend',
+    'Pre-Match Ridge': 'Before-match ridge regression over PPC/OPR/match timing',
     'Context Blend': 'Explainable PPC/OPR/current EPA blend',
     'Context Ridge': 'Ridge regression with current EPA context'
   };
-  const metadataByModel: Record<string, Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>> = {
+  const fallbackMetadata: BacktestMetadata = {
+    eligibleForPromotion: false,
+    supportsTeamRatings: false,
+    leakageRisk: 'medium',
+    uncertaintyNote: 'This model did not provide promotion metadata, so it is treated as context only.'
+  };
+  const metadataByModel: Record<string, BacktestMetadata> = {
     PPC: {
       eligibleForPromotion: true,
       supportsTeamRatings: true,
@@ -644,13 +660,13 @@ export const backtestTimeAwareModels = ({
       leakageRisk: 'high',
       uncertaintyNote: 'Current EPA recency proxy can leak future information into old matches.'
     },
-    'No-Future Blend': {
+    'Pre-Match Blend': {
       eligibleForPromotion: true,
       supportsTeamRatings: true,
       leakageRisk: 'none',
-      uncertaintyNote: 'Blends only no-future PPC and OPR family predictions.'
+      uncertaintyNote: 'Blends only before-match PPC and OPR family predictions.'
     },
-    'No-Future Ridge': {
+    'Pre-Match Ridge': {
       eligibleForPromotion: true,
       supportsTeamRatings: false,
       leakageRisk: 'none',
@@ -671,7 +687,12 @@ export const backtestTimeAwareModels = ({
   };
 
   return Object.entries(modelPredictions)
-    .map(([modelName, predictions]) => evaluatePredictions(modelName, sourceLabels[modelName], predictions, metadataByModel[modelName]))
+    .map(([modelName, predictions]) => evaluatePredictions(
+      modelName,
+      sourceLabels[modelName] ?? modelName,
+      predictions,
+      metadataByModel[modelName] ?? fallbackMetadata
+    ))
     .sort((left, right) => {
       if (left.eligibleForPromotion !== right.eligibleForPromotion) return Number(right.eligibleForPromotion) - Number(left.eligibleForPromotion);
       if (left.matchesTested !== right.matchesTested) return right.matchesTested - left.matchesTested;
@@ -701,12 +722,12 @@ export const buildPpaRatings = (
   }));
   const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0) || 1;
   const teams = new Set<string>();
-  usableResults.forEach(result => Object.keys(lookups[result.modelName]).forEach(team => teams.add(team)));
+  usableResults.forEach(result => Object.keys(lookups[result.modelName] ?? {}).forEach(team => teams.add(team)));
 
   return Object.fromEntries(
     Array.from(teams).map(team => [
       team,
-      weights.reduce((sum, item) => sum + (lookups[item.modelName][team] ?? 0) * (item.weight / totalWeight), 0)
+      weights.reduce((sum, item) => sum + ((lookups[item.modelName] ?? {})[team] ?? 0) * (item.weight / totalWeight), 0)
     ])
   );
 };
@@ -750,7 +771,7 @@ export const buildBestModelFutureForecasts = ({
     };
   }
 
-  if (bestModel.modelName === 'No-Future Ridge' || bestModel.modelName === 'Context Ridge') {
+  if (bestModel.modelName === 'Pre-Match Ridge' || bestModel.modelName === 'Context Ridge') {
     return {
       modelName: bestModel.modelName,
       modelSource: bestModel.sourceLabel,
@@ -1027,7 +1048,7 @@ export const buildScoutCalibrationRows = (
     const officialShare = officialScore / allianceRecords.length;
 
     allianceRecords.forEach(record => {
-      const scoutName = record.scoutName || record.assignedScoutName || 'Unknown Scout';
+      const scoutName = record.scoutName || record.assignedScoutName || 'Scout name missing';
       const existing = buckets.get(scoutName) || {
         scoutName,
         assignedScoutName: record.assignedScoutName || '',
@@ -1286,8 +1307,8 @@ export const buildStrategyMatchPlans = (
 
       const redRoleOptions = buildRoleOptions('Red', redTeams, baselineRedScore, baselineBlueScore);
       const blueRoleOptions = buildRoleOptions('Blue', blueTeams, baselineBlueScore, baselineRedScore);
-      const bestRedOption = redRoleOptions[0];
-      const bestBlueOption = blueRoleOptions[0];
+      const bestRedOption = redRoleOptions[0]!;
+      const bestBlueOption = blueRoleOptions[0]!;
       const redDefenseSwing = bestRedOption.defenseValue - bestRedOption.offenseCost;
       const blueDefenseSwing = bestBlueOption.defenseValue - bestBlueOption.offenseCost;
       const optimizedRedScore = Math.max(0, baselineRedScore - bestRedOption.offenseCost - bestBlueOption.defenseValue);
@@ -1405,108 +1426,374 @@ export const optimizeScoutAssignments = (
   scoutNames: string[],
   ownTeamNumber: string
 ): ScoutAssignmentPlan => {
-  const activeScouts = scoutNames.map(name => name.trim()).filter(Boolean);
+  const activeScouts = Array.from(new Set(scoutNames.map(name => name.trim()).filter(Boolean)));
+  const normalizedOwnTeamNumber = ownTeamNumber.trim();
   const exposureCounts: Record<string, Record<string, number>> = Object.fromEntries(activeScouts.map(name => [name, {}]));
-  const assignments: ScoutAssignmentPlan['assignments'] = [];
+  const assignmentsBySlotId = new Map<string, ScoutAssignmentPlan['assignments'][number] & { slotId: string; stationPriority: number }>();
   const coverageGaps: NonNullable<ScoutAssignmentPlan['coverageGaps']> = [];
   const scoutLoad: Record<string, number> = Object.fromEntries(activeScouts.map(name => [name, 0]));
+  const usedScoutsByMatch = new Map<string, Set<string>>();
   const getStationPriority = (station: string) => {
     const match = station.match(/(Red|Blue)\s+(\d+)/);
     if (!match) return 99;
     const allianceOffset = match[1] === 'Red' ? 0 : 3;
     return allianceOffset + Number(match[2]) - 1;
   };
-  const selectStations = (stations: Array<{ station: string; teamNumber: string }>) => {
-    if (activeScouts.length >= stations.length) return stations;
-    return [...stations]
-      .sort((left, right) => {
-        const ownTeamDelta = Number(right.teamNumber === ownTeamNumber) - Number(left.teamNumber === ownTeamNumber);
-        if (ownTeamDelta !== 0) return ownTeamDelta;
-        const leftRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name][left.teamNumber] || 0));
-        const rightRepeat = Math.max(0, ...activeScouts.map(name => exposureCounts[name][right.teamNumber] || 0));
-        if (leftRepeat !== rightRepeat) return rightRepeat - leftRepeat;
-        return getStationPriority(left.station) - getStationPriority(right.station);
-      })
-      .slice(0, activeScouts.length)
-      .sort((left, right) => getStationPriority(left.station) - getStationPriority(right.station));
-  };
   const sortedMatches = [...matches]
     .filter(match => match.comp_level === 'qm' || match.comp_level === 'pm')
     .sort((left, right) => {
       const leftTeams = [...left.alliances.red.team_keys, ...left.alliances.blue.team_keys].map(normalizeTeamKey);
       const rightTeams = [...right.alliances.red.team_keys, ...right.alliances.blue.team_keys].map(normalizeTeamKey);
-      const ownDiff = Number(rightTeams.includes(ownTeamNumber)) - Number(leftTeams.includes(ownTeamNumber));
+      const ownDiff = Number(rightTeams.includes(normalizedOwnTeamNumber)) - Number(leftTeams.includes(normalizedOwnTeamNumber));
       if (ownDiff !== 0) return ownDiff;
       return left.match_number - right.match_number;
     });
 
-  sortedMatches.forEach(match => {
-    const usedScoutsThisMatch = new Set<string>();
-    const stations = [
-      ...match.alliances.red.team_keys.map((teamKey, index) => ({ station: `Red ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) })),
-      ...match.alliances.blue.team_keys.map((teamKey, index) => ({ station: `Blue ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) }))
-    ];
-    const selectedSlots = selectStations(stations);
-    const selectedStations = new Set(selectedSlots.map(slot => slot.station));
+  type AssignmentSlot = {
+    id: string;
+    matchKey: string;
+    matchNumber: number;
+    matchType: ScoutAssignmentPlan['assignments'][number]['matchType'];
+    station: string;
+    teamNumber: string;
+    stationPriority: number;
+    matchHasOwnTeam: boolean;
+    teamFrequency: number;
+    priorityScore: number;
+  };
+
+  const getMatchType = (match: TBAMatch): ScoutAssignmentPlan['assignments'][number]['matchType'] =>
+    match.comp_level === 'pm' ? 'Practice' : 'Qualification';
+  const getPairCount = (count: number) => (count * Math.max(0, count - 1)) / 2;
+  const getUsedScouts = (matchKey: string) => {
+    const existing = usedScoutsByMatch.get(matchKey);
+    if (existing) return existing;
+    const created = new Set<string>();
+    usedScoutsByMatch.set(matchKey, created);
+    return created;
+  };
+  const addExposure = (scoutName: string, teamNumber: string, delta: number) => {
+    const scoutExposure = exposureCounts[scoutName] ?? {};
+    const nextCount = (scoutExposure[teamNumber] || 0) + delta;
+    if (nextCount <= 0) {
+      delete scoutExposure[teamNumber];
+    } else {
+      scoutExposure[teamNumber] = nextCount;
+    }
+    exposureCounts[scoutName] = scoutExposure;
+  };
+  const getPriorityReason = (slot: AssignmentSlot, plannedTeamSlots: number) => {
+    if (normalizedOwnTeamNumber && slot.matchHasOwnTeam) return 'Our match priority';
+    if (plannedTeamSlots > 1) return 'Team continuity optimization';
+    return 'Balanced coverage assignment';
+  };
+  const assignSlot = (slot: AssignmentSlot, scoutName: string, plannedTeamSlots: number) => {
+    assignmentsBySlotId.set(slot.id, {
+      slotId: slot.id,
+      matchKey: slot.matchKey,
+      matchNumber: slot.matchNumber,
+      matchType: slot.matchType,
+      station: slot.station,
+      teamNumber: slot.teamNumber,
+      scoutName,
+      priorityReason: getPriorityReason(slot, plannedTeamSlots),
+      stationPriority: slot.stationPriority
+    });
+    getUsedScouts(slot.matchKey).add(scoutName);
+    addExposure(scoutName, slot.teamNumber, 1);
+    scoutLoad[scoutName] = (scoutLoad[scoutName] || 0) + 1;
+  };
+  const canUseScoutForSlot = (scoutName: string, slot: AssignmentSlot) =>
+    !getUsedScouts(slot.matchKey).has(scoutName);
+
+  const rawSlotsByMatch = sortedMatches.map(match => {
+    const teams = [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].map(normalizeTeamKey);
+    const matchHasOwnTeam = Boolean(normalizedOwnTeamNumber && teams.includes(normalizedOwnTeamNumber));
+    return {
+      match,
+      matchHasOwnTeam,
+      stations: [
+        ...match.alliances.red.team_keys.map((teamKey, index) => ({ station: `Red ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) })),
+        ...match.alliances.blue.team_keys.map((teamKey, index) => ({ station: `Blue ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) }))
+      ]
+    };
+  });
+  const teamFrequency = new Map<string, number>();
+  rawSlotsByMatch.forEach(({ stations }) => {
+    stations.forEach(slot => teamFrequency.set(slot.teamNumber, (teamFrequency.get(slot.teamNumber) || 0) + 1));
+  });
+  const toAssignmentSlot = (
+    match: TBAMatch,
+    matchHasOwnTeam: boolean,
+    station: { station: string; teamNumber: string }
+  ): AssignmentSlot => {
+    const stationPriority = getStationPriority(station.station);
+    const frequency = teamFrequency.get(station.teamNumber) || 0;
+    const priorityScore =
+      (normalizedOwnTeamNumber && station.teamNumber === normalizedOwnTeamNumber ? 10000 : 0) +
+      (matchHasOwnTeam ? 900 : 0) +
+      frequency * 90 -
+      stationPriority;
+    return {
+      id: `${match.key}_${station.station}`,
+      matchKey: match.key,
+      matchNumber: match.match_number,
+      matchType: getMatchType(match),
+      station: station.station,
+      teamNumber: station.teamNumber,
+      stationPriority,
+      matchHasOwnTeam,
+      teamFrequency: frequency,
+      priorityScore
+    };
+  };
+  const selectedSlots = rawSlotsByMatch.flatMap(({ match, matchHasOwnTeam, stations }) => {
+    const fullSlots = stations.map(station => toAssignmentSlot(match, matchHasOwnTeam, station));
+    if (activeScouts.length >= fullSlots.length) return fullSlots;
+    const selected = new Set(
+      [...fullSlots]
+        .sort((left, right) =>
+          right.priorityScore - left.priorityScore ||
+          right.teamFrequency - left.teamFrequency ||
+          left.stationPriority - right.stationPriority ||
+          left.teamNumber.localeCompare(right.teamNumber)
+        )
+        .slice(0, activeScouts.length)
+        .map(slot => slot.id)
+    );
     const gapReason = activeScouts.length === 0
       ? 'No scout roster provided'
-      : `Only ${activeScouts.length} scout${activeScouts.length === 1 ? '' : 's'} available for six stations`;
-
-    stations
-      .filter(slot => !selectedStations.has(slot.station))
+      : `Only ${activeScouts.length} scout${activeScouts.length === 1 ? '' : 's'} available; lower-priority slot after own-team and continuity selection`;
+    fullSlots
+      .filter(slot => !selected.has(slot.id))
       .forEach(slot => {
         coverageGaps.push({
-          matchKey: match.key,
-          matchNumber: match.match_number,
-          matchType: match.comp_level === 'pm' ? 'Practice' : 'Qualification',
+          matchKey: slot.matchKey,
+          matchNumber: slot.matchNumber,
+          matchType: slot.matchType,
           station: slot.station,
           teamNumber: slot.teamNumber,
           reason: gapReason
         });
       });
+    return fullSlots
+      .filter(slot => selected.has(slot.id))
+      .sort((left, right) => left.stationPriority - right.stationPriority);
+  });
 
-    selectedSlots.forEach(slot => {
-      const scoutName = activeScouts
-        .filter(name => !usedScoutsThisMatch.has(name))
-        .map(name => ({
+  const slotsByTeam = new Map<string, AssignmentSlot[]>();
+  selectedSlots.forEach(slot => {
+    const teamSlots = slotsByTeam.get(slot.teamNumber) || [];
+    teamSlots.push(slot);
+    slotsByTeam.set(slot.teamNumber, teamSlots);
+  });
+  const targetLoad = activeScouts.length === 0 ? 0 : selectedSlots.length / activeScouts.length;
+  const chooseBatchScout = (teamNumber: string, remainingSlots: AssignmentSlot[]) =>
+    activeScouts
+      .map(name => {
+        const assignableSlots = remainingSlots.filter(slot => canUseScoutForSlot(name, slot));
+        const existingTeamExposure = exposureCounts[name]?.[teamNumber] || 0;
+        const projectedLoad = (scoutLoad[name] || 0) + assignableSlots.length;
+        const continuityGain = getPairCount(existingTeamExposure + assignableSlots.length) - getPairCount(existingTeamExposure);
+        const overload = Math.max(0, projectedLoad - targetLoad - 1);
+        const priorityValue = assignableSlots.reduce((sum, slot) => sum + slot.priorityScore, 0);
+        return {
           name,
-          repeats: exposureCounts[name][slot.teamNumber] || 0,
-          load: scoutLoad[name] || 0
-        }))
-        .sort((left, right) => right.repeats - left.repeats || left.load - right.load || left.name.localeCompare(right.name))[0]?.name;
+          assignableSlots,
+          score:
+            assignableSlots.length * 10000 +
+            continuityGain * 450 +
+            priorityValue * 0.05 -
+            overload * 900 -
+            (scoutLoad[name] || 0) * 35
+        };
+      })
+      .filter(candidate => candidate.assignableSlots.length > 0)
+      .sort((left, right) =>
+        right.score - left.score ||
+        right.assignableSlots.length - left.assignableSlots.length ||
+        (scoutLoad[left.name] || 0) - (scoutLoad[right.name] || 0) ||
+        left.name.localeCompare(right.name)
+      )[0];
+
+  Array.from(slotsByTeam.entries())
+    .sort((left, right) => {
+      const leftIsOwn = normalizedOwnTeamNumber && left[0] === normalizedOwnTeamNumber;
+      const rightIsOwn = normalizedOwnTeamNumber && right[0] === normalizedOwnTeamNumber;
+      if (leftIsOwn !== rightIsOwn) return rightIsOwn ? 1 : -1;
+      const leftPriority = left[1].reduce((sum, slot) => sum + slot.priorityScore, 0);
+      const rightPriority = right[1].reduce((sum, slot) => sum + slot.priorityScore, 0);
+      return right[1].length - left[1].length || rightPriority - leftPriority || left[0].localeCompare(right[0]);
+    })
+    .forEach(([teamNumber, teamSlots]) => {
+      let remainingSlots = [...teamSlots].sort((left, right) =>
+        left.matchNumber - right.matchNumber ||
+        left.matchKey.localeCompare(right.matchKey) ||
+        left.stationPriority - right.stationPriority
+      );
+      while (remainingSlots.length > 0) {
+        const candidate = chooseBatchScout(teamNumber, remainingSlots);
+        if (!candidate) break;
+        const assignedIds = new Set(candidate.assignableSlots.map(slot => slot.id));
+        candidate.assignableSlots.forEach(slot => assignSlot(slot, candidate.name, candidate.assignableSlots.length));
+        remainingSlots = remainingSlots.filter(slot => !assignedIds.has(slot.id));
+      }
+    });
+
+  selectedSlots
+    .filter(slot => !assignmentsBySlotId.has(slot.id))
+    .forEach(slot => {
+      const scoutName = activeScouts
+        .filter(name => canUseScoutForSlot(name, slot))
+        .sort((left, right) => (scoutLoad[left] || 0) - (scoutLoad[right] || 0) || left.localeCompare(right))[0];
       if (!scoutName) {
         coverageGaps.push({
-          matchKey: match.key,
-          matchNumber: match.match_number,
-          matchType: match.comp_level === 'pm' ? 'Practice' : 'Qualification',
+          matchKey: slot.matchKey,
+          matchNumber: slot.matchNumber,
+          matchType: slot.matchType,
           station: slot.station,
           teamNumber: slot.teamNumber,
           reason: 'No unused scout remained for this station'
         });
         return;
       }
-      usedScoutsThisMatch.add(scoutName);
-      exposureCounts[scoutName][slot.teamNumber] = (exposureCounts[scoutName][slot.teamNumber] || 0) + 1;
-      scoutLoad[scoutName] += 1;
-      assignments.push({
-        matchKey: match.key,
-        matchNumber: match.match_number,
-        matchType: match.comp_level === 'pm' ? 'Practice' : 'Qualification',
-        station: slot.station,
-        teamNumber: slot.teamNumber,
-        scoutName,
-        priorityReason: ownTeamNumber && [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].map(normalizeTeamKey).includes(ownTeamNumber)
-          ? 'Our match priority'
-          : 'Repeated exposure optimization'
-      });
+      assignSlot(slot, scoutName, 1);
     });
-  });
 
-  assignments.sort((left, right) =>
-    left.matchNumber - right.matchNumber ||
-    left.matchKey.localeCompare(right.matchKey) ||
-    getStationPriority(left.station) - getStationPriority(right.station)
-  );
+  const moveAssignment = (slotId: string, nextScoutName: string, nextPriorityReason?: string) => {
+    const assignment = assignmentsBySlotId.get(slotId);
+    if (!assignment || assignment.scoutName === nextScoutName) return;
+    const previousScoutName = assignment.scoutName;
+    getUsedScouts(assignment.matchKey).delete(previousScoutName);
+    getUsedScouts(assignment.matchKey).add(nextScoutName);
+    addExposure(previousScoutName, assignment.teamNumber, -1);
+    addExposure(nextScoutName, assignment.teamNumber, 1);
+    scoutLoad[previousScoutName] = Math.max(0, (scoutLoad[previousScoutName] || 0) - 1);
+    scoutLoad[nextScoutName] = (scoutLoad[nextScoutName] || 0) + 1;
+    assignment.scoutName = nextScoutName;
+    if (assignment.priorityReason !== 'Our match priority' && nextPriorityReason) {
+      assignment.priorityReason = nextPriorityReason;
+    }
+  };
+  const getMoveContinuityDelta = (
+    assignment: ScoutAssignmentPlan['assignments'][number],
+    nextScoutName: string
+  ) => {
+    const previousScoutName = assignment.scoutName;
+    const teamNumber = assignment.teamNumber;
+    const previousCount = exposureCounts[previousScoutName]?.[teamNumber] || 0;
+    const nextCount = exposureCounts[nextScoutName]?.[teamNumber] || 0;
+    return getPairCount(previousCount - 1) + getPairCount(nextCount + 1) - getPairCount(previousCount) - getPairCount(nextCount);
+  };
+  const rebalanceLoads = () => {
+    let guard = 0;
+    while (guard < selectedSlots.length * 2) {
+      guard += 1;
+      const rankedLoads = activeScouts
+        .map(name => ({ name, load: scoutLoad[name] || 0 }))
+        .sort((left, right) => left.load - right.load || left.name.localeCompare(right.name));
+      const lightest = rankedLoads[0];
+      const heaviest = rankedLoads[rankedLoads.length - 1];
+      if (!lightest || !heaviest || heaviest.load - lightest.load <= 1) break;
+      const bestMove = Array.from(assignmentsBySlotId.values())
+        .filter(assignment => assignment.scoutName === heaviest.name && !getUsedScouts(assignment.matchKey).has(lightest.name))
+        .map(assignment => ({
+          assignment,
+          continuityDelta: getMoveContinuityDelta(assignment, lightest.name)
+        }))
+        .sort((left, right) =>
+          right.continuityDelta - left.continuityDelta ||
+          left.assignment.matchNumber - right.assignment.matchNumber ||
+          left.assignment.stationPriority - right.assignment.stationPriority
+        )[0];
+      if (!bestMove || bestMove.continuityDelta < -3) break;
+      moveAssignment(bestMove.assignment.slotId, lightest.name, 'Balanced load repair');
+    }
+  };
+  const getSwapContinuityDelta = (
+    left: ScoutAssignmentPlan['assignments'][number],
+    right: ScoutAssignmentPlan['assignments'][number]
+  ) => {
+    if (left.scoutName === right.scoutName || left.teamNumber === right.teamNumber) return 0;
+    const pairKeys = new Set([
+      `${left.scoutName}|${left.teamNumber}`,
+      `${left.scoutName}|${right.teamNumber}`,
+      `${right.scoutName}|${left.teamNumber}`,
+      `${right.scoutName}|${right.teamNumber}`
+    ]);
+    const getCurrentCount = (pairKey: string) => {
+      const [scoutName, teamNumber] = pairKey.split('|');
+      return scoutName && teamNumber ? exposureCounts[scoutName]?.[teamNumber] || 0 : 0;
+    };
+    const getNextCount = (pairKey: string) => {
+      let count = getCurrentCount(pairKey);
+      if (pairKey === `${left.scoutName}|${left.teamNumber}`) count -= 1;
+      if (pairKey === `${right.scoutName}|${right.teamNumber}`) count -= 1;
+      if (pairKey === `${left.scoutName}|${right.teamNumber}`) count += 1;
+      if (pairKey === `${right.scoutName}|${left.teamNumber}`) count += 1;
+      return count;
+    };
+    return Array.from(pairKeys).reduce(
+      (sum, pairKey) => sum + getPairCount(getNextCount(pairKey)) - getPairCount(getCurrentCount(pairKey)),
+      0
+    );
+  };
+  const swapAssignments = (
+    left: ScoutAssignmentPlan['assignments'][number] & { slotId: string },
+    right: ScoutAssignmentPlan['assignments'][number] & { slotId: string }
+  ) => {
+    const leftScoutName = left.scoutName;
+    const rightScoutName = right.scoutName;
+    addExposure(leftScoutName, left.teamNumber, -1);
+    addExposure(rightScoutName, right.teamNumber, -1);
+    addExposure(leftScoutName, right.teamNumber, 1);
+    addExposure(rightScoutName, left.teamNumber, 1);
+    if (left.matchKey !== right.matchKey) {
+      getUsedScouts(left.matchKey).delete(leftScoutName);
+      getUsedScouts(left.matchKey).add(rightScoutName);
+      getUsedScouts(right.matchKey).delete(rightScoutName);
+      getUsedScouts(right.matchKey).add(leftScoutName);
+    }
+    left.scoutName = rightScoutName;
+    right.scoutName = leftScoutName;
+    if (left.priorityReason !== 'Our match priority') left.priorityReason = 'Team continuity optimization';
+    if (right.priorityReason !== 'Our match priority') right.priorityReason = 'Team continuity optimization';
+  };
+  const improveContinuityWithSwaps = () => {
+    for (let pass = 0; pass < 3; pass += 1) {
+      let improved = false;
+      const currentAssignments = Array.from(assignmentsBySlotId.values());
+      for (let leftIndex = 0; leftIndex < currentAssignments.length; leftIndex += 1) {
+        const left = currentAssignments[leftIndex];
+        if (!left) continue;
+        for (let rightIndex = leftIndex + 1; rightIndex < currentAssignments.length; rightIndex += 1) {
+          const right = currentAssignments[rightIndex];
+          if (!right || left.scoutName === right.scoutName) continue;
+          const sameMatch = left.matchKey === right.matchKey;
+          if (!sameMatch && (getUsedScouts(left.matchKey).has(right.scoutName) || getUsedScouts(right.matchKey).has(left.scoutName))) {
+            continue;
+          }
+          const continuityDelta = getSwapContinuityDelta(left, right);
+          if (continuityDelta <= 0) continue;
+          swapAssignments(left, right);
+          improved = true;
+        }
+      }
+      if (!improved) break;
+    }
+  };
+
+  rebalanceLoads();
+  improveContinuityWithSwaps();
+  rebalanceLoads();
+
+  const assignments = Array.from(assignmentsBySlotId.values())
+    .sort((left, right) =>
+      left.matchNumber - right.matchNumber ||
+      left.matchKey.localeCompare(right.matchKey) ||
+      left.stationPriority - right.stationPriority
+    )
+    .map(({ slotId: _slotId, stationPriority: _stationPriority, ...assignment }) => assignment);
 
   return {
     id: `${eventKey}_${Date.now()}`,
@@ -1514,7 +1801,7 @@ export const optimizeScoutAssignments = (
     createdAt: Date.now(),
     scoutNames: activeScouts,
     scoutCount: activeScouts.length,
-    ownTeamNumber,
+    ownTeamNumber: normalizedOwnTeamNumber,
     assignments,
     coverageGaps,
     exposureCounts
@@ -1553,7 +1840,7 @@ export const buildAlliancePickRecommendations = (
         score,
         seedFit: allianceSeed <= 2 ? 'Protect floor' : allianceSeed >= 7 ? 'Hunt ceiling' : 'Balance role + value',
         roleFit: defenseValue > expectedPpa * 0.25 ? 'Defense/flex pick' : ceilingPpa - floorPpa > 18 ? 'High-upside scorer' : 'Primary scoring fit',
-        rationale: `PPA exp ${expectedPpa.toFixed(1)}, floor ${floorPpa.toFixed(1)}, ceiling ${ceilingPpa.toFixed(1)}, defense ${defenseValue.toFixed(1)}, reliability ${(profile.reliability * 100).toFixed(0)}%.`,
+        rationale: `Range exp ${expectedPpa.toFixed(1)}, floor ${floorPpa.toFixed(1)}, ceiling ${ceilingPpa.toFixed(1)}, defense ${defenseValue.toFixed(1)}, reliability ${(profile.reliability * 100).toFixed(0)}%.`,
         status,
         pickedBy: pickedTeamStatuses[profile.teamNumber]?.pickedBy
       };

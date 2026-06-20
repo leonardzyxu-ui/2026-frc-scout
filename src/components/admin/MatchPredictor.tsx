@@ -74,7 +74,8 @@ function ComparisonTooltip({
 }) {
   if (!active || !payload?.length) return null;
 
-  const row = payload[0].payload;
+  const row = payload[0]?.payload;
+  if (!row) return null;
 
   return (
     <div className="rounded-xl border border-slate-700 bg-slate-950/95 px-4 py-3 shadow-2xl">
@@ -119,9 +120,10 @@ const fitLinearCalibration = (pairs: Array<{ predicted: number; actual: number }
   }
 
   if (pairs.length === 1) {
+    const pair = pairs[0]!;
     return {
       slope: 1,
-      intercept: pairs[0].actual - pairs[0].predicted
+      intercept: pair.actual - pair.predicted
     };
   }
 

@@ -689,7 +689,7 @@ const getCurrentRankOrderIndex = (
   const explicitOrder = currentTbaRankOrder.indexOf(teamNumber);
   if (explicitOrder >= 0) return explicitOrder;
   const rank = currentTbaRanks[teamNumber];
-  if (Number.isFinite(rank)) return rank - 1;
+  if (rank != null && Number.isFinite(rank)) return rank - 1;
   return Number.MAX_SAFE_INTEGER;
 };
 
@@ -1297,13 +1297,15 @@ export const buildPlayoffProjection = (
       return aSeed - bSeed;
     });
 
+  const topFinalist = rankedFinalists[0];
+  const secondFinalist = rankedFinalists[1];
   const finalsChampionSource =
-    rankedFinalists.length > 0 && (rankedFinalists.length === 1 || rankedFinalists[0].wins > rankedFinalists[1].wins)
-      ? rankedFinalists[0].alliance
+    topFinalist && (!secondFinalist || topFinalist.wins > secondFinalist.wins)
+      ? topFinalist.alliance
       : null;
   const finalsFinalistSource =
-    finalsChampionSource && rankedFinalists.length > 1
-      ? rankedFinalists.find(entry => entry.identity !== rankedFinalists[0].identity)?.alliance ?? null
+    finalsChampionSource && topFinalist
+      ? rankedFinalists.find(entry => entry.identity !== topFinalist.identity)?.alliance ?? null
       : null;
 
   const rounds = Array.from(new Set(PLAYOFF_NODE_DEFINITIONS.map(node => node.roundTitle))).map(roundTitle => ({

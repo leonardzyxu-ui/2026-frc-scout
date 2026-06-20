@@ -1,5 +1,5 @@
 import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, PowerCoinBet, PowerCoinLedgerEntry } from '../types';
-import { listPowerCoinBets, listPowerCoinLedger, upsertPowerCoinBet, upsertPowerCoinLedgerEntry } from './adminV2LocalStore';
+import { listPowerCoinBets, listPowerCoinLedger, upsertPowerCoinBet, upsertPowerCoinLedgerEntry } from './adminV4LocalStore';
 import { getMatchDefenseDocId, getMatchDocId, getMatchV3DocId, getMatchV4DocId, getPitDocId } from './scoutingWrites';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from './matchScoutingV3';
 import { isMatchScoutingV4 } from './matchScoutingV4';
@@ -9,6 +9,7 @@ const SETTINGS_STORE = 'settings';
 const RECORDS_STORE = 'records';
 const DB_VERSION = 1;
 const USERNAME_KEY = 'scout_username';
+const USERNAME_RENAME_HISTORY_KEY = 'scout_username_rename_history';
 
 export type ScoutArchiveRecordType = 'match' | 'matchV4' | 'matchDefense' | 'pit';
 export type ScoutArchiveSource = 'local_submit' | 'json_import' | 'qr_import';
@@ -65,6 +66,13 @@ export interface ScoutArchiveBundle {
   records: ScoutArchiveRecord[];
   powerCoinBets?: PowerCoinBet[];
   powerCoinLedger?: PowerCoinLedgerEntry[];
+}
+
+export interface ScoutIdentityRenameHistoryEntry {
+  previousUsername: string;
+  nextUsername: string;
+  renamedAt: number;
+  reason: 'unlock_passphrase' | 'import' | 'admin_reset';
 }
 
 const normalizeArchiveRecord = (record: ScoutArchiveRecord): ScoutArchiveRecord => ({
@@ -171,10 +179,65 @@ export const getScoutArchiveUsername = async () =>
 
 export const setScoutArchiveUsername = async (username: string) => {
   const normalized = normalizeUsername(username);
+  const existing = await getScoutArchiveUsername().catch(() => null);
+  if (existing && existing !== normalized) {
+    throw new Error('Scout identity is locked on this device. Use the admin unlock passphrase to change it.');
+  }
+
   await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
     const request = store.put({ key: USERNAME_KEY, value: normalized, updatedAt: Date.now() });
     request.onerror = () => reject(request.error ?? new Error('Failed to save scout username.'));
     request.onsuccess = () => resolve();
+  });
+};
+
+export const listScoutIdentityRenameHistory = async () =>
+  await withStore<ScoutIdentityRenameHistoryEntry[]>(SETTINGS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.get(USERNAME_RENAME_HISTORY_KEY);
+    request.onerror = () => reject(request.error ?? new Error('Failed to read scout identity rename history.'));
+    request.onsuccess = () => resolve((request.result?.value as ScoutIdentityRenameHistoryEntry[] | undefined) ?? []);
+  });
+
+export const renameScoutArchiveUsername = async (
+  username: string,
+  reason: ScoutIdentityRenameHistoryEntry['reason'] = 'unlock_passphrase'
+) => {
+  const normalized = normalizeUsername(username);
+  if (!normalized) {
+    throw new Error('Scout username cannot be empty.');
+  }
+
+  const previousUsername = await getScoutArchiveUsername().catch(() => null);
+  if (previousUsername === normalized) {
+    return;
+  }
+
+  const history = await listScoutIdentityRenameHistory().catch(() => []);
+  const renamedAt = Date.now();
+  const nextHistory = previousUsername
+    ? [
+        ...history,
+        {
+          previousUsername,
+          nextUsername: normalized,
+          renamedAt,
+          reason
+        }
+      ]
+    : history;
+
+  await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
+    let pendingWrites = 2;
+    const finish = () => {
+      pendingWrites -= 1;
+      if (pendingWrites === 0) resolve();
+    };
+    const usernameRequest = store.put({ key: USERNAME_KEY, value: normalized, updatedAt: renamedAt });
+    const historyRequest = store.put({ key: USERNAME_RENAME_HISTORY_KEY, value: nextHistory, updatedAt: renamedAt });
+    usernameRequest.onerror = () => reject(usernameRequest.error ?? new Error('Failed to save scout username.'));
+    historyRequest.onerror = () => reject(historyRequest.error ?? new Error('Failed to save scout identity rename history.'));
+    usernameRequest.onsuccess = finish;
+    historyRequest.onsuccess = finish;
   });
 };
 

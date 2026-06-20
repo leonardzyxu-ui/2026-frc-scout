@@ -1,4 +1,4 @@
-import { FirstEventsCredentials, buildFirstEventsAuthHeader, putAdminV2CacheEntry } from './adminV2LocalStore';
+import { FirstEventsCredentials, buildFirstEventsAuthHeader, putAdminV4CacheEntry } from './adminV4LocalStore';
 import { TBAMatch } from './mathEngine';
 
 const FIRST_API_BASE = 'https://frc-api.firstinspires.org/v3.0';
@@ -50,7 +50,7 @@ export async function fetchAndCacheFirstEventBundle(credentials: FirstEventsCred
   for (const [key, endpoint] of endpoints) {
     try {
       const payload = await fetchFirstEventsJson<unknown>(credentials, year, endpoint);
-      await putAdminV2CacheEntry({
+      await putAdminV4CacheEntry({
         eventKey,
         year,
         source: 'FIRST',

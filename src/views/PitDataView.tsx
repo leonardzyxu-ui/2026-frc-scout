@@ -275,26 +275,28 @@ export default function PitDataView({ eventKey }: PitDataViewProps) {
     try {
       const targets = allRows.slice(0, pastedNames.length);
       await Promise.all(
-        targets.map((row, index) =>
-          setDoc(doc(db, 'events', eventKey, 'pitAssignments', row.teamNumber), {
+        targets.map((row, index) => {
+          const assignedScoutName = pastedNames[index] ?? '';
+          return setDoc(doc(db, 'events', eventKey, 'pitAssignments', row.teamNumber), {
             teamNumber: row.teamNumber,
-            assignedScoutName: pastedNames[index],
+            assignedScoutName,
             updatedAt: Date.now(),
             updatedByDeviceId: deviceId
-          } satisfies PitAssignment)
-        )
+          } satisfies PitAssignment);
+        })
       );
 
       const nextAssignments = { ...assignments };
       const nextRowEdits = { ...rowEdits };
       targets.forEach((row, index) => {
+        const assignedScoutName = pastedNames[index] ?? '';
         nextAssignments[row.teamNumber] = {
           teamNumber: row.teamNumber,
-          assignedScoutName: pastedNames[index],
+          assignedScoutName,
           updatedAt: Date.now(),
           updatedByDeviceId: deviceId
         };
-        nextRowEdits[row.teamNumber] = pastedNames[index];
+        nextRowEdits[row.teamNumber] = assignedScoutName;
       });
       setAssignments(nextAssignments);
       setRowEdits(nextRowEdits);

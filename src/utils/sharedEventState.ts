@@ -1,8 +1,9 @@
 import { doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { DEFAULT_EVENT_KEY } from './defaultEvent.ts';
 import { normalizeEventKey } from './keys';
 
-export const DEFAULT_EVENT_KEY = '2026MNUM';
+export { DEFAULT_EVENT_KEY };
 
 export const getSharedEventDocRef = () => doc(db, 'appState', 'currentEvent');
 

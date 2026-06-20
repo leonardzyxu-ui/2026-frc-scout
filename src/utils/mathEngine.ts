@@ -147,12 +147,12 @@ const getRecordPenalty = (record: MatchScoutingV2) =>
 
 const getMatchSequenceNumber = (record: MatchScoutingV2, fallbackIndex: number) => {
   const numericMatch = record.matchKey.match(/(\d+)/);
-  return numericMatch ? parseInt(numericMatch[1], 10) : fallbackIndex + 1;
+  return numericMatch ? parseInt(numericMatch[1] ?? `${fallbackIndex + 1}`, 10) : fallbackIndex + 1;
 };
 
 const getParsedMatchNumber = (record: MatchScoutingV2) => {
   const numericMatch = record.matchKey.match(/(\d+)/);
-  return numericMatch ? parseInt(numericMatch[1], 10) : null;
+  return numericMatch ? parseInt(numericMatch[1] ?? '0', 10) : null;
 };
 
 const getSyntheticScoreForRecord = (record: MatchScoutingV2) => {
@@ -387,7 +387,7 @@ export const calculateLegacyOprcRatings = (
         .filter(partner => partner !== teamNumber)
         .reduce((sum, partner) => {
           const partnerIndex = teamToIndex.get(partner);
-          return sum + (partnerIndex !== undefined ? currentOprs[partnerIndex] : 0);
+          return sum + (partnerIndex !== undefined ? currentOprs[partnerIndex] ?? 0 : 0);
         }, 0);
 
       const oprc = allianceScore - expectedPartnerScore;

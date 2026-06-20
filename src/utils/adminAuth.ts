@@ -6,6 +6,8 @@ export interface AdminAccessState {
   isAdmin: boolean;
   reason: 'claim' | 'role-doc' | 'local-mode' | 'signed-out' | 'missing-role' | 'error';
   message: string;
+  uid?: string;
+  isAnonymous?: boolean;
 }
 
 const isLocalMode = () => import.meta.env.VITE_LOCAL_MODE === 'true';
@@ -66,7 +68,7 @@ export async function getAdminAccessState(): Promise<AdminAccessState> {
       return {
         isAdmin: true,
         reason: 'claim',
-        message: 'Admin access granted by Firebase custom claim.'
+        message: 'Admin access is enabled for this signed-in account.'
       };
     }
 
@@ -75,19 +77,23 @@ export async function getAdminAccessState(): Promise<AdminAccessState> {
       return {
         isAdmin: true,
         reason: 'role-doc',
-        message: 'Admin access granted by admin role document.'
+        message: 'Admin access is enabled for this signed-in device.'
       };
     }
 
     return {
       isAdmin: false,
       reason: 'missing-role',
-      message: `This device is signed in as ${user.uid}, but it does not have an admin role.`
+      uid: user.uid,
+      isAnonymous: user.isAnonymous,
+      message: 'This signed-in device does not have an enabled admin role yet.'
     };
   } catch (error) {
     return {
       isAdmin: false,
       reason: 'error',
+      uid: user.uid,
+      isAnonymous: user.isAnonymous,
       message: error instanceof Error ? error.message : 'Unable to verify admin access.'
     };
   }

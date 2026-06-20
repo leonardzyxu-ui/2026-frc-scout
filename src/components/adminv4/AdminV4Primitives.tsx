@@ -1,21 +1,16 @@
 import React from 'react';
+import { X } from 'lucide-react';
 
-export interface WorkspaceNavItem<T extends string> {
+export interface AdminWorkflowItem<T extends string> {
+  id?: string;
   key: T;
   label: string;
   description: string;
+  mobileNeed?: string;
+  panel?: string;
   icon?: React.ReactNode;
   tone?: 'cyan' | 'emerald' | 'fuchsia' | 'amber' | 'rose' | 'slate';
 }
-
-const toneClasses: Record<NonNullable<WorkspaceNavItem<string>['tone']>, string> = {
-  cyan: 'from-cyan-500/20 to-sky-500/10 text-cyan-100 ring-cyan-400/30',
-  emerald: 'from-emerald-500/20 to-teal-500/10 text-emerald-100 ring-emerald-400/30',
-  fuchsia: 'from-fuchsia-500/20 to-purple-500/10 text-fuchsia-100 ring-fuchsia-400/30',
-  amber: 'from-amber-500/20 to-orange-500/10 text-amber-100 ring-amber-400/30',
-  rose: 'from-rose-500/20 to-red-500/10 text-rose-100 ring-rose-400/30',
-  slate: 'from-slate-800/80 to-slate-900/60 text-slate-100 ring-slate-700'
-};
 
 type AdminTone = 'slate' | 'cyan' | 'emerald' | 'amber' | 'rose' | 'fuchsia';
 
@@ -39,7 +34,7 @@ export function AdminSurface({
   as?: React.ElementType;
 }) {
   return (
-    <Component className={`admin-g2 border border-slate-800 bg-slate-900/65 shadow-xl shadow-slate-950/20 ${className}`} {...props}>
+    <Component className={`admin-g2 border border-slate-800 bg-slate-900/65 shadow-sm shadow-slate-950/10 ${className}`} {...props}>
       {children}
     </Component>
   );
@@ -83,17 +78,18 @@ export function AdminIconButton({
   );
 }
 
-export function AdminInput({
+export const AdminInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(function AdminInput({
   className = '',
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}, ref) {
   return (
     <input
+      ref={ref}
       className={`admin-g2-sm border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm font-semibold text-white outline-none transition-colors placeholder:text-slate-600 focus:border-cyan-400 ${className}`}
       {...props}
     />
   );
-}
+});
 
 export function AdminModal({
   open,
@@ -108,15 +104,71 @@ export function AdminModal({
   onClose: () => void;
   footer?: React.ReactNode;
 }) {
+  const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const titleId = React.useId();
+
+  React.useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusableSelector = [
+      'a[href]',
+      'button:not([disabled])',
+      'textarea:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+    const getFocusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || [])
+      .filter(element => !element.hasAttribute('disabled') && element.offsetParent !== null);
+    const focusFirst = () => (getFocusable()[0] || dialogRef.current)?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusable();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.setTimeout(focusFirst, 0);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      opener?.focus();
+    };
+  }, [onClose, open]);
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-md">
-      <div className="admin-g2-lg max-h-[90vh] w-full max-w-4xl overflow-hidden border border-slate-700 bg-slate-950 shadow-2xl shadow-slate-950">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="admin-g2-lg max-h-[90vh] w-full max-w-4xl overflow-hidden border border-slate-700 bg-slate-950 shadow-md shadow-slate-950/30 outline-none"
+      >
         <div className="flex items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
-          <h2 className="text-xl font-black text-white">{title}</h2>
+          <h2 id={titleId} className="text-xl font-black text-white">{title}</h2>
           <AdminIconButton onClick={onClose} aria-label={`Close ${title}`}>
-            X
+            <X aria-hidden="true" className="h-4 w-4" />
           </AdminIconButton>
         </div>
         <div className="max-h-[70vh] overflow-y-auto p-5">{children}</div>
@@ -137,111 +189,52 @@ export function AdminContextMenu({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const menuLeft = typeof window === 'undefined' ? x : Math.min(Math.max(8, x), Math.max(8, window.innerWidth - 220));
+  const menuTop = typeof window === 'undefined' ? y : Math.min(Math.max(8, y), Math.max(8, window.innerHeight - 180));
+
   React.useEffect(() => {
-    const handleClose = () => onClose();
-    window.addEventListener('click', handleClose);
-    window.addEventListener('keydown', handleClose);
+    const handleClick = () => onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"],button:not([disabled])') || []);
+      if (items.length === 0) return;
+      event.preventDefault();
+      const currentIndex = items.findIndex(item => item === document.activeElement);
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = currentIndex === -1
+        ? direction === 1 ? 0 : items.length - 1
+        : (currentIndex + direction + items.length) % items.length;
+      items[nextIndex]?.focus();
+    };
+    window.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+    window.setTimeout(() => {
+      const firstItem = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"],button:not([disabled])');
+      firstItem?.focus();
+    }, 0);
     return () => {
-      window.removeEventListener('click', handleClose);
-      window.removeEventListener('keydown', handleClose);
+      window.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose]);
 
   return (
     <div
-      className="fixed z-[60] min-w-44 admin-g2-sm border border-slate-700 bg-slate-950 p-1 shadow-2xl shadow-slate-950"
-      style={{ left: x, top: y }}
+      ref={menuRef}
+      role="menu"
+      tabIndex={-1}
+      className="fixed z-[60] min-w-44 admin-g2-sm border border-slate-700 bg-slate-950 p-1 shadow-md shadow-slate-950/30"
+      style={{ left: menuLeft, top: menuTop }}
       onClick={event => event.stopPropagation()}
     >
       {children}
     </div>
-  );
-}
-
-export function WorkspaceNav<T extends string>({
-  items,
-  activeKey,
-  onChange
-}: {
-  items: WorkspaceNavItem<T>[];
-  activeKey: T;
-  onChange: (key: T) => void;
-}) {
-  return (
-    <nav className="space-y-2">
-      {items.map(item => {
-        const isActive = activeKey === item.key;
-        const tone = toneClasses[item.tone || 'slate'];
-        return (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => onChange(item.key)}
-            className={`admin-g2-sm group w-full border px-4 py-3 text-left transition-all ${
-              isActive
-                ? `border-transparent bg-gradient-to-br ${tone} ring-1`
-                : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              {item.icon && (
-                <span className={`admin-g2-sm p-2 ${isActive ? 'bg-white/10' : 'bg-slate-900 text-slate-400 group-hover:text-slate-100'}`}>
-                  {item.icon}
-                </span>
-              )}
-              <div>
-                <div className="text-sm font-black text-white">{item.label}</div>
-                <div className="mt-0.5 text-xs font-semibold text-slate-400">{item.description}</div>
-              </div>
-            </div>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
-
-export function ContextBar({
-  items,
-  action
-}: {
-  items: Array<{ label: string; value: React.ReactNode; tone?: string }>;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="admin-v4-context-bar admin-g2 border border-slate-800/80 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/30 backdrop-blur">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid flex-1 grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-          {items.map(item => (
-            <div key={item.label} className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-4 py-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{item.label}</div>
-              <div className={`mt-1 truncate text-sm font-black ${item.tone || 'text-white'}`}>{item.value}</div>
-            </div>
-          ))}
-        </div>
-        {action && <div className="shrink-0">{action}</div>}
-      </div>
-    </div>
-  );
-}
-
-export function ActionGroup({
-  title,
-  description,
-  children
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="admin-surface p-5">
-      <div className="mb-4">
-        <h3 className="text-lg font-black text-white">{title}</h3>
-        {description && <p className="mt-1 text-sm text-slate-400">{description}</p>}
-      </div>
-      <div className="flex flex-wrap gap-3">{children}</div>
-    </section>
   );
 }
 
@@ -259,64 +252,6 @@ export function DangerZone({
       <h3 className="text-lg font-black text-rose-50">{title}</h3>
       <p className="mt-1 text-sm font-semibold text-rose-100/80">{description}</p>
       <div className="mt-4 flex flex-wrap gap-3">{children}</div>
-    </section>
-  );
-}
-
-export function MetricBarChart({
-  title,
-  subtitle,
-  rows,
-  valueFormatter = value => value.toFixed(1),
-  accentClass = 'from-cyan-400 to-blue-500'
-}: {
-  title: string;
-  subtitle?: string;
-  rows: Array<{ key: string; label: string; value: number; secondary?: string; highlighted?: 'own' | 'searched' | 'both' }>;
-  valueFormatter?: (value: number) => string;
-  accentClass?: string;
-}) {
-  const maxValue = Math.max(1, ...rows.map(row => Math.max(0, row.value)));
-  return (
-    <section className="admin-surface p-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-lg font-black text-white">{title}</h3>
-        {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
-      </div>
-      <div className="mt-5 space-y-3">
-        {rows.length === 0 ? (
-          <div className="admin-g2-sm border border-slate-800 bg-slate-950/70 px-4 py-8 text-center text-sm font-semibold text-slate-500">
-            No chartable team data yet.
-          </div>
-        ) : (
-          rows.map((row, index) => {
-            const width = `${Math.max(4, (Math.max(0, row.value) / maxValue) * 100)}%`;
-            const ring =
-              row.highlighted === 'both'
-                ? 'ring-2 ring-sky-300 bg-orange-500/10'
-                : row.highlighted === 'own'
-                  ? 'ring-2 ring-orange-400 bg-orange-500/10'
-                  : row.highlighted === 'searched'
-                    ? 'ring-2 ring-sky-400 bg-sky-500/10'
-                    : '';
-            return (
-              <div key={row.key} className={`admin-g2-sm border border-slate-800 bg-slate-950/70 p-3 ${ring}`}>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="text-xs font-black text-slate-500">#{index + 1}</span>
-                    <span className="truncate text-sm font-black text-white">{row.label}</span>
-                    {row.secondary && <span className="hidden truncate text-xs font-semibold text-slate-500 md:inline">{row.secondary}</span>}
-                  </div>
-                  <span className="font-mono text-sm font-black text-cyan-100">{valueFormatter(row.value)}</span>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-800">
-                  <div className={`h-full rounded-full bg-gradient-to-r ${accentClass}`} style={{ width }} />
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
     </section>
   );
 }

@@ -48,6 +48,10 @@ service cloud.firestore {
       allow list, create, update, delete: if isAdmin();
     }
 
+    match /adminSecrets/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     match /appState/{docId} {
       allow read: if signedIn();
       allow write: if isAdmin();
