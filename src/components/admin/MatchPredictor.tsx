@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CalendarClock, RefreshCw, Sparkles, Swords, Trophy } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { TBA_API_KEY } from '../../config';
 import { calculateLegacyOprRatings, calculateLegacyOprcRatings, TBAMatch } from '../../utils/mathEngine';
 import {
   buildCompletedMatchComparisons,
@@ -27,6 +26,8 @@ type QualificationRankingTab = QualificationModel;
 interface MatchPredictorProps {
   eventKey: string;
   initialViewTab?: PredictorViewTab;
+  isTbaApiKeyReady?: boolean;
+  tbaApiKey: string;
 }
 
 interface TbaRankingsResponse {
@@ -425,7 +426,12 @@ function QualificationRankingSummaryCard({
   );
 }
 
-export default function MatchPredictor({ eventKey, initialViewTab = 'quals' }: MatchPredictorProps) {
+export default function MatchPredictor({
+  eventKey,
+  initialViewTab = 'quals',
+  isTbaApiKeyReady = true,
+  tbaApiKey
+}: MatchPredictorProps) {
   const [matches, setMatches] = useState<TBAMatch[]>([]);
   const [alliances, setAlliances] = useState<TBAEliminationAlliance[] | null>(null);
   const [eventSummary, setEventSummary] = useState<TBAEventSummary | null>(null);
@@ -462,8 +468,11 @@ export default function MatchPredictor({ eventKey, initialViewTab = 'quals' }: M
     setError('');
     setStatboticsEpaWarning('');
     try {
+      if (!tbaApiKey.trim()) {
+        throw new Error('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
+      }
       const normalizedEventKey = eventKey.trim().toLowerCase();
-      const headers = { 'X-TBA-Auth-Key': TBA_API_KEY };
+      const headers = { 'X-TBA-Auth-Key': tbaApiKey.trim() };
       const [matchesResponse, alliancesResponse, summaryResponse, rankingsResponse] = await Promise.all([
         fetch(`https://www.thebluealliance.com/api/v3/event/${normalizedEventKey}/matches`, { headers }),
         fetch(`https://www.thebluealliance.com/api/v3/event/${normalizedEventKey}/alliances`, { headers }),
@@ -564,8 +573,9 @@ export default function MatchPredictor({ eventKey, initialViewTab = 'quals' }: M
   };
 
   useEffect(() => {
+    if (!isTbaApiKeyReady) return;
     void fetchPredictorData();
-  }, [eventKey]);
+  }, [eventKey, isTbaApiKeyReady, tbaApiKey]);
 
   const completedQualificationMatches = useMemo(
     () => matches.filter(match => match.comp_level === 'qm' && isPlayedMatch(match)).length,

@@ -33,6 +33,7 @@ import { MatchScoutingV2 } from '../types';
 import { calculateTestMetrics, MathEngine, TeamMetrics, TestTeamMetrics } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 import { getPersistentDeviceId, getSharedEventDocRef, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
+import { loadTbaApiKey } from '../utils/adminV4LocalStore';
 import DataControlView from './DataControlView';
 import PitDataView from './PitDataView';
 import PreMatchView from './PreMatchView';
@@ -77,8 +78,10 @@ export default function AdminMainframeView({
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
   const [searchResults, setSearchResults] = useState<{ key: string; name: string; short_name: string }[]>([]);
   const [isSearchingEvents, setIsSearchingEvents] = useState(false);
+  const [localTbaApiKey, setLocalTbaApiKey] = useState('');
+  const [isTbaApiKeyReady, setIsTbaApiKeyReady] = useState(false);
 
-  const tbaApiKey = TBA_API_KEY;
+  const tbaApiKey = localTbaApiKey || TBA_API_KEY;
 
   useEffect(() => {
     const unsubscribe = onSnapshot(getSharedEventDocRef(), async (snapshot) => {
@@ -109,6 +112,25 @@ export default function AdminMainframeView({
     return () => unsubscribe();
   }, [deviceId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void loadTbaApiKey()
+      .then(savedTbaApiKey => {
+        if (cancelled) return;
+        setLocalTbaApiKey(savedTbaApiKey || '');
+      })
+      .catch(loadError => {
+        console.warn('Failed to load local TBA API key for legacy admin.', loadError);
+        if (!cancelled) setLocalTbaApiKey('');
+      })
+      .finally(() => {
+        if (!cancelled) setIsTbaApiKeyReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     setError('');
@@ -123,10 +145,14 @@ export default function AdminMainframeView({
         return;
       }
 
+      if (!tbaApiKey.trim()) {
+        throw new Error('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
+      }
+
       const scoutingSnapshot = await getDocs(collection(db, `events/${eventKey}/matchScouting`));
       const scoutingData = scoutingSnapshot.docs.map(doc => doc.data() as MatchScoutingV2);
 
-      const engine = new MathEngine(tbaApiKey);
+      const engine = new MathEngine(tbaApiKey.trim());
       const tbaMatches = await engine.fetchEventMatches(eventKey);
       const calculatedMetrics = engine.calculateMetrics(tbaMatches, scoutingData);
 
@@ -157,10 +183,11 @@ export default function AdminMainframeView({
 
   useEffect(() => {
     storeEventKey(eventKey);
+    if (!isTbaApiKeyReady) return;
     if (activeTab === 'analytics' || activeTab === 'control') {
       void fetchData();
     }
-  }, [eventKey, activeTab]);
+  }, [eventKey, activeTab, isTbaApiKeyReady, tbaApiKey]);
 
   const applySharedEventKey = async (nextEventKey: string) => {
     if (!nextEventKey || nextEventKey === eventKey) return;
@@ -182,8 +209,10 @@ export default function AdminMainframeView({
   };
 
   const searchEvents = async () => {
-    if (!tbaApiKey) {
-      setError('TBA API Key is missing.');
+    if (!isTbaApiKeyReady) return;
+
+    if (!tbaApiKey.trim()) {
+      setError('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
       return;
     }
 
@@ -192,7 +221,7 @@ export default function AdminMainframeView({
 
     try {
       const response = await fetch(`https://www.thebluealliance.com/api/v3/events/${searchYear}`, {
-        headers: { 'X-TBA-Auth-Key': tbaApiKey }
+        headers: { 'X-TBA-Auth-Key': tbaApiKey.trim() }
       });
       if (!response.ok) throw new Error('Failed to fetch events');
       setSearchResults(await response.json());
@@ -626,7 +655,7 @@ export default function AdminMainframeView({
               />
               <button
                 onClick={searchEvents}
-                disabled={isSearchingEvents}
+                disabled={isSearchingEvents || !isTbaApiKeyReady}
                 className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
               >
                 {isSearchingEvents ? '...' : 'FETCH'}
@@ -708,6 +737,8 @@ export default function AdminMainframeView({
               <MatchPredictor
                 eventKey={eventKey}
                 initialViewTab={initialPredictorTab}
+                isTbaApiKeyReady={isTbaApiKeyReady}
+                tbaApiKey={tbaApiKey}
               />
             </div>
           </div>
