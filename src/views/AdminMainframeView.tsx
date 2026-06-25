@@ -18,8 +18,10 @@ import {
   ArrowLeft,
   ClipboardList,
   Database,
+  KeyRound,
   ListOrdered,
   RefreshCw,
+  Save,
   Search,
   Share2,
   Shield,
@@ -28,12 +30,12 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase';
+import { db, hasFirebaseServices } from '../firebase';
 import { MatchScoutingV2 } from '../types';
 import { calculateTestMetrics, MathEngine, TeamMetrics, TestTeamMetrics } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 import { getPersistentDeviceId, getSharedEventDocRef, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
-import { loadTbaApiKey } from '../utils/adminV4LocalStore';
+import { loadTbaApiKey, saveTbaApiKey } from '../utils/adminV4LocalStore';
 import DataControlView from './DataControlView';
 import PitDataView from './PitDataView';
 import PreMatchView from './PreMatchView';
@@ -79,11 +81,22 @@ export default function AdminMainframeView({
   const [searchResults, setSearchResults] = useState<{ key: string; name: string; short_name: string }[]>([]);
   const [isSearchingEvents, setIsSearchingEvents] = useState(false);
   const [localTbaApiKey, setLocalTbaApiKey] = useState('');
+  const [tbaApiKeyDraft, setTbaApiKeyDraft] = useState('');
+  const [isSavingTbaApiKey, setIsSavingTbaApiKey] = useState(false);
+  const [tbaApiKeyStatus, setTbaApiKeyStatus] = useState('');
   const [isTbaApiKeyReady, setIsTbaApiKeyReady] = useState(false);
 
   const tbaApiKey = localTbaApiKey || TBA_API_KEY;
+  const hasTbaApiKey = tbaApiKey.trim().length > 0;
 
   useEffect(() => {
+    if (!hasFirebaseServices) {
+      const bootstrapEventKey = getStoredEventKey();
+      storeEventKey(bootstrapEventKey);
+      setEventKey(prev => (prev === bootstrapEventKey ? prev : bootstrapEventKey));
+      return;
+    }
+
     const unsubscribe = onSnapshot(getSharedEventDocRef(), async (snapshot) => {
       if (snapshot.exists()) {
         const sharedEventKey = snapshot.data().eventKey || getStoredEventKey();
@@ -118,6 +131,7 @@ export default function AdminMainframeView({
       .then(savedTbaApiKey => {
         if (cancelled) return;
         setLocalTbaApiKey(savedTbaApiKey || '');
+        setTbaApiKeyStatus(savedTbaApiKey ? 'Saved' : '');
       })
       .catch(loadError => {
         console.warn('Failed to load local TBA API key for legacy admin.', loadError);
@@ -146,7 +160,7 @@ export default function AdminMainframeView({
       }
 
       if (!tbaApiKey.trim()) {
-        throw new Error('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
+        throw new Error('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
       }
 
       const scoutingSnapshot = await getDocs(collection(db, `events/${eventKey}/matchScouting`));
@@ -196,6 +210,8 @@ export default function AdminMainframeView({
     storeEventKey(nextEventKey);
     setError('');
 
+    if (!hasFirebaseServices) return;
+
     try {
       await setDoc(getSharedEventDocRef(), {
         eventKey: nextEventKey,
@@ -212,7 +228,7 @@ export default function AdminMainframeView({
     if (!isTbaApiKeyReady) return;
 
     if (!tbaApiKey.trim()) {
-      setError('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
+      setError('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
       return;
     }
 
@@ -230,6 +246,30 @@ export default function AdminMainframeView({
       setError('Error searching events.');
     } finally {
       setIsSearchingEvents(false);
+    }
+  };
+
+  const saveLegacyTbaApiKey = async () => {
+    const nextKey = tbaApiKeyDraft.trim();
+    if (!nextKey) {
+      setTbaApiKeyStatus('Enter a key');
+      return;
+    }
+
+    setIsSavingTbaApiKey(true);
+    setTbaApiKeyStatus('');
+    try {
+      const savedKey = await saveTbaApiKey(nextKey);
+      setLocalTbaApiKey(savedKey);
+      setTbaApiKeyDraft('');
+      setError('');
+      setTbaApiKeyStatus('Saved');
+    } catch (saveError) {
+      console.error('Failed to save TBA API key in legacy admin.', saveError);
+      setTbaApiKeyStatus('Save failed');
+    } finally {
+      setIsSavingTbaApiKey(false);
+      setIsTbaApiKeyReady(true);
     }
   };
 
@@ -644,6 +684,46 @@ export default function AdminMainframeView({
           </div>
 
           <div className="pt-4 border-t border-slate-800/50">
+            <div className={`rounded-lg border p-3 mb-4 ${hasTbaApiKey ? 'border-emerald-900/60 bg-emerald-950/20' : 'border-red-900/60 bg-red-950/20'}`}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <label className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center gap-2">
+                  <KeyRound className="w-3.5 h-3.5" />
+                  TBA API Key
+                </label>
+                <span className={`text-[11px] font-bold ${hasTbaApiKey ? 'text-emerald-400' : 'text-red-300'}`}>
+                  {isTbaApiKeyReady ? (hasTbaApiKey ? 'Saved' : 'Missing') : 'Loading'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={tbaApiKeyDraft}
+                  onChange={(event) => {
+                    setTbaApiKeyDraft(event.target.value);
+                    if (tbaApiKeyStatus && tbaApiKeyStatus !== 'Saved') setTbaApiKeyStatus('');
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void saveLegacyTbaApiKey();
+                  }}
+                  className="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500 transition-colors"
+                  placeholder={hasTbaApiKey ? 'Update key' : 'Paste key'}
+                />
+                <button
+                  onClick={() => void saveLegacyTbaApiKey()}
+                  disabled={isSavingTbaApiKey || !tbaApiKeyDraft.trim()}
+                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {isSavingTbaApiKey ? '...' : 'SAVE'}
+                </button>
+              </div>
+              {tbaApiKeyStatus && (
+                <p className={`mt-2 text-[11px] ${tbaApiKeyStatus === 'Saved' ? 'text-emerald-400' : 'text-red-300'}`}>
+                  {tbaApiKeyStatus}
+                </p>
+              )}
+            </div>
+
             <label className="text-xs text-slate-500 mb-2 block">TBA Event Search</label>
             <div className="flex gap-2 mb-3">
               <input

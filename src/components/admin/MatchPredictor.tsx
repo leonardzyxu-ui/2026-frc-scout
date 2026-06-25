@@ -467,10 +467,13 @@ export default function MatchPredictor({
     setIsLoading(true);
     setError('');
     setStatboticsEpaWarning('');
+    if (!tbaApiKey.trim()) {
+      setError('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      if (!tbaApiKey.trim()) {
-        throw new Error('TBA API Key is missing. Save a TBA key in Admin V4 Settings, then reopen Admin V2.');
-      }
       const normalizedEventKey = eventKey.trim().toLowerCase();
       const headers = { 'X-TBA-Auth-Key': tbaApiKey.trim() };
       const [matchesResponse, alliancesResponse, summaryResponse, rankingsResponse] = await Promise.all([
