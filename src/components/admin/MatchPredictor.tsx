@@ -20,13 +20,14 @@ import {
 } from '../../utils/matchPredictor';
 import { fetchEventStatboticsEpa, StatboticsNormalizedTeamEpa } from '../../utils/statbotics';
 
-interface MatchPredictorProps {
-  eventKey: string;
-}
-
 type ComparisonPhaseFilter = 'all' | 'qualification' | 'playoff';
 type PredictorViewTab = 'quals' | 'playoffs' | 'comparison';
 type QualificationRankingTab = QualificationModel;
+
+interface MatchPredictorProps {
+  eventKey: string;
+  initialViewTab?: PredictorViewTab;
+}
 
 interface TbaRankingsResponse {
   rankings?: Array<{
@@ -424,7 +425,7 @@ function QualificationRankingSummaryCard({
   );
 }
 
-export default function MatchPredictor({ eventKey }: MatchPredictorProps) {
+export default function MatchPredictor({ eventKey, initialViewTab = 'quals' }: MatchPredictorProps) {
   const [matches, setMatches] = useState<TBAMatch[]>([]);
   const [alliances, setAlliances] = useState<TBAEliminationAlliance[] | null>(null);
   const [eventSummary, setEventSummary] = useState<TBAEventSummary | null>(null);
@@ -438,7 +439,7 @@ export default function MatchPredictor({ eventKey }: MatchPredictorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [comparisonPhaseFilter, setComparisonPhaseFilter] = useState<ComparisonPhaseFilter>('all');
-  const [predictorViewTab, setPredictorViewTab] = useState<PredictorViewTab>('quals');
+  const [predictorViewTab, setPredictorViewTab] = useState<PredictorViewTab>(initialViewTab);
   const [qualificationRankingTab, setQualificationRankingTab] = useState<QualificationRankingTab>('epa');
   const [qualificationThreshold, setQualificationThreshold] = useState(55);
 

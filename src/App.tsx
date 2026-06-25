@@ -14,6 +14,7 @@ const PitScoutView = lazy(() => import('./views/PitScoutView'));
 const PreMatchView = lazy(() => import('./views/PreMatchView'));
 const MatchDefenseScoutView = lazy(() => import('./views/MatchDefenseScoutView'));
 const HistoryView = lazy(() => import('./views/HistoryView'));
+const AdminMainframeView = lazy(() => import('./views/AdminMainframeView'));
 const AdminV4View = lazy(() => import('./views/AdminV4View'));
 
 function RouteLoading({ label = 'Loading workflow...' }: { label?: string }) {
@@ -148,7 +149,9 @@ export default function App() {
             {/* Admin Route - Protected */}
             <Route path="/admin" element={<Navigate to="/adminv4" replace />} />
             <Route path="/adminv4" element={<AdminGuard><Suspense fallback={<RouteLoading label="Loading Admin V4..." />}><AdminV4View /></Suspense></AdminGuard>} />
-            <Route path="/adminv2" element={<Navigate to="/adminv4" replace />} />
+            <Route path="/adminv1" element={<AdminGuard><Suspense fallback={<RouteLoading label="Loading legacy admin..." />}><AdminMainframeView /></Suspense></AdminGuard>} />
+            <Route path="/adminv2" element={<AdminGuard><Suspense fallback={<RouteLoading label="Loading Admin V2..." />}><AdminMainframeView initialTab="predictor" /></Suspense></AdminGuard>} />
+            <Route path="/adminv2/prediction-vs-actual" element={<AdminGuard><Suspense fallback={<RouteLoading label="Loading Prediction vs Actual..." />}><AdminMainframeView initialTab="predictor" initialPredictorTab="comparison" /></Suspense></AdminGuard>} />
             
             {/* Scout Routes - With Header */}
             <Route path="/*" element={

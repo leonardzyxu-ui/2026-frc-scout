@@ -53,14 +53,21 @@ type AdminTab =
   | 'editor'
   | 'sorter';
 
+type PredictorViewTab = 'quals' | 'playoffs' | 'comparison';
 type AnalyticsMode = 'official' | 'test';
 
 const COLORS = ['#38bdf8', '#fb7185', '#34d399', '#fbbf24', '#a78bfa'];
 
-export default function AdminMainframeView() {
+export default function AdminMainframeView({
+  initialTab = 'analytics',
+  initialPredictorTab = 'quals'
+}: {
+  initialTab?: AdminTab;
+  initialPredictorTab?: PredictorViewTab;
+}) {
   const navigate = useNavigate();
   const deviceId = useMemo(() => getPersistentDeviceId(), []);
-  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [metrics, setMetrics] = useState<Record<string, TeamMetrics>>({});
   const [testMetrics, setTestMetrics] = useState<Record<string, TestTeamMetrics>>({});
   const [analyticsMode, setAnalyticsMode] = useState<AnalyticsMode>('official');
@@ -700,6 +707,7 @@ export default function AdminMainframeView() {
             <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-6 h-full overflow-y-auto">
               <MatchPredictor
                 eventKey={eventKey}
+                initialViewTab={initialPredictorTab}
               />
             </div>
           </div>
