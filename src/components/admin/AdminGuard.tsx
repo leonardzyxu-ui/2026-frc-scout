@@ -51,7 +51,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
         <h2 className="mb-2 text-center text-2xl font-black tracking-tight">Admin Access Needed</h2>
         <p className="mb-6 text-center text-sm font-medium leading-relaxed text-slate-400">
-          This device is signed in, but Admin V4 needs an enabled admin role before it can show team strategy, backups, or sync controls.
+          This device is signed in, but this admin area needs an enabled admin role before it can show team strategy, backups, or sync controls.
         </p>
 
         <div className="space-y-3">

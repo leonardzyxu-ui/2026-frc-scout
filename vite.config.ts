@@ -15,23 +15,10 @@ export default defineConfig(({mode}) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg'],
-        manifest: {
-          name: 'REBUILT Scout',
-          short_name: 'Scout',
-          description: 'FRC Scouting App for REBUILT',
-          theme_color: '#0f172a',
-          background_color: '#0f172a',
-          display: 'standalone',
-          icons: [
-            {
-              src: 'icon.svg',
-              sizes: '192x192 512x512',
-              type: 'image/svg+xml',
-              purpose: 'any maskable'
-            }
-          ]
-        },
         workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           maximumFileSizeToCacheInBytes: 5000000,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
           runtimeCaching: [
@@ -64,7 +51,23 @@ export default defineConfig(({mode}) => {
               }
             }
           ]
-        }
+        },
+        manifest: {
+          name: 'REBUILT Scout',
+          short_name: 'Scout',
+          description: 'FRC Scouting App for REBUILT',
+          theme_color: '#0f172a',
+          background_color: '#0f172a',
+          display: 'standalone',
+          icons: [
+            {
+              src: 'icon.svg',
+              sizes: '192x192 512x512',
+              type: 'image/svg+xml',
+              purpose: 'any maskable'
+            }
+          ]
+        },
       })
     ],
     define: {
