@@ -54,6 +54,7 @@ const registerPwaServiceWorker = () => {
 };
 
 const renderApp = () => {
+  registerPwaServiceWorker();
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />
@@ -69,7 +70,4 @@ void rescueLegacyAdminRouteFromStaleShell()
   .catch(error => {
     console.warn('Firebase startup did not finish before render. Continuing in local-first mode.', error);
   })
-  .finally(() => {
-    registerPwaServiceWorker();
-    renderApp();
-  });
+  .finally(renderApp);
