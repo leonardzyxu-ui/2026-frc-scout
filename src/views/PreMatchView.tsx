@@ -501,7 +501,7 @@ function PreScoutBriefing({
         <div className="admin-g2-sm border border-white/10 bg-slate-950/45 p-4">
           <div className={labelClass}>Used Next</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {['Pit Scout priority', 'first-match expectations', 'judge/demo context', 'missing-data warnings'].map(item => (
+            {['Pit Scout priority', 'first-match expectations', 'demo proof context', 'missing-data warnings'].map(item => (
               <span key={item} className="admin-g2-sm border border-white/10 bg-slate-900/70 px-2 py-1 text-[11px] font-semibold text-slate-100">
                 {item}
               </span>

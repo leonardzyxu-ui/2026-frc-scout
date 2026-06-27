@@ -11,7 +11,7 @@ const NO_MATCH_FALLBACK_PHRASES = [
   'why DPR',
   'source freshness',
   'API keys',
-  'export for judges'
+  'demo proof'
 ];
 
 const COMMAND_PALETTE_EXAMPLE_PHRASES = [
@@ -20,7 +20,7 @@ const COMMAND_PALETTE_EXAMPLE_PHRASES = [
   'future matches',
   'why DPR',
   'API keys',
-  'export for judges'
+  'demo proof'
 ];
 
 export default function AdminV4CommandPalette({
@@ -214,7 +214,7 @@ export default function AdminV4CommandPalette({
             <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{resultTitle}</div>
             {!hasSearchInput && (
               <div className="mt-1 text-xs font-semibold leading-relaxed text-slate-400">
-                Choose a quick need below, press Alt/Option+1-8, or type normal competition language like "assign scouts", "why DPR", "future matches", "API keys", or "export for judges".
+                Choose a quick need below, press Alt/Option+1-8, or type normal competition language like "assign scouts", "why DPR", "future matches", "API keys", or "demo proof".
               </div>
             )}
           </div>

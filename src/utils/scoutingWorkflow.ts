@@ -35,7 +35,7 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     question: 'What do public sources already tell us, and what is still missing?',
     rawInputs: ['TBA team list', 'robot media', 'season results', 'manual research gaps'],
     processedSignals: ['pre-event coverage gaps', 'public context', 'pit priority list'],
-    usedFor: ['pit scouting priorities', 'early qualification expectations', 'judge/demo context'],
+    usedFor: ['pit scouting priorities', 'early qualification expectations', 'demo proof context'],
     modelImpact: 'Starts the public-only context before local scouting has enough rows.',
     tone: 'violet'
   },
@@ -105,7 +105,7 @@ export const SCOUTING_USE_MOMENTS: Record<ScoutingUseMomentKey, ScoutingUseMomen
   visualize: {
     key: 'visualize',
     title: 'Visualize',
-    when: 'Explaining the data to strategists, judges, or drive team.',
+    when: 'Explaining the data to strategists, mentors, visitors, or drive team.',
     needs: ['stat comparisons', 'trend curves', 'stat definitions', 'source context'],
     fedBy: ['matchScout', 'defenseScout', 'pitScout']
   },

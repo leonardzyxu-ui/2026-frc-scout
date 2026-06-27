@@ -312,6 +312,8 @@ import type {
   AdminV4TeamsRow
 } from '../components/adminv4/AdminV4TeamsWorkflow';
 import AdminV4NowWorkflow, {
+  type AdminV4CompetitionPhase,
+  type AdminV4CompetitionPhaseKey,
   type AdminV4CompetitionNeed,
   type AdminV4NowAction,
   type AdminV4NowAlert,
@@ -442,6 +444,12 @@ type StatInfoDefinition = AdminV4StatInfoDefinition;
 const STAT_INFO = ADMIN_V4_STAT_INFO;
 const getStatInfo = getAdminV4StatInfo;
 const statInfoKeyFromRoute = statInfoKeyFromAdminV4Route;
+const COMPETITION_PHASE_STORAGE_KEY = 'adminv4_competition_phase';
+const getStoredCompetitionPhase = (): AdminV4CompetitionPhaseKey => {
+  if (typeof window === 'undefined') return 'practice';
+  const stored = window.localStorage.getItem(COMPETITION_PHASE_STORAGE_KEY);
+  return stored === 'practice' || stored === 'qualifications' || stored === 'selection' ? stored : 'practice';
+};
 
 const sanitizeTeamNumber = sanitizeAdminV4TeamNumber;
 
@@ -480,6 +488,7 @@ export default function AdminV4View() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [moreWorkflowMenuOpen, setMoreWorkflowMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AdminV4Tab>(initialRouteActiveTab);
+  const [competitionPhase, setCompetitionPhase] = useState<AdminV4CompetitionPhaseKey>(() => getStoredCompetitionPhase());
   const [predictorViewTab, setPredictorViewTab] = useState<PredictorDisplayTab>('ranking');
   const [resultsViewTab, setResultsViewTab] = useState<ResultsDisplayTab>('quals');
   const [rawEditorViewTab, setRawEditorViewTab] = useState<ResultsDisplayTab>('quals');
@@ -945,6 +954,10 @@ export default function AdminV4View() {
   useEffect(() => {
     saveAdminV4Settings(settings);
   }, [settings]);
+
+  useEffect(() => {
+    window.localStorage.setItem(COMPETITION_PHASE_STORAGE_KEY, competitionPhase);
+  }, [competitionPhase]);
 
   useEffect(() => {
     void refreshLocalArchiveRecords();
@@ -3281,7 +3294,7 @@ export default function AdminV4View() {
     { id: 'pickList', key: 'pickList', label: 'Pick List', description: 'alliance selection board', mobileNeed: 'Use when building or defending alliance selection choices.', icon: <Trophy className="h-4 w-4" />, tone: 'amber' },
     { id: 'visualize', key: 'visualize', label: 'Visualize', description: 'charts and stat comparisons', mobileNeed: 'Use when you need a chart instead of a table.', icon: <BarChart3 className="h-4 w-4" />, tone: 'cyan' },
     { id: 'data', key: 'import', label: 'Data', description: 'imports, audit, scouts, sync, and model trust', mobileNeed: 'Use when numbers, sources, scouts, sync, or trust feel wrong.', icon: <Database className="h-4 w-4" />, tone: 'slate' },
-    { id: 'export', key: 'export', label: 'Reports', description: 'Excel and judge-friendly outputs', mobileNeed: 'Use when judges, mentors, or another laptop need proof.', icon: <Download className="h-4 w-4" />, tone: 'emerald' }
+    { id: 'export', key: 'export', label: 'Reports', description: 'Excel, model proof, and demo-ready outputs', mobileNeed: 'Use when mentors, visitors, or another laptop need proof.', icon: <Download className="h-4 w-4" />, tone: 'emerald' }
   ];
   const primaryWorkflowItemIds = ['command', 'sorter', 'predictor', 'pickList', 'visualize', 'data', 'export'];
   const primaryWorkspaceItems = workspaceItems.filter(item => primaryWorkflowItemIds.includes(item.id || item.key));
@@ -5723,6 +5736,31 @@ export default function AdminV4View() {
     setInfoMenu({ x: event.clientX, y: event.clientY, statKey });
   };
 
+  useEffect(() => {
+    const isEditableShortcutTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+    };
+
+    const handleDemoShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== 'd'
+        || !event.shiftKey
+        || event.metaKey
+        || event.ctrlKey
+        || event.altKey
+        || isEditableShortcutTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      openWorkflow('export');
+    };
+
+    window.addEventListener('keydown', handleDemoShortcut);
+    return () => window.removeEventListener('keydown', handleDemoShortcut);
+  }, [openWorkflow]);
+
   const handleAdminBack = () => {
     rememberMainScroll();
     if (activeTab === 'wiki') {
@@ -6285,6 +6323,36 @@ export default function AdminV4View() {
       : [prepareNowAction, evidenceNowAction, rangeNowAction, sourceNowAction];
     const primaryNowAction = nowPriorities[0]!;
     const secondaryNowActions = nowPriorities.slice(1);
+    const selectCompetitionPhase = (phase: AdminV4CompetitionPhaseKey, action: () => void) => {
+      setCompetitionPhase(phase);
+      action();
+    };
+    const competitionPhases: AdminV4CompetitionPhase[] = [
+      {
+        key: 'practice',
+        label: 'Practice Matches',
+        detail: 'Perfect collection, scout assignments, source refresh, and first-pass predictions while the stakes are still low.',
+        actionLabel: 'Scouts + Data',
+        tone: 'cyan',
+        onAction: () => selectCompetitionPhase('practice', () => openDataPanel('scouts'))
+      },
+      {
+        key: 'qualifications',
+        label: 'Qualifications',
+        detail: 'Operate from upcoming match plans, prediction audit, source freshness, and fast corrections after every result.',
+        actionLabel: 'Matches + Trust',
+        tone: 'fuchsia',
+        onAction: () => selectCompetitionPhase('qualifications', () => openWorkflow('predictor'))
+      },
+      {
+        key: 'selection',
+        label: 'Alliance Selection Prep',
+        detail: 'Work the live pick board, mark teams as taken, and keep the shortlist ready before selection starts.',
+        actionLabel: 'Pick Board',
+        tone: 'amber',
+        onAction: () => selectCompetitionPhase('selection', () => openWorkflow('pickList'))
+      }
+    ];
     const competitionNeeds: AdminV4CompetitionNeed[] = [
       {
         label: 'Match soon',
@@ -6327,10 +6395,10 @@ export default function AdminV4View() {
         onAction: () => openWorkflow('pickList')
       },
       {
-        label: 'Judges are here',
+        label: 'Demo proof',
         detail: rawEditorSummary.anomalyRowCount > 0
           ? 'Check evidence before exporting claims.'
-          : 'Open judge/demo reports and model proof.',
+          : 'Open model proof, calibration, and report packets.',
         actionLabel: 'Reports',
         tone: rawEditorSummary.anomalyRowCount > 0 ? 'amber' : 'emerald',
         onAction: () => openWorkflow('export')
@@ -6377,6 +6445,8 @@ export default function AdminV4View() {
         })}
         primaryAction={primaryNowAction}
         secondaryActions={secondaryNowActions}
+        activeCompetitionPhase={competitionPhase}
+        competitionPhases={competitionPhases}
         competitionNeeds={competitionNeeds}
         predictorMatchSourceLabel={predictorMatchSourceLabel}
         modelAction={renderModelAwareAction()}
@@ -7862,7 +7932,7 @@ export default function AdminV4View() {
         panel: 'models',
         step: '5',
         title: 'Check Model Trust',
-        when: 'Before relying on future quals, pick lists, or judge-facing claims.',
+        when: 'Before relying on future quals, pick lists, or demo-facing claims.',
         output: 'Backtests, calibration, expected-range counts, feature snapshots.',
         health: bestModelBacktest ? `${bestModelBacktest.modelName} leading` : 'Waiting for played matches',
         icon: <TrendingUp className="h-5 w-5" />,
@@ -8007,7 +8077,7 @@ export default function AdminV4View() {
       {
         label: 'prove the model is safe to trust',
         detail: bestModelBacktest
-          ? `${bestModelBacktest.modelName} is leading the current backtest. Check calibration before using it in judge or drive-team claims.`
+          ? `${bestModelBacktest.modelName} is leading the current backtest. Check calibration before using it in demo or drive-team claims.`
           : 'Open model trust after played matches exist so forecasts have evidence, not guesswork.',
         actionLabel: 'Open model trust',
         panel: 'models',

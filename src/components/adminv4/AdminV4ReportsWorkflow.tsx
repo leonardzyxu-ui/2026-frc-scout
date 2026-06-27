@@ -65,7 +65,7 @@ export function AdminV4ReportsWorkflow({
       <FocusHeader
         eyebrow="Reports"
         title="Audience Report Packs"
-        description="Reports is the handoff room: export the full evidence, or jump to the exact packet needed by head scout, drive team, pick-list lead, judges, or data owner."
+        description="Reports is the handoff room: export the full evidence, or jump to the exact packet needed by head scout, drive team, pick-list lead, model proof, or data owner."
       />
 
       {recommendedPack && recommendedAction && (
@@ -99,7 +99,7 @@ export function AdminV4ReportsWorkflow({
               <h3 className="mt-1 text-lg font-black text-white">Pick the audience first</h3>
             </div>
             <p className="max-w-2xl text-xs font-semibold leading-relaxed text-cyan-100/75">
-              Reports should answer the person in front of you: head scout, drive team, pick-list lead, judges, or data owner. Full XLSX stays behind the advanced door.
+              Reports should answer the person in front of you: head scout, drive team, pick-list lead, model proof, or data owner. Full XLSX stays behind the advanced door.
             </p>
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">

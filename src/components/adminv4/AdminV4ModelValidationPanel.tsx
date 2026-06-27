@@ -136,6 +136,21 @@ export default function AdminV4ModelValidationPanel({
           <SummaryCard label="Forecast Layer" value={bestForecastLayerName} />
           <SummaryCard label="Latest Snapshot" value={latestModelSnapshot ? formatLocalTimestamp(latestModelSnapshot.createdAt) : 'None'} />
         </div>
+        <div className="mt-5 admin-g2 border border-fuchsia-400/25 bg-fuchsia-500/10 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-fuchsia-200">Forecast Ledger</div>
+              <h3 className="mt-1 text-lg font-black text-white">Prediction Evidence Is Time-Stamped</h3>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-fuchsia-50/80">
+                Every model refresh keeps the latest model snapshot and before-match feature snapshots together, so practice and qualification predictions can be reviewed by what was known at that point in time.
+              </p>
+            </div>
+            <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
+              <SummaryCard label="Match Snapshots" value={featureMatchSnapshots.length} />
+              <SummaryCard label="Latest Feature Set" value={latestFeatureSnapshot ? formatLocalTimestamp(latestFeatureSnapshot.createdAt) : 'None'} />
+            </div>
+          </div>
+        </div>
         {modelSnapshotStatus && (
           <div className="mt-4 admin-g2-sm border border-slate-800 bg-slate-950 p-4 text-sm font-semibold text-slate-300">
             {modelSnapshotStatus}
@@ -268,7 +283,7 @@ export default function AdminV4ModelValidationPanel({
       </div>
 
       <AdminSurface className="p-4">
-        <FocusHeader title="What Was Known Before Matches" description="The inputs available before each played qualification match. This protects the backtest from future leakage." />
+        <FocusHeader title="Forecast Ledger: What Was Known Before Matches" description="The inputs available before each played qualification match. This protects the backtest from future leakage and gives the head scout a prediction audit trail." />
         <div className="mt-4 overflow-x-auto admin-g2-sm border border-slate-800">
           <table className="admin-sticky-table min-w-full text-left text-sm">
             <thead className="sticky top-0 bg-slate-950 text-xs uppercase tracking-wider text-slate-400">

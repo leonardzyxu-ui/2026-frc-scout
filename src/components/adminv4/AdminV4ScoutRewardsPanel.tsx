@@ -89,7 +89,7 @@ export default function AdminV4ScoutRewardsPanel({
 
       <div className="admin-g2 border border-yellow-400/25 bg-slate-950/70 p-4">
         <div className="text-sm font-black text-yellow-100">Manual Reward Adjustment</div>
-        <p className="mt-1 text-xs font-semibold text-yellow-100/65">Use ledger adjustments for quality bonuses, cleanup penalties, or judge-demo rewards. Preview the balance change before applying it.</p>
+        <p className="mt-1 text-xs font-semibold text-yellow-100/65">Use ledger adjustments for quality bonuses, cleanup penalties, or demo rewards. Preview the balance change before applying it.</p>
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_120px]">
           <AdminInput
             aria-label="Scout reward adjustment scout"

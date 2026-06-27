@@ -41,6 +41,17 @@ export interface AdminV4CompetitionNeed {
   onAction: () => void;
 }
 
+export type AdminV4CompetitionPhaseKey = 'practice' | 'qualifications' | 'selection';
+
+export interface AdminV4CompetitionPhase {
+  key: AdminV4CompetitionPhaseKey;
+  label: string;
+  detail: string;
+  actionLabel: string;
+  tone: AdminV4NowTone;
+  onAction: () => void;
+}
+
 const toneClass = (tone: AdminV4NowTone) => {
   if (tone === 'rose') return 'border-rose-400/30 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15';
   if (tone === 'amber') return 'border-amber-400/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15';
@@ -113,6 +124,8 @@ export function AdminV4NowWorkflow({
   headScoutBrief,
   primaryAction,
   secondaryActions,
+  activeCompetitionPhase,
+  competitionPhases,
   competitionNeeds,
   predictorMatchSourceLabel,
   modelAction,
@@ -135,6 +148,8 @@ export function AdminV4NowWorkflow({
   headScoutBrief: React.ReactNode;
   primaryAction: AdminV4NowAction;
   secondaryActions: AdminV4NowAction[];
+  activeCompetitionPhase: AdminV4CompetitionPhaseKey;
+  competitionPhases: AdminV4CompetitionPhase[];
   competitionNeeds: AdminV4CompetitionNeed[];
   predictorMatchSourceLabel: string;
   modelAction: React.ReactNode;
@@ -164,14 +179,55 @@ export function AdminV4NowWorkflow({
           <SummaryCard label="Match-Day Trust" value={matchDayTrust} />
           <SummaryCard label="Required Action" value={requiredAction} />
         </div>
+        <section aria-label="Competition phase selector" className="admin-g2-sm mt-4 border border-cyan-400/25 bg-slate-950/75 p-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Competition Phase</div>
+              <div className="mt-1 text-sm font-black text-white">Select the day we are operating in.</div>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-500">Selection stays local on this device.</div>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {competitionPhases.map(phase => {
+              const active = phase.key === activeCompetitionPhase;
+              return (
+                <button
+                  key={phase.key}
+                  type="button"
+                  onClick={phase.onAction}
+                  className={`admin-g2-sm flex min-h-28 flex-col justify-between border px-3 py-3 text-left transition-colors ${
+                    active ? 'border-white/30 bg-white/10 text-white' : toneClass(phase.tone)
+                  }`}
+                  aria-pressed={active}
+                  aria-label={`Set competition phase to ${phase.label}. ${phase.detail}`}
+                  title={`Set phase: ${phase.label}`}
+                >
+                  <span>
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="text-base font-black text-white">{phase.label}</span>
+                      {active && (
+                        <span className="admin-g2-sm border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.12em] text-white/80">
+                          Active
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-2 block text-xs font-semibold leading-relaxed opacity-85">{phase.detail}</span>
+                  </span>
+                  <span className="mt-3 text-[10px] font-black uppercase tracking-[0.14em] opacity-75">{phase.actionLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section
-          aria-label="Competition mode launcher"
+          aria-label="Competition need launcher"
           className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/75 p-3"
         >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Competition Mode</div>
-              <div className="mt-1 text-sm font-black text-white">Start with the situation, not the tab name.</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">Fast Situation Switches</div>
+              <div className="mt-1 text-sm font-black text-white">Start with the problem, not the tab name.</div>
             </div>
             <div className="text-[11px] font-semibold text-slate-500">These open focused workflows.</div>
           </div>

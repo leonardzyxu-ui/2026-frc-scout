@@ -72,7 +72,7 @@ const visualPresets: Array<{
 }> = [
   { label: 'Drive Team', question: 'Who helps the next match?', detail: 'Expected range, downside, risk, and defense.', metrics: ['ppa', 'ppaFloor', 'ppaTailRisk', 'defense'] },
   { label: 'Pick List', question: 'Who survives playoffs?', detail: 'Expected value, floor, ceiling, and role balance.', metrics: ['ppa', 'ppaFloor', 'ppaCeiling', 'defense'] },
-  { label: 'Judges', question: 'Can we explain the model?', detail: 'Trust, validation proxies, and evidence count.', metrics: ['ppa', 'ppaScoutConfidence', 'opr', 'epa', 'matches'] },
+  { label: 'Demo', question: 'Can we explain the model?', detail: 'Trust, validation proxies, and evidence count.', metrics: ['ppa', 'ppaScoutConfidence', 'opr', 'epa', 'matches'] },
   { label: 'Raw Scouting', question: 'What did scouts directly see?', detail: 'Firsthand point creation and coverage.', metrics: ['ppc', 'autoPpc', 'teleopPpc', 'matches'] }
 ];
 
@@ -106,7 +106,7 @@ export function AdminV4VisualizeWorkflow({
   const visualizeFirstAction = activePresetLabel === 'Custom'
     ? {
       label: 'Start from a competition question',
-      detail: 'Custom charts are useful after you know the moment. Start with Drive Team, Pick List, Judges, or Raw Scouting, then fine tune.',
+      detail: 'Custom charts are useful after you know the moment. Start with Drive Team, Pick List, Demo, or Raw Scouting, then fine tune.',
       actionLabel: 'Use Drive Team',
       onAction: () => onSetVisualMetricKeys(visualPresets[0]!.metrics)
     }
@@ -156,7 +156,7 @@ export function AdminV4VisualizeWorkflow({
               description="Start with a question, then click any metric to open the exact Stats Wiki entry before comparing teams. Right-click metric chips or chart panels for Get Info."
               stats={activePresetLabel === 'Raw Scouting'
                 ? ['localAvg', 'matches', 'scoutTrust', 'defense']
-                : activePresetLabel === 'Judges'
+                : activePresetLabel === 'Demo'
                   ? ['expected', 'scoutTrust', 'officialAvg', 'publicRating']
                   : ['expected', 'floor', 'tailRisk', 'defense']}
               onInfo={onOpenWiki}

@@ -1,10 +1,15 @@
 import React from 'react';
-import { Copy, Upload } from 'lucide-react';
+import { Copy, RefreshCw, Upload } from 'lucide-react';
 import { TBA_API_KEY } from '../../config';
 import { FirstEventsCredentials } from '../../utils/adminV4LocalStore';
 import { AdminV4Settings } from '../../utils/adminV4Settings';
 import { getAdminV4MatchLabel } from '../../utils/adminV4TestMode';
 import { TBAMatch } from '../../utils/mathEngine';
+import {
+  checkScoutingRelayHealth,
+  SCOUTING_RELAY_PROVIDERS,
+  ScoutingRelayHealthResult
+} from '../../utils/scoutingRelayReadiness';
 import { AdminButton, AdminInput, AdminModal, AdminSurface, DangerZone } from './AdminV4Primitives';
 import { MetricField } from './AdminV4UiAtoms';
 
@@ -104,6 +109,20 @@ export default function AdminV4SettingsModal({
     : 'Needs API keys';
   const sourceState = sourceRowCount > 0 ? `${sourceRowCount} source rows` : 'No source rows';
   const rehearsalState = settings.testModeEnabled ? 'Test Mode on' : 'Live by default';
+  const [relayHealth, setRelayHealth] = React.useState<Partial<Record<string, ScoutingRelayHealthResult>>>({});
+  const [relayChecking, setRelayChecking] = React.useState(false);
+
+  const refreshRelayHealth = React.useCallback(async () => {
+    setRelayChecking(true);
+    const results = await Promise.all(SCOUTING_RELAY_PROVIDERS.map(provider => checkScoutingRelayHealth(provider)));
+    setRelayHealth(Object.fromEntries(results.map(result => [result.key, result])));
+    setRelayChecking(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    void refreshRelayHealth();
+  }, [open, refreshRelayHealth]);
 
   return (
     <AdminModal open={open} title="Settings" onClose={onClose}>
@@ -126,6 +145,61 @@ export default function AdminV4SettingsModal({
           <p className="mt-3 text-xs font-semibold leading-relaxed text-slate-500">
             If any tile says missing, fix it before match-day decisions. API keys and FIRST credentials remain local to this browser/device.
           </p>
+        </AdminSurface>
+
+        <AdminSurface className="p-4 lg:col-span-2">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-300">Relay Readiness</div>
+              <h3 className="mt-1 text-lg font-black text-white">Fast Out-Of-Band Contact Paths</h3>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+                Firebase remains the official data sync. These relays are prepared as faster head-scout contact lanes: The Button first, DirectChat second.
+              </p>
+            </div>
+            <AdminButton tone="fuchsia" onClick={() => void refreshRelayHealth()} disabled={relayChecking}>
+              <RefreshCw className={`h-4 w-4 ${relayChecking ? 'animate-spin' : ''}`} />
+              {relayChecking ? 'Checking' : 'Recheck Relays'}
+            </AdminButton>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {SCOUTING_RELAY_PROVIDERS.map(provider => {
+              const health = relayHealth[provider.key];
+              const stateLabel = !health
+                ? 'Not checked'
+                : health.ok
+                  ? `${health.latencyMs}ms`
+                  : health.error || 'Unavailable';
+              return (
+                <div key={provider.key} className={`admin-g2-sm border p-4 ${
+                  health?.ok
+                    ? 'border-emerald-400/30 bg-emerald-500/10'
+                    : health
+                      ? 'border-amber-400/30 bg-amber-500/10'
+                      : 'border-slate-800 bg-slate-950'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{provider.role}</div>
+                      <h4 className="mt-1 text-base font-black text-white">{provider.label}</h4>
+                    </div>
+                    <span className={`admin-g2-sm border px-2 py-1 text-[10px] font-black uppercase ${
+                      health?.ok
+                        ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
+                        : 'border-amber-300/30 bg-amber-300/10 text-amber-100'
+                    }`}>
+                      {health?.ok ? 'Ready' : health ? 'Check' : 'Waiting'}
+                    </span>
+                  </div>
+                  <div className="mt-3 font-mono text-xs font-semibold text-slate-300">{provider.defaultBaseUrl}</div>
+                  <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-500">{provider.detail}</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <MetricField label="Health" value={stateLabel} />
+                    <MetricField label="Service" value={health?.service || 'Pending'} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </AdminSurface>
 
         <AdminSurface className="p-4">

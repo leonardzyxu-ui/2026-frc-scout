@@ -113,9 +113,9 @@ export default function AdminV4ReportsPanel({
       }]
     },
     {
-      key: 'judges',
-      title: 'Judges And Demo Proof',
-      audience: 'Judges, mentors, and demo viewers',
+      key: 'demo-proof',
+      title: 'Model Demo Proof',
+      audience: 'Mentors, visitors, and demo viewers',
       when: 'When someone asks what the model means or whether it is trustworthy.',
       contains: 'Model definition, validation, calibration, limitations, source map, and why expected range is a decision shape instead of one score.',
       status: hasModelProof ? `${bestModelName} leading` : 'Model proof pending data',
@@ -172,8 +172,8 @@ export default function AdminV4ReportsPanel({
     },
     {
       group: 'Model Proof',
-      sheets: 'Model Validation, Trust Calibration, Model Inputs, Before-Match Inputs',
-      use: 'Judges and mentors can audit validation, trust calibration, input source, and limitations.'
+      sheets: 'Model Validation, Trust Calibration, Forecast Ledger, Model Inputs, Before-Match Inputs',
+      use: 'Mentors and demo viewers can audit validation, forecast history, input source, and limitations.'
     },
     {
       group: 'Raw Evidence',

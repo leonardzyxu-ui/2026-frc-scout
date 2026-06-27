@@ -261,9 +261,9 @@ const STATIC_TARGETS: StaticSmartSearchTarget[] = [
     kind: 'workflow',
     badge: 'Workflow',
     title: 'Reports',
-    description: 'Excel export and judge/demo-friendly outputs.',
-    quickTitle: 'Export for judges',
-    quickDescription: 'Open Excel export and judge/demo-friendly report packs.',
+    description: 'Excel export, model proof, and demo-ready outputs.',
+    quickTitle: 'Open demo proof',
+    quickDescription: 'Open Excel export and model/demo report packs.',
     keywords: ['reports', 'report', 'excel', 'export', 'download', 'judge', 'judges', 'judges are here', 'mentor is here', 'mentors are here', 'judge packet', 'judge report', 'demo', 'presentation', 'spreadsheet', 'make spreadsheet', 'workbook', 'print', 'packet', 'need proof'],
     workflowKey: 'export'
   },
