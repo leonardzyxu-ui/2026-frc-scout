@@ -111,6 +111,7 @@ export default function AdminV4SettingsModal({
   const rehearsalState = settings.testModeEnabled ? 'Test Mode on' : 'Live by default';
   const [relayHealth, setRelayHealth] = React.useState<Partial<Record<string, ScoutingRelayHealthResult>>>({});
   const [relayChecking, setRelayChecking] = React.useState(false);
+  const [relayDraftStatus, setRelayDraftStatus] = React.useState('');
 
   const refreshRelayHealth = React.useCallback(async () => {
     setRelayChecking(true);
@@ -123,6 +124,50 @@ export default function AdminV4SettingsModal({
     if (!open) return;
     void refreshRelayHealth();
   }, [open, refreshRelayHealth]);
+
+  const relayStatusSummary = SCOUTING_RELAY_PROVIDERS
+    .map(provider => {
+      const health = relayHealth[provider.key];
+      if (!health) return `${provider.label}: not checked`;
+      return `${provider.label}: ${health.ok ? `ready ${health.latencyMs}ms` : health.error || 'unavailable'}`;
+    })
+    .join('; ');
+  const relayDrafts = React.useMemo(() => {
+    const eventLabel = eventKey || 'current event';
+    const ownTeamLabel = ownTeamNumber ? `Team ${ownTeamNumber}` : 'our team';
+    return [
+      {
+        label: 'Demo Proof Ready',
+        detail: 'Use when visitors need to see the model story without leaving the workspace.',
+        body: `[SCOUT ${eventLabel}] Demo proof is ready for ${ownTeamLabel}. Open Admin V4 -> Reports -> Model Demo Proof, then Data -> Model Trust for Forecast Ledger and prediction evidence. Relay status: ${relayStatusSummary}.`
+      },
+      {
+        label: 'Collect Missing Evidence',
+        detail: 'Use after practice/qualification scout waves when coverage needs attention.',
+        body: `[SCOUT ${eventLabel}] Collect missing evidence now. Open Admin V4 -> Data -> Audit Rows / Collect Evidence, fix missing slots, then refresh model trust. Current source rows: ${sourceRowCount}.`
+      },
+      {
+        label: 'Sync And Backup',
+        detail: 'Use before leaving the venue, changing devices, or deploying an update.',
+        body: `[SCOUT ${eventLabel}] Sync and backup checkpoint. Open Admin V4 -> Data -> Sync / Backup, push unsynced local rows, export a full local backup, and keep the Forecast Ledger workbook outside the browser.`
+      },
+      {
+        label: 'Alliance Selection Update',
+        detail: 'Use when pick order or availability changes during selection prep.',
+        body: `[SCOUT ${eventLabel}] Alliance selection update. Open Admin V4 -> Pick List, mark picked/unavailable teams immediately, then recheck role fit, expected range, uncertainty, tail risk, defense impact, and our alliance seed.`
+      }
+    ];
+  }, [eventKey, ownTeamNumber, relayStatusSummary, sourceRowCount]);
+
+  const copyRelayDraft = async (label: string, body: string) => {
+    try {
+      await navigator.clipboard.writeText(body);
+      setRelayDraftStatus(`Copied ${label} relay draft.`);
+    } catch (error) {
+      console.warn('Failed to copy relay draft', error);
+      setRelayDraftStatus('Unable to copy automatically. Select the draft text and copy it manually.');
+    }
+  };
 
   return (
     <AdminModal open={open} title="Settings" onClose={onClose}>
@@ -200,6 +245,48 @@ export default function AdminV4SettingsModal({
               );
             })}
           </div>
+        </AdminSurface>
+
+        <AdminSurface className="p-4 lg:col-span-2">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Relay Outbox Drafts</div>
+              <h3 className="mt-1 text-lg font-black text-white">Copy-Only Head Scout Alerts</h3>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+                These are ready-to-send operational drafts for The Button or DirectChat. Admin V4 does not send them automatically and does not store relay passwords, device tokens, or DirectChat account secrets.
+              </p>
+            </div>
+            <span className="admin-g2-sm border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+              Local Drafts Only
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 xl:grid-cols-2">
+            {relayDrafts.map(draft => (
+              <div key={draft.label} className="admin-g2-sm border border-slate-800 bg-slate-950 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-black text-white">{draft.label}</h4>
+                    <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">{draft.detail}</p>
+                  </div>
+                  <AdminButton tone="emerald" onClick={() => void copyRelayDraft(draft.label, draft.body)}>
+                    <Copy className="h-4 w-4" />
+                    Copy
+                  </AdminButton>
+                </div>
+                <textarea
+                  readOnly
+                  value={draft.body}
+                  className="admin-g2-sm mt-3 min-h-24 w-full resize-y border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs font-semibold leading-relaxed text-slate-300 outline-none focus:border-emerald-400"
+                  aria-label={`${draft.label} relay draft text`}
+                />
+              </div>
+            ))}
+          </div>
+          {relayDraftStatus && (
+            <div className="admin-g2-sm mt-3 border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm font-semibold text-emerald-100">
+              {relayDraftStatus}
+            </div>
+          )}
         </AdminSurface>
 
         <AdminSurface className="p-4">

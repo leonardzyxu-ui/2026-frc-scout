@@ -109,16 +109,16 @@ Current limitation:
 - The readiness check pings The Button and DirectChat health endpoints.
 - The local `npm run check:competition` script verifies live routes, deployed bundle markers, and relay reachability.
 
-### Stage 1: Safe Next Website Step
+### Stage 1: Done
 
-Add a local-only relay outbox panel in Admin V4:
+Admin V4 Settings includes a local-only relay outbox panel:
 
 - The UI drafts short operational alerts.
 - The user can copy/export the alert payload.
 - No relay credential is stored in the website.
 - No automatic send happens from public Firebase-hosted code.
 
-This gives the head scout reusable messages without creating a credential leak.
+This gives the head scout reusable messages without creating a credential leak. The drafts are suitable for The Button or DirectChat, but the website still does not authenticate to either relay.
 
 ### Stage 2: Head-Scout Local Agent
 
