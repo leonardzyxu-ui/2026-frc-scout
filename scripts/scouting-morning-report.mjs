@@ -70,6 +70,7 @@ console.log('5. Operations discipline: one local status command now verifies dep
 console.log('');
 console.log('Users can now:');
 console.log('- Start the day by opening Admin V4, choosing the competition phase, and following the Now-screen next action.');
+console.log('- Switch Matches into practice forecasts during Practice Matches phase, then return to qualification forecasts when the real schedule starts.');
 console.log('- Before each practice or qualification match block, save a prediction checkpoint and export the full evidence workbook for later model accuracy review.');
 console.log('- Capture early practice forecasts from the best available rating source before event-local backtests exist.');
 console.log('- During alliance selection, mark public pick status immediately and keep the pick list mathematically current.');

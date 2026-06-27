@@ -11,6 +11,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 ## What Users Can Now Do
 
 - Open Admin V4 and choose the live operating phase: Practice Matches, Qualifications, or Alliance Selection Prep.
+- Switch Matches into practice forecasts during Practice Matches phase, then return to qualification forecasts when the real schedule starts.
 - Use a Now-screen Prediction checkpoint to jump directly to Model Trust before or after a match block.
 - Save deliberate Forecast Snapshot checkpoints and export a full evidence workbook with a Forecast Ledger for practice and qualification forecasts.
 - Capture early practice forecasts from the best available rating source before event-local backtests exist.

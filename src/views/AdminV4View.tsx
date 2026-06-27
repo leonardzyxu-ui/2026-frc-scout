@@ -1752,8 +1752,11 @@ export default function AdminV4View() {
     [activeOprRatings, predictorTeams]
   );
   const isVisibleForecastPrediction = useCallback(
-    (match: PredictedMatchV3) => match.compLevel === 'qm' || (testModeActive && match.key === settings.testModeMatchKey),
-    [settings.testModeMatchKey, testModeActive]
+    (match: PredictedMatchV3) =>
+      match.compLevel === 'qm' ||
+      (competitionPhase === 'practice' && match.compLevel === 'pm') ||
+      (testModeActive && match.key === settings.testModeMatchKey),
+    [competitionPhase, settings.testModeMatchKey, testModeActive]
   );
 
   const ppcPredictions = useMemo(
@@ -2275,27 +2278,6 @@ export default function AdminV4View() {
     [searchedTeamNumber, teamPerformanceProfiles]
   );
   const selectedTeamPpaInsight = searchedTeamNumber ? ppaInsightsByTeam[searchedTeamNumber] || null : null;
-  const validatedQualForecastRows = useMemo(() =>
-    activePredictorMatches
-      .filter(match => match.comp_level === 'qm' && !isPlayedMatch(match))
-      .map(match => {
-        const forecast = adminV4BestForecastLayer.forecasts[match.key];
-        const redScore = forecast?.redScore ?? 0;
-        const blueScore = forecast?.blueScore ?? 0;
-        return {
-          key: match.key,
-          title: match.key.split('_')[1]?.toUpperCase() || match.key.toUpperCase(),
-          redTeams: match.alliances.red.team_keys.map(normalizeTeamKey),
-          blueTeams: match.alliances.blue.team_keys.map(normalizeTeamKey),
-          redScore,
-          blueScore,
-          winner: redScore === blueScore ? 'Tie' : redScore > blueScore ? 'Red' : 'Blue',
-          lowConfidence: forecast?.lowConfidence ?? true
-        };
-      })
-      .sort((left, right) => left.title.localeCompare(right.title, undefined, { numeric: true })),
-    [activePredictorMatches, adminV4BestForecastLayer]
-  );
   const finalsProjection = useMemo(
     () =>
       buildPlayoffProjection(
@@ -7772,8 +7754,8 @@ export default function AdminV4View() {
   };
 
   const renderCollectionControlPanel = () => {
-    const futureMatchCount = activePredictorMatches.filter(match => match.comp_level === 'qm' && !isPlayedMatch(match)).length;
-    const playableForecastCount = validatedQualForecastRows.length;
+    const futureMatchCount = activePredictorMatches.filter(match => (match.comp_level === 'pm' || match.comp_level === 'qm') && !isPlayedMatch(match)).length;
+    const playableForecastCount = activePredictions.length;
     const missionRows: Array<{
       key: ScoutingMissionKey;
       count: number;
@@ -7850,7 +7832,7 @@ export default function AdminV4View() {
 
         <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-7">
           <SummaryCard label="Known Teams" value={allKnownTeams.length} />
-          <SummaryCard label="Future Quals" value={futureMatchCount} />
+          <SummaryCard label="Future Matches" value={futureMatchCount} />
           <SummaryCard label="Forecasts" value={playableForecastCount} />
           <SummaryCard label="Pre Evidence" value={preScoutEvidenceTeamCount} />
           <SummaryCard label="Ranges Ready" value={ppaReadinessSummary.shapedInsights} />

@@ -141,6 +141,7 @@ if (adminV4Asset) {
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
+    'Future Matches',
     'Prediction checkpoint',
     'Save snapshot',
     'demo-proof',
