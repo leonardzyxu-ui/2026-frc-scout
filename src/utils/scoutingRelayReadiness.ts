@@ -6,6 +6,7 @@ export interface ScoutingRelayProvider {
   role: string;
   defaultBaseUrl: string;
   healthPath: string;
+  expectedService: string;
   detail: string;
 }
 
@@ -26,6 +27,7 @@ export const SCOUTING_RELAY_PROVIDERS: ScoutingRelayProvider[] = [
     role: 'Primary head-scout alert relay',
     defaultBaseUrl: 'https://the-button.onrender.com',
     healthPath: '/health',
+    expectedService: 'the-button',
     detail: 'Fast HTTP/WebSocket path for approved devices to reach the receiver app.'
   },
   {
@@ -34,6 +36,7 @@ export const SCOUTING_RELAY_PROVIDERS: ScoutingRelayProvider[] = [
     role: 'Backup encrypted chat relay',
     defaultBaseUrl: 'https://directchat-relay.onrender.com',
     healthPath: '/health',
+    expectedService: 'directchat-relay',
     detail: 'Encrypted envelope relay with identity and WebSocket endpoints.'
   }
 ];
@@ -56,14 +59,20 @@ export async function checkScoutingRelayHealth(
     });
     const payload = await response.json().catch(() => ({})) as { service?: string };
     const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const service = payload?.service || 'unknown service';
+    const serviceMatches = service === provider.expectedService;
     return {
       key: provider.key,
-      ok: response.ok && Boolean(payload?.service),
+      ok: response.ok && serviceMatches,
       status: response.status,
       latencyMs: Math.max(0, Math.round(finishedAt - startedAt)),
-      service: payload?.service || 'unknown service',
+      service,
       checkedAt: Date.now(),
-      error: response.ok ? '' : `HTTP ${response.status}`
+      error: response.ok
+        ? serviceMatches
+          ? ''
+          : `Wrong service: ${service}`
+        : `HTTP ${response.status}`
     };
   } catch (error) {
     const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();

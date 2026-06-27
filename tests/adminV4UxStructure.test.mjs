@@ -1263,3 +1263,16 @@ test('scout-facing screens keep model and offline export details deliberate', ()
     assert.doesNotMatch(source, /bg-gradient|shadow-xl|shadow-2xl|shadow-emerald-900|shadow-cyan-900|shadow-violet-950/);
   });
 });
+
+test('scouting relay health checks require the expected service identity', () => {
+  const relaySource = readFileSync('src/utils/scoutingRelayReadiness.ts', 'utf8');
+  const readinessSource = readFileSync('scripts/scouting-competition-readiness.mjs', 'utf8');
+
+  assert.match(relaySource, /expectedService: 'the-button'/);
+  assert.match(relaySource, /expectedService: 'directchat-relay'/);
+  assert.match(relaySource, /service === provider\.expectedService/);
+  assert.match(relaySource, /Wrong service: \$\{service\}/);
+  assert.match(readinessSource, /'https:\/\/the-button\.onrender\.com\/health', 'the-button'/);
+  assert.match(readinessSource, /'https:\/\/directchat-relay\.onrender\.com\/health', 'directchat-relay'/);
+  assert.match(readinessSource, /wrong service \$\{service \|\| 'missing'\}; expected \$\{expectedService\}/);
+});

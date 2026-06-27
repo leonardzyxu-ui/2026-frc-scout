@@ -109,10 +109,26 @@ const requireAssetText = async (label, assetPath) => {
   return ok ? result.body : '';
 };
 
-const relayHealth = async (label, url) => {
+const relayHealth = async (label, url, expectedService) => {
   const result = await fetchText(url, shortTimeoutMs);
-  const ok = result.ok && result.status >= 200 && result.status < 300;
-  addCheck(label, ok, httpDetail(result), false);
+  const httpOk = result.ok && result.status >= 200 && result.status < 300;
+  let service = '';
+  if (httpOk) {
+    try {
+      const payload = JSON.parse(result.body);
+      service = String(payload?.service || '');
+    } catch {
+      service = '';
+    }
+  }
+  const serviceOk = Boolean(expectedService) ? service === expectedService : true;
+  const ok = httpOk && serviceOk;
+  const detail = httpOk
+    ? serviceOk
+      ? `${httpDetail(result)} service ${service || 'unknown'}`
+      : `${httpDetail(result)} wrong service ${service || 'missing'}; expected ${expectedService}`
+    : httpDetail(result);
+  addCheck(label, ok, detail, false);
   return ok;
 };
 
@@ -210,8 +226,8 @@ if (adminV2Asset) {
   ]);
 }
 
-const buttonOk = await relayHealth('Primary relay health: The Button', 'https://the-button.onrender.com/health');
-const directChatOk = await relayHealth('Backup relay health: DirectChat', 'https://directchat-relay.onrender.com/health');
+const buttonOk = await relayHealth('Primary relay health: The Button', 'https://the-button.onrender.com/health', 'the-button');
+const directChatOk = await relayHealth('Backup relay health: DirectChat', 'https://directchat-relay.onrender.com/health', 'directchat-relay');
 addCheck(
   'At least one relay is reachable',
   buttonOk || directChatOk,
