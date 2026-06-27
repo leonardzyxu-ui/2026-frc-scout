@@ -1010,11 +1010,13 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(headScoutStatusSource, /Morning operating cues/);
   assert.match(headScoutStatusSource, /Admin V4:/);
   assert.match(headScoutStatusSource, /adminv2\/prediction-vs-actual/);
+  assert.match(headScoutStatusSource, /Reports -> Prediction Ledger Closeout/);
   assert.match(headScoutStatusSource, /scouting-competition-readiness\.mjs/);
   assert.doesNotMatch(headScoutStatusSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(overnightReport, /After our overnight work/);
   assert.match(overnightReport, /competition operating system/);
   assert.match(overnightReport, /npm run check:head-scout/);
+  assert.match(overnightReport, /Reports -> Prediction Ledger Closeout/);
   assert.match(overnightReport, /The Button primary relay: HTTP 404/);
   assert.match(overnightReport, /DirectChat backup relay: HTTP 200/);
   assert.match(completionStatus, /Current Local Evidence/);

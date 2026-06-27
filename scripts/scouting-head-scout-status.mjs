@@ -132,6 +132,6 @@ if (latestCi) {
 console.log('');
 console.log('Morning operating cues');
 console.log('- Open Admin V4 -> Now, set the Competition Phase, then follow the highlighted action.');
-console.log('- Before each match block, use Data -> Model Trust -> Save Forecast Snapshot, then export the full evidence workbook.');
+console.log('- Before each match block, use Now -> Prediction checkpoint or Reports -> Prediction Ledger Closeout, then save a Forecast Snapshot and export the full evidence workbook.');
 console.log('- During alliance selection, use Pick List -> Live Pick Status Entry immediately after each public pick.');
 console.log('- Use DirectChat relay drafts if The Button still returns 404.');

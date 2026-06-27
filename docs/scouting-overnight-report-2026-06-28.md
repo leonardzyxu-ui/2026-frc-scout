@@ -15,7 +15,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 - Save deliberate Forecast Snapshot checkpoints and export a full evidence workbook with a Forecast Ledger.
 - Restore Admin V2's legacy Prediction vs Actual graph directly at `/adminv2/prediction-vs-actual`.
 - Use fast alliance-selection status entry for Our Pick, Taken, Declined, Unavailable, and Clear.
-- Use Reports -> Prediction Ledger Closeout when the model lead needs the snapshot plus workbook export path in one place.
+- Use Now -> Prediction checkpoint for fast capture, or Reports -> Prediction Ledger Closeout when the model lead needs the snapshot plus workbook export path in one place.
 - Run one local morning command, `npm run check:head-scout`, for official-site readiness, Admin links, relay status, latest CI, and operating cues.
 - Use copy-only relay outbox drafts without putting relay credentials into public Firebase code.
 
