@@ -999,6 +999,8 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(packageSource, /"check:head-scout": "node scripts\/scouting-head-scout-status\.mjs"/);
   assert.match(headScoutStatusSource, /Head Scout Status/);
   assert.match(headScoutStatusSource, /Morning operating cues/);
+  assert.match(headScoutStatusSource, /Admin V4:/);
+  assert.match(headScoutStatusSource, /adminv2\/prediction-vs-actual/);
   assert.match(headScoutStatusSource, /scouting-competition-readiness\.mjs/);
   assert.doesNotMatch(headScoutStatusSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(completionStatus, /Current Local Evidence/);

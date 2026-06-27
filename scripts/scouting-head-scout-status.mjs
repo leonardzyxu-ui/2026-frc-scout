@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const commandTimeoutMs = Number(process.env.SCOUTING_STATUS_TIMEOUT_MS || 30000);
+const siteBaseUrl = (process.env.SCOUTING_BASE_URL || 'https://scout-rebuilt-2026.web.app').replace(/\/$/, '');
 
 const runCommand = async (command, args, options = {}) => {
   try {
@@ -102,6 +103,8 @@ console.log(`Generated: ${now.toLocaleString()}`);
 console.log(`Branch: ${branch}`);
 console.log(`Commit: ${firstLine(commitResult.stdout) || 'unknown'}`);
 console.log(`Working tree: ${summarizeWorkingTree(statusResult.stdout)}`);
+console.log(`Admin V4: ${siteBaseUrl}/adminv4`);
+console.log(`Admin V2 prediction graph: ${siteBaseUrl}/adminv2/prediction-vs-actual`);
 console.log('');
 console.log(`Official site: ${readiness.ready ? 'READY' : 'NEEDS ATTENTION'} (${readiness.okCount} live checks passed)`);
 if (readiness.adminV2) console.log(`- ${readiness.adminV2}`);
