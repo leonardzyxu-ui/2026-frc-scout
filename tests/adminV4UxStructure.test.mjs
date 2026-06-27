@@ -292,6 +292,14 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(pickListSource, /Full Live Board/);
   assert.match(pickListSource, /Undo Status/);
   assert.match(pickListSource, /Status Menu/);
+  assert.match(pickListSource, /Live Pick Status Entry/);
+  assert.match(pickListSource, /onQuickStatusChange/);
+  assert.match(pickListSource, /Uses the same confirm and undo path as row status menus/);
+  assert.match(pickListSource, /Picked by, e\.g\. A3/);
+  assert.match(pickListSource, /applyQuickStatus\('picked', ownAllianceLabel\)/);
+  assert.match(pickListSource, /Status change canceled/);
+  assert.match(adminSource, /handleQuickPickStatusChange/);
+  assert.match(adminSource, /return false/);
   assert.match(pickListSource, /pickListMeetingMode \? \(/);
   assert.match(dataPipelineSource, /Collection Pipeline/);
   assert.match(dataPipelineSource, /SCOUTING_USE_MOMENTS/);

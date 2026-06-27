@@ -4089,9 +4089,10 @@ export default function AdminV4View() {
       confirmLabel: 'Update Pick Status',
       tone: status === 'unavailable' ? 'rose' : status === 'declined' ? 'amber' : 'emerald'
     }))) {
-      return;
+      return false;
     }
     updatePickStatus(teamNumber, status, pickedBy);
+    return true;
   };
 
   const undoLastPickStatusChange = () => {
@@ -7627,6 +7628,15 @@ export default function AdminV4View() {
         </div>
       </details>
     );
+    const handleQuickPickStatusChange = async (
+      teamNumber: string,
+      status: AlliancePickRecommendation['status'],
+      pickedBy = ''
+    ) => {
+      const sanitizedTeamNumber = sanitizeTeamNumber(teamNumber);
+      if (!sanitizedTeamNumber) return false;
+      return requestPickStatusChange(sanitizedTeamNumber, status, pickedBy);
+    };
     const buildPickListScoutTask = (row: AlliancePickRecommendation): ScoutWorkItem => {
       const status = teamEvidenceByTeam[row.teamNumber];
       const insight = ppaInsightsByTeam[row.teamNumber] || null;
@@ -7685,7 +7695,7 @@ export default function AdminV4View() {
           topAvailableTeam: topAvailableRows[0]?.teamNumber || 'None'
         }}
         decisionCue={pickListDecisionCue}
-	        selectedAllianceShape={<PpaAllianceBrief title="Current Alliance Shape" summary={selectedAllianceSummary} accentClass="text-amber-100" />}
+        selectedAllianceShape={<PpaAllianceBrief title="Current Alliance Shape" summary={selectedAllianceSummary} accentClass="text-amber-100" />}
         selectedAllianceTeams={selectedAllianceTeams}
         otherPickedRows={otherPickedRows}
         pickLanes={pickLanes}
@@ -7710,6 +7720,7 @@ export default function AdminV4View() {
         renderPpaMiniShape={row => (
           <PpaMiniShape insight={ppaInsightsByTeam[row.teamNumber] || null} fallbackRating={row.score} />
         )}
+        onQuickStatusChange={handleQuickPickStatusChange}
         onUndoStatus={undoLastPickStatusChange}
         onToggleMeetingMode={() => setPickListMeetingMode(previous => !previous)}
         onSetAllianceSeed={setAllianceSeed}

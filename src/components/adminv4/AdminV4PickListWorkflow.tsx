@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Info, ListChecks } from 'lucide-react';
 import { AlliancePickRecommendation } from '../../types';
+import { sanitizeAdminV4TeamNumber } from '../../utils/adminV4TeamSearch';
 import { PpaInsight } from '../../utils/ppaInsights';
 import { AdminButton, AdminInput, AdminSurface } from './AdminV4Primitives';
 import { PlainStatTeachingStrip } from './AdminV4StatControls';
@@ -45,6 +46,7 @@ export function AdminV4PickListWorkflow({
   getStatusClass,
   renderPickStatusActions,
   renderPpaMiniShape,
+  onQuickStatusChange,
   onUndoStatus,
   onToggleMeetingMode,
   onSetAllianceSeed,
@@ -79,6 +81,7 @@ export function AdminV4PickListWorkflow({
   getStatusClass: (status: AlliancePickRecommendation['status']) => string;
   renderPickStatusActions: (row: AlliancePickRecommendation, size?: 'compact' | 'table') => React.ReactNode;
   renderPpaMiniShape: (row: AlliancePickRecommendation) => React.ReactNode;
+  onQuickStatusChange: (teamNumber: string, status: AlliancePickRecommendation['status'], pickedBy?: string) => boolean | Promise<boolean>;
   onUndoStatus: () => void;
   onToggleMeetingMode: () => void;
   onSetAllianceSeed: (seed: number) => void;
@@ -86,6 +89,37 @@ export function AdminV4PickListWorkflow({
   onOpenWiki: () => void;
   onOpenInfoMenu: (event: React.MouseEvent) => void;
 }) {
+  const [quickStatusTeam, setQuickStatusTeam] = React.useState('');
+  const [quickStatusPickedBy, setQuickStatusPickedBy] = React.useState('');
+  const [quickStatusMessage, setQuickStatusMessage] = React.useState('');
+  const quickStatusTeamNumber = sanitizeAdminV4TeamNumber(quickStatusTeam);
+  const applyQuickStatus = async (
+    status: AlliancePickRecommendation['status'],
+    pickedBy = ''
+  ) => {
+    if (!quickStatusTeamNumber) {
+      setQuickStatusMessage('Enter a team number before changing live pick status.');
+      return;
+    }
+    const didApply = await onQuickStatusChange(quickStatusTeamNumber, status, pickedBy);
+    if (!didApply) {
+      setQuickStatusMessage('Status change canceled.');
+      return;
+    }
+    const actionLabel =
+      status === 'available'
+        ? 'cleared'
+        : status === 'picked'
+          ? pickedBy
+            ? `marked for ${pickedBy}`
+            : 'marked taken'
+          : status === 'declined'
+            ? 'marked declined'
+            : 'marked unavailable';
+    setQuickStatusMessage(`Team ${quickStatusTeamNumber} ${actionLabel}.`);
+    setQuickStatusTeam('');
+  };
+
   const pickListControls = (
     <div className="flex flex-wrap items-center gap-2">
       {pickListMeetingMode && (
@@ -129,6 +163,45 @@ export function AdminV4PickListWorkflow({
           </span>
         </button>
         <div className="mt-4">{pickListControls}</div>
+        <div className="admin-g2-sm mt-4 border border-amber-400/25 bg-slate-950/75 p-4">
+          <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-200">Live Pick Status Entry</div>
+              <div className="mt-1 text-sm font-black text-white">Type a team, then mark the board instantly.</div>
+            </div>
+            <div className="text-[11px] font-semibold text-slate-500">Uses the same confirm and undo path as row status menus.</div>
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(120px,0.75fr)_minmax(120px,0.75fr)_repeat(4,auto)]">
+            <AdminInput
+              value={quickStatusTeam}
+              onChange={event => setQuickStatusTeam(event.target.value)}
+              placeholder="Team"
+              inputMode="numeric"
+              aria-label="Live pick status team number"
+            />
+            <AdminInput
+              value={quickStatusPickedBy}
+              onChange={event => setQuickStatusPickedBy(event.target.value)}
+              placeholder="Picked by, e.g. A3"
+              aria-label="Live pick status picked by alliance"
+            />
+            <AdminButton tone="emerald" onClick={() => void applyQuickStatus('picked', ownAllianceLabel)}>
+              Our Pick
+            </AdminButton>
+            <AdminButton tone="slate" onClick={() => void applyQuickStatus('picked', quickStatusPickedBy.trim() || 'Other')}>
+              Taken
+            </AdminButton>
+            <AdminButton tone="rose" onClick={() => void applyQuickStatus('unavailable')}>
+              Unavailable
+            </AdminButton>
+            <AdminButton tone="cyan" onClick={() => void applyQuickStatus('available')}>
+              Clear
+            </AdminButton>
+          </div>
+          {quickStatusMessage && (
+            <div className="mt-3 text-xs font-semibold text-amber-100/80">{quickStatusMessage}</div>
+          )}
+        </div>
         <details className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/75 p-3">
           <summary className="cursor-pointer list-none text-sm font-black text-slate-100">
             Show Pick-List Metric Translation

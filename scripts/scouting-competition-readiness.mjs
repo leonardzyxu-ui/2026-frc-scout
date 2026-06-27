@@ -107,6 +107,8 @@ if (adminV4Asset) {
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
+    'Live Pick Status Entry',
+    'Picked by, e.g. A3',
     'Relay Readiness',
     'Relay Outbox Drafts',
     'Copy-Only Head Scout Alerts',
