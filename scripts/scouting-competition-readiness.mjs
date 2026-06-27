@@ -79,6 +79,13 @@ const requireMarkers = (label, source, markers) => {
   addCheck(label, missing.length === 0, missing.length === 0 ? markers.join(', ') : `Missing: ${missing.join(', ')}`);
 };
 
+const requireAssetText = async (label, assetPath) => {
+  const result = await fetchText(cacheBusted(`/${assetPath}`), Math.max(timeoutMs, 20000));
+  const ok = result.ok && result.status >= 200 && result.status < 300;
+  addCheck(label, ok, ok ? `HTTP ${result.status}` : `HTTP ${result.status || 'failed'} ${result.error || ''}`.trim());
+  return ok ? result.body : '';
+};
+
 const relayHealth = async (label, url) => {
   const result = await fetchText(url, shortTimeoutMs);
   const ok = result.ok && result.status >= 200 && result.status < 300;
@@ -104,8 +111,8 @@ addCheck('Admin V4 model asset resolved', Boolean(adminV4ModelAsset), adminV4Mod
 addCheck('Admin V2 asset resolved', Boolean(adminV2Asset), adminV2Asset || 'Missing AdminMainframeView asset');
 
 if (adminV4Asset) {
-  const asset = await fetchText(`${baseUrl}/${adminV4Asset}`);
-  requireMarkers('Admin V4 competition cockpit markers', asset.body, [
+  const assetBody = await requireAssetText('Admin V4 asset fetched', adminV4Asset);
+  if (assetBody) requireMarkers('Admin V4 competition cockpit markers', assetBody, [
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
@@ -116,7 +123,7 @@ if (adminV4Asset) {
     'Copy-Only Head Scout Alerts',
     'Local Drafts Only'
   ]);
-  requireMarkers('Admin V4 Forecast Ledger export markers', asset.body, [
+  if (assetBody) requireMarkers('Admin V4 Forecast Ledger export markers', assetBody, [
     'Forecast Ledger',
     'forecastSnapshots',
     'Row Kind',
@@ -125,8 +132,8 @@ if (adminV4Asset) {
 }
 
 if (adminV4PickListAsset) {
-  const asset = await fetchText(`${baseUrl}/${adminV4PickListAsset}`);
-  requireMarkers('Admin V4 pick-list live status markers', asset.body, [
+  const assetBody = await requireAssetText('Admin V4 pick-list asset fetched', adminV4PickListAsset);
+  if (assetBody) requireMarkers('Admin V4 pick-list live status markers', assetBody, [
     'Live Pick Status Entry',
     'Picked by, e.g. A3',
     'Declined',
@@ -136,8 +143,8 @@ if (adminV4PickListAsset) {
 }
 
 if (adminV4ModelAsset) {
-  const asset = await fetchText(`${baseUrl}/${adminV4ModelAsset}`);
-  requireMarkers('Admin V4 model proof markers', asset.body, [
+  const assetBody = await requireAssetText('Admin V4 model asset fetched', adminV4ModelAsset);
+  if (assetBody) requireMarkers('Admin V4 model proof markers', assetBody, [
     'Prediction Evidence Is Time-Stamped',
     'Save Forecast Snapshot',
     'forecast snapshots',
@@ -146,8 +153,8 @@ if (adminV4ModelAsset) {
 }
 
 if (adminV2Asset) {
-  const asset = await fetchText(`${baseUrl}/${adminV2Asset}`);
-  requireMarkers('Admin V2 legacy predictor markers', asset.body, [
+  const assetBody = await requireAssetText('Admin V2 asset fetched', adminV2Asset);
+  if (assetBody) requireMarkers('Admin V2 legacy predictor markers', assetBody, [
     'Admin V2',
     'Prediction vs Actual',
     'TBA API Key'
