@@ -1061,6 +1061,8 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(opsWatchSource, /SCOUTING_TBA_AUTH_KEY/);
   assert.match(opsWatchSource, /TBA_AUTH_KEY/);
   assert.match(opsWatchSource, /scouting-head-scout-status\.mjs/);
+  assert.match(opsWatchSource, /Relay path:/);
+  assert.match(opsWatchSource, /Use DirectChat backup/);
   assert.match(opsWatchSource, /display notification/);
   assert.doesNotMatch(opsWatchSource, /POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(morningReportSource, /Scouting Morning Business Report - June 28, 2026/);

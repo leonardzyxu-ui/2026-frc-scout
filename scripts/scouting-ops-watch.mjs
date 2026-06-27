@@ -99,6 +99,14 @@ const parseStatus = (stdout) => {
   };
 };
 
+const getRelayDecision = ({ theButton, directChat }) => {
+  const primaryReady = /\bHTTP 2\d\d\b/.test(theButton) || /\bok\b/i.test(theButton);
+  const backupReady = /\bHTTP 2\d\d\b/.test(directChat) || /\bok\b/i.test(directChat);
+  if (primaryReady) return 'Use The Button primary; keep DirectChat ready as backup.';
+  if (backupReady) return 'Use DirectChat backup; The Button is not healthy.';
+  return 'No relay is healthy; stay on Firebase/local backup workflow.';
+};
+
 const getMatchOrder = (match) => {
   const order = { pm: 0, qm: 1, ef: 2, qf: 3, sf: 4, f: 5 };
   return {
@@ -175,6 +183,7 @@ const buildSnapshot = async () => {
   const statusResult = await runCommand(process.execPath, [join('scripts', 'scouting-head-scout-status.mjs')]);
   const parsed = parseStatus(statusResult.stdout);
   const tba = await fetchTbaSummary();
+  const relayDecision = getRelayDecision(parsed);
   const healthy =
     statusResult.ok &&
     parsed.officialSite.includes('READY') &&
@@ -197,6 +206,7 @@ const buildSnapshot = async () => {
     fingerprint,
     statusCommandOk: statusResult.ok,
     statusCommandError: statusResult.error || statusResult.stderr || '',
+    relayDecision,
     ...parsed,
     tba
   };
@@ -214,6 +224,7 @@ const printSnapshot = (snapshot) => {
   console.log(snapshot.workingTree || 'Working tree: unavailable');
   if (snapshot.theButton) console.log(snapshot.theButton);
   if (snapshot.directChat) console.log(snapshot.directChat);
+  console.log(`Relay path: ${snapshot.relayDecision}`);
   console.log(snapshot.tba.detail);
   if (snapshot.adminV4) console.log(snapshot.adminV4);
   if (snapshot.adminV2) console.log(snapshot.adminV2);
