@@ -163,6 +163,9 @@ if (adminV4PickListAsset) {
     'Live Pick Status Entry',
     'Picked by, e.g. A3',
     'Declined',
+    'Live Pick Call Sheet',
+    'Primary choice',
+    'Why now',
     'Status change canceled',
     'Uses the same confirm and undo path as row status menus'
   ]);

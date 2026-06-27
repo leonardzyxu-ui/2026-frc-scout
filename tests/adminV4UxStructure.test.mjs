@@ -301,6 +301,12 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(pickListSource, /Picked by, e\.g\. A3/);
   assert.match(pickListSource, /applyQuickStatus\('picked', ownAllianceLabel\)/);
   assert.match(pickListSource, /applyQuickStatus\('declined'\)/);
+  assert.match(pickListSource, /Live Pick Call Sheet/);
+  assert.match(pickListSource, /Primary choice/);
+  assert.match(pickListSource, /Backup choice/);
+  assert.match(pickListSource, /Swing choice/);
+  assert.match(pickListSource, /Why now/);
+  assert.match(pickListSource, /getCallSheetLens/);
   assert.match(pickListSource, /Status change canceled/);
   assert.match(adminSource, /handleQuickPickStatusChange/);
   assert.match(adminSource, /return false/);
@@ -1010,6 +1016,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(checklist, /PPA.*should appear in stat help/);
   assert.match(checklist, /npm run check:head-scout/);
   assert.match(checklist, /npm run report:morning/);
+  assert.match(checklist, /Live Pick Call Sheet/);
   assert.match(packageSource, /"check:head-scout": "node scripts\/scouting-head-scout-status\.mjs"/);
   assert.match(packageSource, /"report:morning": "node scripts\/scouting-morning-report\.mjs"/);
   assert.match(headScoutStatusSource, /Head Scout Status/);
@@ -1025,12 +1032,14 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(morningReportSource, /Users can now/);
   assert.match(morningReportSource, /Blocked or watch/);
   assert.match(morningReportSource, /competition operating system/);
+  assert.match(morningReportSource, /Live Pick Call Sheet/);
   assert.match(morningReportSource, /copy-only relay drafts/);
   assert.doesNotMatch(morningReportSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(readinessSource, /SCOUTING_READINESS_FETCH_RETRIES/);
   assert.match(readinessSource, /after retry/);
   assert.match(overnightReport, /After our overnight work/);
   assert.match(overnightReport, /competition operating system/);
+  assert.match(overnightReport, /Live Pick Call Sheet/);
   assert.match(overnightReport, /npm run check:head-scout/);
   assert.match(overnightReport, /npm run report:morning/);
   assert.match(overnightReport, /Reports -> Prediction Ledger Closeout/);

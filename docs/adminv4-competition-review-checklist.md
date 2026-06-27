@@ -61,6 +61,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 - Check role fit, expected range, uncertainty, tail risk, coverage, and defense impact before moving a team up the list.
 - Keep our team number and alliance seed current before trusting alliance recommendations.
 - During live alliance selection, update picked/unavailable team statuses immediately after each selection, then recheck the next best available team.
+- Use the Live Pick Call Sheet first; it should show the primary choice, backup choice, swing choice, why-now reason, and status controls after every live status change.
 - If a model recommendation conflicts with a clear drive-team observation, record the reason in strategy notes rather than silently overriding the model.
 
 ## Data and Safety QA
