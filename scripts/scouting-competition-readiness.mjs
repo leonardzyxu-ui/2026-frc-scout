@@ -107,7 +107,10 @@ if (adminV4Asset) {
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
-    'Relay Readiness'
+    'Relay Readiness',
+    'Relay Outbox Drafts',
+    'Copy-Only Head Scout Alerts',
+    'Local Drafts Only'
   ]);
   requireMarkers('Admin V4 Forecast Ledger export markers', asset.body, [
     'Forecast Ledger',
