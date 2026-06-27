@@ -158,7 +158,9 @@ if (adminV4Asset) {
     'Forecast Scope',
     'Match Level',
     'Match Title',
-    'Practice/Qualification'
+    'Practice/Qualification',
+    'Unvalidated ',
+    'fallback before event-local backtests'
   ]);
 }
 

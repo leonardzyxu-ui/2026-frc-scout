@@ -68,6 +68,37 @@ const sumAllianceBonusMetric = (
 const sortMatchesByMatchNumber = (matches: TBAMatch[]) =>
   [...matches].sort((left, right) => left.match_number - right.match_number || left.key.localeCompare(right.key));
 
+const FORECAST_MATCH_LEVEL_ORDER: Record<string, number> = {
+  pm: 0,
+  qm: 1
+};
+
+const isPracticeOrQualificationMatch = (match: TBAMatch) =>
+  match.comp_level === 'pm' || match.comp_level === 'qm';
+
+const sortForecastMatches = (matches: TBAMatch[]) =>
+  [...matches].sort((left, right) => {
+    const levelDelta = (FORECAST_MATCH_LEVEL_ORDER[left.comp_level] ?? 99) - (FORECAST_MATCH_LEVEL_ORDER[right.comp_level] ?? 99);
+    if (levelDelta !== 0) return levelDelta;
+    return left.match_number - right.match_number || left.key.localeCompare(right.key);
+  });
+
+const buildRatingForecasts = (
+  matches: TBAMatch[],
+  ratings: Record<string, number>
+) =>
+  Object.fromEntries(
+    matches.map(match => {
+      const redTeams = match.alliances.red.team_keys.map(normalizeTeamKey);
+      const blueTeams = match.alliances.blue.team_keys.map(normalizeTeamKey);
+      return [match.key, {
+        redScore: scoreAlliance(redTeams, ratings),
+        blueScore: scoreAlliance(blueTeams, ratings),
+        lowConfidence: [...redTeams, ...blueTeams].some(team => !(team in ratings))
+      }];
+    })
+  );
+
 const normalizeMatchKey = (matchKey: string) => {
   const normalized = matchKey.trim().toLowerCase();
   const parts = normalized.split('_');
@@ -369,8 +400,8 @@ const buildRidgeFuturePredictions = ({
   includeEpa: boolean;
 }) => {
   const playedQuals = sortMatchesByMatchNumber(matches.filter(match => match.comp_level === 'qm' && isPlayedMatch(match)));
-  const futureQuals = sortMatchesByMatchNumber(matches.filter(match => match.comp_level === 'qm' && !isPlayedMatch(match)));
-  const maxMatchNumber = Math.max(1, ...matches.filter(match => match.comp_level === 'qm').map(match => match.match_number));
+  const futureForecastMatches = sortForecastMatches(matches.filter(match => isPracticeOrQualificationMatch(match) && !isPlayedMatch(match)));
+  const maxMatchNumber = Math.max(1, ...matches.filter(isPracticeOrQualificationMatch).map(match => match.match_number));
   const trainingSamples = playedQuals.map(match => ({
     features: buildRidgeFeatureVector({
       match,
@@ -391,7 +422,7 @@ const buildRidgeFuturePredictions = ({
   const safeAllianceAverage = Number.isFinite(allianceAverage) && allianceAverage > 0 ? allianceAverage : 0;
 
   return Object.fromEntries(
-    futureQuals.map(match => {
+    futureForecastMatches.map(match => {
       const { features, missingSignal } = buildRidgeFeatureVector({
         match,
         playedQuals,
@@ -763,11 +794,18 @@ export const buildBestModelFutureForecasts = ({
 }) => {
   const bestModel = modelResults.find(result => result.matchesTested > 0 && result.eligibleForPromotion) ||
     modelResults.find(result => result.matchesTested > 0);
+  const futureForecastMatches = sortForecastMatches(matches.filter(match => isPracticeOrQualificationMatch(match) && !isPlayedMatch(match)));
   if (!bestModel) {
+    const fallbackModelName = ['Pre-Match Blend', 'OPR', 'PPC', 'EPA'].find(modelName => Object.keys(ratingLookups[modelName] || {}).length > 0);
+    const fallbackRatings = fallbackModelName ? ratingLookups[fallbackModelName] || {} : {};
     return {
-      modelName: 'Selected Team Rating',
-      modelSource: 'No validated model yet',
-      forecasts: {} as Record<string, { redScore: number; blueScore: number; lowConfidence: boolean }>
+      modelName: fallbackModelName || 'Selected Team Rating',
+      modelSource: fallbackModelName
+        ? `Unvalidated ${fallbackModelName} fallback before event-local backtests`
+        : 'No validated model or rating lookup yet',
+      forecasts: fallbackModelName
+        ? buildRatingForecasts(futureForecastMatches, fallbackRatings)
+        : {} as Record<string, { redScore: number; blueScore: number; lowConfidence: boolean }>
     };
   }
 
@@ -786,21 +824,10 @@ export const buildBestModelFutureForecasts = ({
   }
 
   const ratings = ratingLookups[bestModel.modelName] || {};
-  const futureQuals = sortMatchesByMatchNumber(matches.filter(match => match.comp_level === 'qm' && !isPlayedMatch(match)));
   return {
     modelName: bestModel.modelName,
     modelSource: bestModel.sourceLabel,
-    forecasts: Object.fromEntries(
-      futureQuals.map(match => {
-        const redTeams = match.alliances.red.team_keys.map(normalizeTeamKey);
-        const blueTeams = match.alliances.blue.team_keys.map(normalizeTeamKey);
-        return [match.key, {
-          redScore: scoreAlliance(redTeams, ratings),
-          blueScore: scoreAlliance(blueTeams, ratings),
-          lowConfidence: [...redTeams, ...blueTeams].some(team => !(team in ratings))
-        }];
-      })
-    )
+    forecasts: buildRatingForecasts(futureForecastMatches, ratings)
   };
 };
 

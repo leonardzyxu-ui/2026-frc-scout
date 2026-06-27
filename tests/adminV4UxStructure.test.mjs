@@ -112,6 +112,10 @@ test('Admin V4 scout assignment optimizer plans for same-team continuity across 
   assert.match(strategyBrainSource, /rebalanceLoads/);
   assert.match(strategyBrainSource, /improveContinuityWithSwaps/);
   assert.match(strategyBrainSource, /Team continuity optimization/);
+  assert.match(strategyBrainSource, /isPracticeOrQualificationMatch/);
+  assert.match(strategyBrainSource, /sortForecastMatches/);
+  assert.match(strategyBrainSource, /buildRatingForecasts/);
+  assert.match(strategyBrainSource, /Unvalidated \$\{fallbackModelName\} fallback before event-local backtests/);
   assert.doesNotMatch(strategyBrainSource, /Repeated exposure optimization/);
   assert.match(staffingSource, /whole schedule/);
   assert.match(staffingSource, /same-team continuity/);

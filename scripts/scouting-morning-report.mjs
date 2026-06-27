@@ -71,6 +71,7 @@ console.log('');
 console.log('Users can now:');
 console.log('- Start the day by opening Admin V4, choosing the competition phase, and following the Now-screen next action.');
 console.log('- Before each practice or qualification match block, save a prediction checkpoint and export the full evidence workbook for later model accuracy review.');
+console.log('- Capture early practice forecasts from the best available rating source before event-local backtests exist.');
 console.log('- During alliance selection, mark public pick status immediately and keep the pick list mathematically current.');
 console.log('- Work the Live Pick Call Sheet from top to bottom as teams are taken, declined, or marked unavailable.');
 console.log('- Use the hidden proof shortcut to spotlight Model Demo Proof in Reports without visible judge-mode wording.');
