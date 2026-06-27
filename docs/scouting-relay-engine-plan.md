@@ -1,6 +1,6 @@
 # Scouting Relay Engine Plan
 
-Last reviewed: 2026-06-27 22:58 CST.
+Last reviewed: 2026-06-27 23:35 CST.
 
 This note describes how Admin V4 should use Leo's existing relay projects for faster head-scout coordination during competition. It is a design note, not a secret store. Do not put relay passwords, device secrets, receiver tokens, DirectChat safety codes, Firebase credentials, or TBA keys in this file or in public client code.
 
@@ -15,7 +15,7 @@ npm run check:competition
 ```
 
 - Last live readiness run passed all critical scouting-site checks.
-- The Button primary relay timed out during the last check.
+- The Button primary relay returned HTTP 404 during the last check.
 - DirectChat backup relay responded with HTTP 200 during the last check.
 
 ## Relay Priority
@@ -65,7 +65,10 @@ Scouting use:
 
 Current limitation:
 
-- `https://the-button.onrender.com/health` timed out through the proxy in the last readiness run. Treat it as designed but currently not reliable until the Render service is warmed/fixed.
+- Local source confirms `relay-web/server/render-server.js` serves `GET /health` with `service: "the-button"`.
+- `https://the-button.onrender.com/health` currently returns a Django-style HTTP 404 page, which does not match the local Node relay source.
+- `https://the-button-relay-web.onrender.com/health` also returns HTTP 404.
+- Treat The Button as designed but not currently deployed/reachable as the expected relay target. The next fix is Render service verification: confirm the public URL, root service, and deployed commit for the `relay-web` Node app.
 
 ## DirectChat Backup Relay
 
@@ -159,7 +162,7 @@ Only after Stage 2 is stable:
 ## Competition-Morning Checklist
 
 - Run `npm run check:competition` with the ClashX proxy env.
-- If The Button is still timing out but DirectChat is green, use DirectChat as backup and keep The Button out of the critical path.
+- If The Button is still returning HTTP 404 but DirectChat is green, use DirectChat as backup and keep The Button out of the critical path.
 - Before practice matches, open Admin V4 Settings and confirm Relay Readiness.
 - Before alliance selection, export the full evidence workbook, then use relay alerts only for coordination.
 - If both relays fail, keep working through Firebase/local backups and record the relay outage in the event notes.
