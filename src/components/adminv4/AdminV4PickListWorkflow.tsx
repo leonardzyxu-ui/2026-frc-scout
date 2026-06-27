@@ -139,13 +139,36 @@ export function AdminV4PickListWorkflow({
       </AdminButton>
     </div>
   );
-  const callSheetRows = topAvailableRows.slice(0, 3);
-  const callSheetLabels = ['Primary choice', 'Backup choice', 'Swing choice'];
+  const blockerCandidate = topAvailableRows
+    .slice(3)
+    .map(row => {
+      const insight = ppaInsightsByTeam[row.teamNumber];
+      const ceilingThreat = insight?.projected.ceiling ?? row.score;
+      const defenseThreat = insight?.components.defenseImpact ?? 0;
+      const floorValue = insight?.projected.floor ?? row.score;
+      return {
+        row,
+        threatScore: ceilingThreat * 0.58 + defenseThreat * 0.34 + Math.max(0, ceilingThreat - floorValue) * 0.22
+      };
+    })
+    .sort((left, right) => right.threatScore - left.threatScore)[0]?.row || null;
+  const callSheetRows = [
+    ...topAvailableRows.slice(0, 3),
+    ...(blockerCandidate ? [blockerCandidate] : [])
+  ];
+  const callSheetLabels = ['Primary choice', 'Backup choice', 'Swing choice', 'Blocker choice'];
   const getCallSheetLens = (row: AlliancePickRecommendation): AdminV4PickLane['key'] => {
     const insight = ppaInsightsByTeam[row.teamNumber];
     if (allianceSeed <= 2) return 'floor';
     if (allianceSeed >= 7) return 'ceiling';
     return (insight?.components.defenseImpact ?? 0) > 0.05 ? 'role' : 'floor';
+  };
+  const getCallSheetWhyNow = (row: AlliancePickRecommendation, label: string) => {
+    if (label === 'Blocker choice') {
+      const insight = ppaInsightsByTeam[row.teamNumber];
+      return `Opponent-denial threat: ceiling ${insight?.projected.ceiling?.toFixed(1) ?? getDecisionScore(row)}, defense ${(insight?.components.defenseImpact ?? 0).toFixed(1)}. Consider if lower alliances can weaponize them.`;
+    }
+    return getLaneReason(getCallSheetLens(row), row);
   };
 
   return (
@@ -295,15 +318,15 @@ export function AdminV4PickListWorkflow({
           title="Live Pick Call Sheet"
           description="When teams are disappearing fast, work this short list from top to bottom after each public pick."
         />
-        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+        <div className="mt-4 grid gap-3 xl:grid-cols-4">
           {callSheetRows.map((row, index) => {
             const insight = ppaInsightsByTeam[row.teamNumber];
-            const lens = getCallSheetLens(row);
+            const callSheetLabel = callSheetLabels[index] || 'Choice';
             return (
               <div key={`call-sheet-${row.teamNumber}`} className="admin-g2-sm flex h-full flex-col border border-cyan-300/20 bg-slate-950/85 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">{callSheetLabels[index]}</div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">{callSheetLabel}</div>
                     <button
                       type="button"
                       onClick={() => onOpenTeam(row.teamNumber)}
@@ -325,7 +348,7 @@ export function AdminV4PickListWorkflow({
                   </div>
                   <div className="admin-g2-sm border border-slate-800 bg-slate-900/70 px-3 py-2">
                     <span className="font-black text-white">Why now: </span>
-                    {getLaneReason(lens, row)}
+                    {getCallSheetWhyNow(row, callSheetLabel)}
                   </div>
                   <div className="admin-g2-sm border border-slate-800 bg-slate-900/70 px-3 py-2">
                     <span className="font-black text-white">Risk check: </span>

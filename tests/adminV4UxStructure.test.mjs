@@ -309,6 +309,8 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(pickListSource, /Primary choice/);
   assert.match(pickListSource, /Backup choice/);
   assert.match(pickListSource, /Swing choice/);
+  assert.match(pickListSource, /Blocker choice/);
+  assert.match(pickListSource, /Opponent-denial threat/);
   assert.match(pickListSource, /Why now/);
   assert.match(pickListSource, /getCallSheetLens/);
   assert.match(pickListSource, /Status change canceled/);

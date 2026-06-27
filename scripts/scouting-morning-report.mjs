@@ -64,7 +64,7 @@ console.log('');
 console.log('After our overnight work, the product improved in these areas:');
 console.log('1. Match-day control: Admin V4 now has explicit Practice Matches, Qualifications, and Alliance Selection Prep operating modes.');
 console.log('2. Prediction trust: the Model Trust flow can save Forecast Snapshot checkpoints and export a workbook with a Forecast Ledger for practice and qualification forecasts.');
-console.log('3. Alliance selection speed: the Pick List now has live status entry plus a Live Pick Call Sheet for the next three available choices.');
+console.log('3. Alliance selection speed: the Pick List now has live status entry plus a Live Pick Call Sheet for primary, backup, swing, and blocker choices.');
 console.log('4. Presentation value: the workspace has a hidden proof shortcut, judge-friendly model proof, and the restored Admin V2 Prediction vs Actual graph without looking like a staged demo.');
 console.log('5. Operations discipline: local status and watch commands now verify deployed routes, service-worker assets, relay health, latest CI, optional TBA event state, and morning action cues.');
 console.log('');
@@ -75,6 +75,7 @@ console.log('- Before each practice or qualification match block, save a predict
 console.log('- Capture early practice forecasts from the best available rating source before event-local backtests exist.');
 console.log('- During alliance selection, mark public pick status immediately and keep the pick list mathematically current.');
 console.log('- Work the Live Pick Call Sheet from top to bottom as teams are taken, declined, or marked unavailable.');
+console.log('- Use the Blocker choice when denying a dangerous ceiling/defense team matters more than a normal fit pick.');
 console.log('- Use the hidden proof shortcut to spotlight Model Demo Proof in Reports without visible judge-mode wording.');
 console.log('- Open Admin V2 directly for the legacy Prediction vs Actual view when showing historical model performance.');
 console.log('- Use copy-only relay drafts for head-scout alerts without putting relay secrets into Firebase client code.');

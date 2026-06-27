@@ -173,6 +173,8 @@ if (adminV4PickListAsset) {
     'Declined',
     'Live Pick Call Sheet',
     'Primary choice',
+    'Blocker choice',
+    'Opponent-denial threat',
     'Why now',
     'Status change canceled',
     'Uses the same confirm and undo path as row status menus'
