@@ -135,4 +135,5 @@ console.log('- Open Admin V4 -> Now, set the Competition Phase, then follow the 
 console.log('- Run npm run watch:head-scout for passive local monitoring; export SCOUTING_TBA_AUTH_KEY to include live TBA event polling.');
 console.log('- Before each match block, use Now -> Prediction checkpoint or Reports -> Prediction Ledger Closeout, then save a Forecast Snapshot and export the full evidence workbook.');
 console.log('- During alliance selection, use Pick List -> Live Pick Status Entry immediately after each public pick.');
+console.log('- For a fresh scouting deck background, run npm run capture:ppt-background and use output/playwright/scouting-ppt-background-analytics.png.');
 console.log('- Use DirectChat relay drafts if The Button still returns 404.');
