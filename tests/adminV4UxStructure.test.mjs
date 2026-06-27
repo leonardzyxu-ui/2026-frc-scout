@@ -1039,6 +1039,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(morningReportSource, /Blocked or watch/);
   assert.match(morningReportSource, /competition operating system/);
   assert.match(morningReportSource, /Live Pick Call Sheet/);
+  assert.match(morningReportSource, /hidden proof shortcut/);
   assert.match(morningReportSource, /copy-only relay drafts/);
   assert.doesNotMatch(morningReportSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(readinessSource, /SCOUTING_READINESS_FETCH_RETRIES/);
@@ -1046,6 +1047,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(overnightReport, /After our overnight work/);
   assert.match(overnightReport, /competition operating system/);
   assert.match(overnightReport, /Live Pick Call Sheet/);
+  assert.match(overnightReport, /hidden proof shortcut/);
   assert.match(overnightReport, /npm run check:head-scout/);
   assert.match(overnightReport, /npm run report:morning/);
   assert.match(overnightReport, /Reports -> Prediction Ledger Closeout/);
