@@ -120,6 +120,7 @@ if (adminV4Asset) {
     'Save snapshot',
     'Relay Readiness',
     'Relay Outbox Drafts',
+    'Prediction Checkpoint',
     'Copy-Only Head Scout Alerts',
     'Local Drafts Only'
   ]);

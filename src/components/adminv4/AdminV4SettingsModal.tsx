@@ -147,6 +147,11 @@ export default function AdminV4SettingsModal({
         body: `[SCOUT ${eventLabel}] Collect missing evidence now. Open Admin V4 -> Data -> Audit Rows / Collect Evidence, fix missing slots, then refresh model trust. Current source rows: ${sourceRowCount}.`
       },
       {
+        label: 'Prediction Checkpoint',
+        detail: 'Use before or after match blocks when prediction evidence needs to be preserved.',
+        body: `[SCOUT ${eventLabel}] Prediction checkpoint now. Open Admin V4 -> Now -> Prediction checkpoint, save a Forecast Snapshot in Model Trust, then export the full evidence workbook at the end of the block. Relay status: ${relayStatusSummary}.`
+      },
+      {
         label: 'Sync And Backup',
         detail: 'Use before leaving the venue, changing devices, or deploying an update.',
         body: `[SCOUT ${eventLabel}] Sync and backup checkpoint. Open Admin V4 -> Data -> Sync / Backup, push unsynced local rows, export a full local backup, and keep the Forecast Ledger workbook outside the browser.`
