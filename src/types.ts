@@ -313,6 +313,7 @@ export interface ModelFeatureSnapshot {
   id: string;
   eventKey: string;
   modelName: string;
+  modelSource?: string;
   beforeMatchKey: string;
   createdAt: number;
   featuresByTeam: Record<string, Record<string, number>>;
@@ -322,6 +323,19 @@ export interface ModelFeatureSnapshot {
     redTeams: string[];
     blueTeams: string[];
     featuresByTeam: Record<string, Record<string, number>>;
+  }>;
+  forecastSnapshots?: Array<{
+    matchKey: string;
+    matchNumber: number;
+    scheduledTime?: number | null;
+    redTeams: string[];
+    blueTeams: string[];
+    redPredictedScore?: number | null;
+    bluePredictedScore?: number | null;
+    predictedWinner?: 'Red' | 'Blue' | 'Tie';
+    lowConfidence?: boolean;
+    modelName?: string;
+    modelSource?: string;
   }>;
 }
 

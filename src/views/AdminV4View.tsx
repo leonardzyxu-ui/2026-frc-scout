@@ -1941,6 +1941,39 @@ export default function AdminV4View() {
     }),
     [activePredictorMatches, records, v4Records]
   );
+  const adminV4ForecastSnapshots = useMemo<NonNullable<ModelFeatureSnapshot['forecastSnapshots']>>(
+    () =>
+      activePredictorMatches
+        .filter(match => match.comp_level === 'qm' && !isPlayedMatch(match))
+        .sort((left, right) => left.match_number - right.match_number)
+        .map(match => {
+          const forecast = adminV4BestForecastLayer.forecasts[match.key];
+          const redPredictedScore = forecast?.redScore ?? null;
+          const bluePredictedScore = forecast?.blueScore ?? null;
+          const predictedWinner =
+            redPredictedScore == null || bluePredictedScore == null
+              ? undefined
+              : redPredictedScore === bluePredictedScore
+                ? 'Tie'
+                : redPredictedScore > bluePredictedScore
+                  ? 'Red'
+                  : 'Blue';
+          return {
+            matchKey: match.key,
+            matchNumber: match.match_number,
+            scheduledTime: match.predicted_time ?? match.time ?? null,
+            redTeams: match.alliances.red.team_keys.map(normalizeTeamKey),
+            blueTeams: match.alliances.blue.team_keys.map(normalizeTeamKey),
+            redPredictedScore,
+            bluePredictedScore,
+            predictedWinner,
+            lowConfidence: forecast?.lowConfidence ?? true,
+            modelName: adminV4BestForecastLayer.modelName,
+            modelSource: adminV4BestForecastLayer.modelSource
+          };
+        }),
+    [activePredictorMatches, adminV4BestForecastLayer]
+  );
   const adminV4DefenseImpactLookup = useMemo(
     () =>
       buildDefenseImpactLookup(
@@ -2162,10 +2195,12 @@ export default function AdminV4View() {
       id: `${eventKey}_features_${createdAt}`,
       eventKey,
       modelName: adminV4BestForecastLayer.modelName,
+      modelSource: adminV4BestForecastLayer.modelSource,
       beforeMatchKey: 'latest',
       createdAt,
       featuresByTeam: modelFeaturesByTeam,
-      matchSnapshots: adminV4FeatureMatchSnapshots
+      matchSnapshots: adminV4FeatureMatchSnapshots,
+      forecastSnapshots: adminV4ForecastSnapshots
     };
 
     let cancelled = false;
@@ -2188,7 +2223,9 @@ export default function AdminV4View() {
     };
   }, [
     adminV4BestForecastLayer.modelName,
+    adminV4BestForecastLayer.modelSource,
     adminV4FeatureMatchSnapshots,
+    adminV4ForecastSnapshots,
     adminV4ModelBacktests,
     adminV4PpaRatings,
     bestModelBacktest?.modelName,
@@ -4207,6 +4244,138 @@ export default function AdminV4View() {
             predictionLowConfidence: forecast?.lowConfidence ?? true
           };
         });
+      const predictorMatchByKey = new Map(activePredictorMatches.map(match => [match.key, match]));
+      const sortForecastLedgerTeams = (left: string, right: string) => {
+        const leftNumber = Number(left);
+        const rightNumber = Number(right);
+        if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && leftNumber !== rightNumber) {
+          return leftNumber - rightNumber;
+        }
+        return left.localeCompare(right, undefined, { numeric: true });
+      };
+      const formatForecastLedgerMetric = (value: number | null | undefined, digits = 1) =>
+        value == null || !Number.isFinite(value) ? 'n/a' : value.toFixed(digits);
+      const getForecastLedgerActualResult = (matchKey: string) => {
+        const match = predictorMatchByKey.get(matchKey);
+        if (!match || !isPlayedMatch(match)) return { actualWinner: '', actualScore: '' };
+        return {
+          actualWinner: getPlayedMatchWinner(match),
+          actualScore: `${match.alliances.red.score}-${match.alliances.blue.score}`
+        };
+      };
+      const selectForecastLedgerFeatures = (
+        teams: string[],
+        featuresByTeam: Record<string, Record<string, number>>
+      ) =>
+        Object.fromEntries(
+          Array.from(new Set(teams)).sort(sortForecastLedgerTeams).map(teamNumber => [
+            teamNumber,
+            featuresByTeam[teamNumber] || {}
+          ])
+        );
+      const summarizeForecastLedgerTeams = (
+        teams: string[],
+        featuresByTeam: Record<string, Record<string, number>>
+      ) =>
+        teams.map(teamNumber => {
+          const features = featuresByTeam[teamNumber] || {};
+          const teamName = resolvedTeamNameLookup[teamNumber] || '';
+          return [
+            `${teamNumber}${teamName ? ` ${teamName}` : ''}`,
+            `PPC ${formatForecastLedgerMetric(features.ppcBefore ?? features.ppc)}`,
+            `PPA ${formatForecastLedgerMetric(features.ppa)}`,
+            `OPR ${formatForecastLedgerMetric(features.oprBefore ?? features.opr)}`,
+            `${formatForecastLedgerMetric(features.scoutingRowsBefore ?? features.matchesPlayed, 0)} scout rows`,
+            `${formatForecastLedgerMetric(features.officialMatchesBefore ?? features.matchesPlayed, 0)} official matches`
+          ].join(' / ');
+        }).join(' | ');
+      const forecastLedgerRows: Record<string, unknown>[] = exportedFeatureSnapshots.flatMap((snapshot): Record<string, unknown>[] => {
+        const snapshotCreatedAt = new Date(snapshot.createdAt).toISOString();
+        const forecastRows = (snapshot.forecastSnapshots || []).map(forecast => {
+          const teams = [...forecast.redTeams, ...forecast.blueTeams];
+          const forecastFeaturesByTeam = selectForecastLedgerFeatures(teams, snapshot.featuresByTeam);
+          const actualResult = getForecastLedgerActualResult(forecast.matchKey);
+          return {
+            rowKind: 'Forecast Snapshot',
+            snapshotId: snapshot.id,
+            snapshotCreatedAt,
+            modelName: forecast.modelName || snapshot.modelName,
+            modelSource: forecast.modelSource || snapshot.modelSource || '',
+            beforeMatchKey: snapshot.beforeMatchKey,
+            matchKey: forecast.matchKey,
+            matchNumber: forecast.matchNumber,
+            scheduledAt: formatWorksheetDate(forecast.scheduledTime ?? null),
+            redTeams: forecast.redTeams.join(', '),
+            blueTeams: forecast.blueTeams.join(', '),
+            predictedWinner: forecast.predictedWinner || '',
+            redPredictedScore: forecast.redPredictedScore ?? '',
+            bluePredictedScore: forecast.bluePredictedScore ?? '',
+            predictionLowConfidence: forecast.lowConfidence == null ? '' : forecast.lowConfidence ? 'yes' : 'no',
+            actualWinner: actualResult.actualWinner,
+            actualScore: actualResult.actualScore,
+            knownTeamCount: Object.values(forecastFeaturesByTeam).filter(features => Object.keys(features).length > 0).length,
+            redBeforeSummary: summarizeForecastLedgerTeams(forecast.redTeams, forecastFeaturesByTeam),
+            blueBeforeSummary: summarizeForecastLedgerTeams(forecast.blueTeams, forecastFeaturesByTeam),
+            knownTeams: Object.keys(forecastFeaturesByTeam).sort(sortForecastLedgerTeams).join(', '),
+            featureJson: stringifyForWorkbookCell(forecastFeaturesByTeam)
+          };
+        });
+        if (forecastRows.length > 0) return forecastRows;
+
+        const beforeMatchRows = (snapshot.matchSnapshots || []).map(matchSnapshot => {
+          const actualResult = getForecastLedgerActualResult(matchSnapshot.matchKey);
+          return {
+            rowKind: 'Before-Match Input Snapshot',
+            snapshotId: snapshot.id,
+            snapshotCreatedAt,
+            modelName: snapshot.modelName,
+            modelSource: snapshot.modelSource || '',
+            beforeMatchKey: snapshot.beforeMatchKey,
+            matchKey: matchSnapshot.matchKey,
+            matchNumber: matchSnapshot.matchNumber,
+            scheduledAt: '',
+            redTeams: matchSnapshot.redTeams.join(', '),
+            blueTeams: matchSnapshot.blueTeams.join(', '),
+            predictedWinner: '',
+            redPredictedScore: '',
+            bluePredictedScore: '',
+            predictionLowConfidence: '',
+            actualWinner: actualResult.actualWinner,
+            actualScore: actualResult.actualScore,
+            knownTeamCount: Object.keys(matchSnapshot.featuresByTeam).length,
+            redBeforeSummary: summarizeForecastLedgerTeams(matchSnapshot.redTeams, matchSnapshot.featuresByTeam),
+            blueBeforeSummary: summarizeForecastLedgerTeams(matchSnapshot.blueTeams, matchSnapshot.featuresByTeam),
+            knownTeams: Object.keys(matchSnapshot.featuresByTeam).sort(sortForecastLedgerTeams).join(', '),
+            featureJson: stringifyForWorkbookCell(matchSnapshot.featuresByTeam)
+          };
+        });
+        if (beforeMatchRows.length > 0) return beforeMatchRows;
+
+        return [{
+          rowKind: 'Team Feature Snapshot',
+          snapshotId: snapshot.id,
+          snapshotCreatedAt,
+          modelName: snapshot.modelName,
+          modelSource: snapshot.modelSource || '',
+          beforeMatchKey: snapshot.beforeMatchKey,
+          matchKey: '',
+          matchNumber: '',
+          scheduledAt: '',
+          redTeams: '',
+          blueTeams: '',
+          predictedWinner: '',
+          redPredictedScore: '',
+          bluePredictedScore: '',
+          predictionLowConfidence: '',
+          actualWinner: '',
+          actualScore: '',
+          knownTeamCount: Object.keys(snapshot.featuresByTeam).length,
+          redBeforeSummary: '',
+          blueBeforeSummary: '',
+          knownTeams: Object.keys(snapshot.featuresByTeam).sort(sortForecastLedgerTeams).join(', '),
+          featureJson: stringifyForWorkbookCell(snapshot.featuresByTeam)
+        }];
+      });
       const buildCoverageAuditRows = (matchType: 'Qualification' | 'Practice', compLevel: 'qm' | 'pm') =>
         buildMatchValidationGroups(
           rawEditorRecords.filter(record => record.matchType === matchType),
@@ -4987,6 +5156,31 @@ export default function AdminV4View() {
         { header: 'Actual Win Rate', key: 'actualWinRate', width: 18 },
         { header: 'Calibration Gap', key: 'calibrationGap', width: 18 }
       ], modelBacktests.flatMap(row => row.calibrationBins.map(bin => ({ ...bin }))));
+
+      addWorkbookSheet(workbook, 'Forecast Ledger', [
+        { header: 'Row Kind', key: 'rowKind', width: 24 },
+        { header: 'Snapshot ID', key: 'snapshotId', width: 30 },
+        { header: 'Snapshot Created At', key: 'snapshotCreatedAt', width: 24 },
+        { header: 'Model', key: 'modelName', width: 18 },
+        { header: 'Model Source', key: 'modelSource', width: 44 },
+        { header: 'Snapshot Before Match', key: 'beforeMatchKey', width: 22 },
+        { header: 'Match', key: 'matchKey', width: 18 },
+        { header: 'Match Number', key: 'matchNumber', width: 14 },
+        { header: 'Scheduled At', key: 'scheduledAt', width: 24 },
+        { header: 'Red Teams', key: 'redTeams', width: 24 },
+        { header: 'Blue Teams', key: 'blueTeams', width: 24 },
+        { header: 'Predicted Winner', key: 'predictedWinner', width: 18 },
+        { header: 'Red Predicted Score', key: 'redPredictedScore', width: 20 },
+        { header: 'Blue Predicted Score', key: 'bluePredictedScore', width: 20 },
+        { header: 'Low Confidence', key: 'predictionLowConfidence', width: 16 },
+        { header: 'Actual Winner', key: 'actualWinner', width: 16 },
+        { header: 'Actual Score', key: 'actualScore', width: 16 },
+        { header: 'Known Team Count', key: 'knownTeamCount', width: 18 },
+        { header: 'Red Before Summary', key: 'redBeforeSummary', width: 72 },
+        { header: 'Blue Before Summary', key: 'blueBeforeSummary', width: 72 },
+        { header: 'Known Teams', key: 'knownTeams', width: 42 },
+        { header: 'Feature JSON', key: 'featureJson', width: 90 }
+      ], forecastLedgerRows);
 
       const exportedFeatureRows = exportedFeatureSnapshots.flatMap(snapshot =>
         Object.entries(snapshot.featuresByTeam).map(([teamNumber, features]) => {

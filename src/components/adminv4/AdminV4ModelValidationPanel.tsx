@@ -156,7 +156,7 @@ export default function AdminV4ModelValidationPanel({
             {modelSnapshotStatus}
             {latestFeatureSnapshot && (
               <span className="ml-2 text-slate-500">
-                Feature teams: {Object.keys(latestFeatureSnapshot.featuresByTeam).length}; match snapshots: {latestFeatureSnapshot.matchSnapshots?.length ?? 0}.
+                Feature teams: {Object.keys(latestFeatureSnapshot.featuresByTeam).length}; match snapshots: {latestFeatureSnapshot.matchSnapshots?.length ?? 0}; forecast snapshots: {latestFeatureSnapshot.forecastSnapshots?.length ?? 0}.
               </span>
             )}
           </div>
