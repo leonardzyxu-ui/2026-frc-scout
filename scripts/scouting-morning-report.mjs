@@ -79,6 +79,7 @@ console.log('- Use the Blocker choice when denying a dangerous ceiling/defense t
 console.log('- Use the hidden proof shortcut to spotlight Model Demo Proof in Reports without visible judge-mode wording.');
 console.log('- Open Admin V2 directly for the legacy Prediction vs Actual view when showing historical model performance.');
 console.log('- Run npm run capture:ppt-background for fresh 16:9 scouting website screenshots in output/playwright, including the chart-heavy analytics background.');
+console.log('- Use docs/scouting-matchday-operator-card.md as the one-page head-scout playbook for practice, qualifications, visitors, and alliance selection.');
 console.log('- Use copy-only relay drafts for head-scout alerts without putting relay secrets into Firebase client code.');
 console.log('- Run npm run watch:head-scout as a local Mac-side ops loop for passive official-site, CI, relay, and optional TBA monitoring.');
 console.log('');

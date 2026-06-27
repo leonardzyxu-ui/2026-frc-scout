@@ -24,6 +24,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 - Run one local morning command, `npm run check:head-scout`, for official-site readiness, Admin links, relay status, latest CI, and operating cues.
 - Run `npm run watch:head-scout` as a local Mac-side ops loop for passive official-site, CI, relay, and optional TBA monitoring.
 - Run `npm run report:morning` after the status check to produce the concise business-style morning report from live evidence.
+- Use `docs/scouting-matchday-operator-card.md` as the one-page head-scout playbook for practice, qualifications, visitors, and alliance selection.
 - Use copy-only relay outbox drafts without putting relay credentials into public Firebase code.
 
 ## Why It Is Better
