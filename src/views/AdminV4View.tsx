@@ -1944,9 +1944,9 @@ export default function AdminV4View() {
   );
   const adminV4ForecastSnapshots = useMemo<NonNullable<ModelFeatureSnapshot['forecastSnapshots']>>(
     () =>
-      activePredictorMatches
-        .filter(match => match.comp_level === 'qm' && !isPlayedMatch(match))
-        .sort((left, right) => left.match_number - right.match_number)
+      sortAdminV4MatchesForTestMode(
+        activePredictorMatches.filter(match => (match.comp_level === 'pm' || match.comp_level === 'qm') && !isPlayedMatch(match))
+      )
         .map(match => {
           const forecast = adminV4BestForecastLayer.forecasts[match.key];
           const redPredictedScore = forecast?.redScore ?? null;
@@ -1961,6 +1961,8 @@ export default function AdminV4View() {
                   : 'Blue';
           return {
             matchKey: match.key,
+            compLevel: match.comp_level,
+            matchTitle: getAdminV4MatchLabel(match),
             matchNumber: match.match_number,
             scheduledTime: match.predicted_time ?? match.time ?? null,
             redTeams: match.alliances.red.team_keys.map(normalizeTeamKey),
@@ -4339,6 +4341,8 @@ export default function AdminV4View() {
             modelSource: forecast.modelSource || snapshot.modelSource || '',
             beforeMatchKey: snapshot.beforeMatchKey,
             matchKey: forecast.matchKey,
+            matchLevel: forecast.compLevel ? getCompLevelLabel(forecast.compLevel) : '',
+            matchTitle: forecast.matchTitle || '',
             matchNumber: forecast.matchNumber,
             scheduledAt: formatWorksheetDate(forecast.scheduledTime ?? null),
             redTeams: forecast.redTeams.join(', '),
@@ -4360,6 +4364,7 @@ export default function AdminV4View() {
 
         const beforeMatchRows = (snapshot.matchSnapshots || []).map(matchSnapshot => {
           const actualResult = getForecastLedgerActualResult(matchSnapshot.matchKey);
+          const scheduledMatch = predictorMatchByKey.get(matchSnapshot.matchKey);
           return {
             rowKind: 'Before-Match Input Snapshot',
             snapshotId: snapshot.id,
@@ -4368,6 +4373,8 @@ export default function AdminV4View() {
             modelSource: snapshot.modelSource || '',
             beforeMatchKey: snapshot.beforeMatchKey,
             matchKey: matchSnapshot.matchKey,
+            matchLevel: scheduledMatch ? getCompLevelLabel(scheduledMatch.comp_level) : '',
+            matchTitle: scheduledMatch ? getAdminV4MatchLabel(scheduledMatch) : '',
             matchNumber: matchSnapshot.matchNumber,
             scheduledAt: '',
             redTeams: matchSnapshot.redTeams.join(', '),
@@ -4395,6 +4402,8 @@ export default function AdminV4View() {
           modelSource: snapshot.modelSource || '',
           beforeMatchKey: snapshot.beforeMatchKey,
           matchKey: '',
+          matchLevel: '',
+          matchTitle: '',
           matchNumber: '',
           scheduledAt: '',
           redTeams: '',
@@ -5201,6 +5210,8 @@ export default function AdminV4View() {
         { header: 'Model Source', key: 'modelSource', width: 44 },
         { header: 'Snapshot Before Match', key: 'beforeMatchKey', width: 22 },
         { header: 'Match', key: 'matchKey', width: 18 },
+        { header: 'Match Level', key: 'matchLevel', width: 18 },
+        { header: 'Match Title', key: 'matchTitle', width: 16 },
         { header: 'Match Number', key: 'matchNumber', width: 14 },
         { header: 'Scheduled At', key: 'scheduledAt', width: 24 },
         { header: 'Red Teams', key: 'redTeams', width: 24 },

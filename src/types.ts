@@ -326,6 +326,8 @@ export interface ModelFeatureSnapshot {
   }>;
   forecastSnapshots?: Array<{
     matchKey: string;
+    compLevel?: string;
+    matchTitle?: string;
     matchNumber: number;
     scheduledTime?: number | null;
     redTeams: string[];
