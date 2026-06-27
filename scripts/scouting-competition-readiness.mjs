@@ -7,53 +7,76 @@ const execFileAsync = promisify(execFile);
 const baseUrl = (process.env.SCOUTING_BASE_URL || 'https://scout-rebuilt-2026.web.app').replace(/\/$/, '');
 const timeoutMs = Number(process.env.SCOUTING_READINESS_TIMEOUT_MS || 10000);
 const shortTimeoutMs = Number(process.env.SCOUTING_RELAY_TIMEOUT_MS || 6000);
+const fetchRetries = Number(process.env.SCOUTING_READINESS_FETCH_RETRIES || 2);
 
 const checks = [];
 
 const fetchText = async (url, timeout = timeoutMs) => {
   const statusMarker = '\n__SCOUT_HTTP_STATUS__:';
   const maxTimeSeconds = String(Math.max(1, Math.ceil(timeout / 1000)));
-  try {
-    const { stdout, stderr } = await execFileAsync(
-      'curl',
-      [
-        '--silent',
-        '--show-error',
-        '--location',
-        '--max-time',
-        maxTimeSeconds,
-        '--write-out',
-        `${statusMarker}%{http_code}`,
-        url
-      ],
-      {
-        encoding: 'utf8',
-        maxBuffer: 8 * 1024 * 1024
+  const attempts = Math.max(1, fetchRetries + 1);
+  let lastResult = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const attemptLabel = attempt > 1 ? ` after retry ${attempt - 1}` : '';
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        'curl',
+        [
+          '--silent',
+          '--show-error',
+          '--location',
+          '--max-time',
+          maxTimeSeconds,
+          '--write-out',
+          `${statusMarker}%{http_code}`,
+          url
+        ],
+        {
+          encoding: 'utf8',
+          maxBuffer: 8 * 1024 * 1024
+        }
+      );
+      const markerIndex = stdout.lastIndexOf(statusMarker);
+      if (markerIndex === -1) {
+        lastResult = {
+          ok: false,
+          status: 0,
+          body: stdout,
+          error: `${stderr.trim() || 'curl did not return an HTTP status marker'}${attemptLabel}`
+        };
+      } else {
+        const result = {
+          ok: true,
+          status: Number(stdout.slice(markerIndex + statusMarker.length).trim()),
+          body: stdout.slice(0, markerIndex),
+          error: stderr.trim(),
+          retryNote: attempt > 1 ? `after retry ${attempt - 1}` : ''
+        };
+        if (result.status !== 0) return result;
+        lastResult = result;
       }
-    );
-    const markerIndex = stdout.lastIndexOf(statusMarker);
-    if (markerIndex === -1) {
-      return {
+    } catch (error) {
+      lastResult = {
         ok: false,
         status: 0,
-        body: stdout,
-        error: stderr.trim() || 'curl did not return an HTTP status marker'
+        body: error.stdout || '',
+        error: `${error.stderr?.trim() || error.message}${attemptLabel}`
       };
     }
-    return {
-      ok: true,
-      status: Number(stdout.slice(markerIndex + statusMarker.length).trim()),
-      body: stdout.slice(0, markerIndex),
-      error: stderr.trim()
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      body: error.stdout || '',
-      error: error.stderr?.trim() || error.message
-    };
   }
+  return lastResult || {
+    ok: false,
+    status: 0,
+    body: '',
+    error: 'fetch failed'
+  };
+};
+
+const httpDetail = (result) => {
+  const suffix = result.retryNote ? ` ${result.retryNote}` : '';
+  return result.status
+    ? `HTTP ${result.status}${suffix}`
+    : `HTTP failed ${result.error || ''}`.trim();
 };
 
 const addCheck = (label, ok, detail = '', critical = true) => {
@@ -65,7 +88,7 @@ const cacheBusted = (path) => `${baseUrl}${path}${path.includes('?') ? '&' : '?'
 const requireHttpOk = async (label, path) => {
   const result = await fetchText(cacheBusted(path));
   const ok = result.ok && result.status >= 200 && result.status < 300;
-  addCheck(label, ok, ok ? `HTTP ${result.status}` : `HTTP ${result.status || 'failed'} ${result.error || ''}`.trim());
+  addCheck(label, ok, httpDetail(result));
   return result;
 };
 
@@ -82,14 +105,14 @@ const requireMarkers = (label, source, markers) => {
 const requireAssetText = async (label, assetPath) => {
   const result = await fetchText(cacheBusted(`/${assetPath}`), Math.max(timeoutMs, 20000));
   const ok = result.ok && result.status >= 200 && result.status < 300;
-  addCheck(label, ok, ok ? `HTTP ${result.status}` : `HTTP ${result.status || 'failed'} ${result.error || ''}`.trim());
+  addCheck(label, ok, httpDetail(result));
   return ok ? result.body : '';
 };
 
 const relayHealth = async (label, url) => {
   const result = await fetchText(url, shortTimeoutMs);
   const ok = result.ok && result.status >= 200 && result.status < 300;
-  addCheck(label, ok, ok ? `HTTP ${result.status}` : `HTTP ${result.status || 'failed'} ${result.error || ''}`.trim(), false);
+  addCheck(label, ok, httpDetail(result), false);
   return ok;
 };
 
