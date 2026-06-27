@@ -956,6 +956,7 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
 test('Admin V4 keeps audit-required ownership and review documents in the repo', () => {
   const stateMapPath = 'docs/adminv4-state-ownership.md';
   const checklistPath = 'docs/adminv4-competition-review-checklist.md';
+  const overnightReportPath = 'docs/scouting-overnight-report-2026-06-28.md';
   const completionStatusPath = 'audits/ADMINV4_UX_CRITIQUE_COMPLETION_STATUS_2026-05-30.md';
   const visualQaSource = readFileSync('scripts/adminv4-visual-qa.mjs', 'utf8');
   const headScoutStatusPath = 'scripts/scouting-head-scout-status.mjs';
@@ -964,11 +965,13 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   const packageSource = readFileSync('package.json', 'utf8');
   assert.ok(existsSync(stateMapPath), 'state ownership map exists');
   assert.ok(existsSync(checklistPath), 'competition review checklist exists');
+  assert.ok(existsSync(overnightReportPath), 'overnight report draft exists');
   assert.ok(existsSync(completionStatusPath), 'completion status audit exists');
   assert.ok(existsSync(headScoutStatusPath), 'head scout status script exists');
 
   const stateMap = readFileSync(stateMapPath, 'utf8');
   const checklist = readFileSync(checklistPath, 'utf8');
+  const overnightReport = readFileSync(overnightReportPath, 'utf8');
   const completionStatus = readFileSync(completionStatusPath, 'utf8');
 
   [
@@ -1003,6 +1006,11 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(headScoutStatusSource, /adminv2\/prediction-vs-actual/);
   assert.match(headScoutStatusSource, /scouting-competition-readiness\.mjs/);
   assert.doesNotMatch(headScoutStatusSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
+  assert.match(overnightReport, /After our overnight work/);
+  assert.match(overnightReport, /competition operating system/);
+  assert.match(overnightReport, /npm run check:head-scout/);
+  assert.match(overnightReport, /The Button primary relay: HTTP 404/);
+  assert.match(overnightReport, /DirectChat backup relay: HTTP 200/);
   assert.match(completionStatus, /Current Local Evidence/);
   assert.match(completionStatus, /Final Completion Evidence/);
   assert.match(completionStatus, /Firebase Hosting and Firestore rules deploy completed/);
