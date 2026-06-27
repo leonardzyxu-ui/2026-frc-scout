@@ -1061,7 +1061,8 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(completionStatus, /live signed-in Admin V4 page/);
   assert.doesNotMatch(completionStatus, /Hosted deployment verification is complete only for the earlier Firebase Hosting\/static asset build/);
   assert.doesNotMatch(completionStatus, /current local build.*not been redeployed/);
-  assert.match(visualQaSource, /button\[aria-label="Admin workflows"\]/);
+  assert.match(visualQaSource, /document\.body\.innerText\.includes\('ADMIN V4'\)/);
+  assert.match(visualQaSource, /Search or ask: team, stat, scouts, export, API keys/);
   assert.match(visualQaSource, /adminv4-final-collection\.png/);
   assert.match(visualQaSource, /What to send scouts to collect next/);
   assert.match(visualQaSource, /adminv4-final-matches\.png/);
@@ -1069,6 +1070,10 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(visualQaSource, /Next Known Match\\s\+QM3/);
   assert.match(visualQaSource, /impossiblePercentPattern/);
   assert.match(visualQaSource, /adminv4-final-settings\.png/);
+  assert.match(visualQaSource, /adminv4-final-demo-proof-shortcut\.png/);
+  assert.match(visualQaSource, /Live Pick Call Sheet/);
+  assert.match(visualQaSource, /Shift\+D/);
+  assert.match(visualQaSource, /Do This First\\s\+Model Demo Proof/);
   assert.match(visualQaSource, /stored only in this browser on this device/);
   assert.match(visualQaSource, /Local Credential Danger Zone/);
   assert.match(visualQaSource, /Next Best Action/);

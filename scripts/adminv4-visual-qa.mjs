@@ -2,11 +2,16 @@ import { chromium } from 'playwright';
 
 const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const baseUrl = process.env.ADMINV4_QA_URL || 'http://127.0.0.1:4180/adminv4?fixture=test-mode';
+const smartSearchSelector = 'input[placeholder="Search or ask: team, stat, scouts, export, API keys"]';
 
 const waitForAdmin = async (page) => {
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(3500);
-  await page.locator('input[placeholder="Search team number or name"]').waitFor({ timeout: 10000 });
+  await page.waitForFunction(
+    () => document.body.innerText.includes('ADMIN V4') && document.body.innerText.length > 100,
+    null,
+    { timeout: 15000 }
+  );
 };
 
 const visit = async (page, params = '') => {
@@ -56,7 +61,7 @@ try {
     'Now screen leaked old expert/sidebar language'
   );
 
-  await page.locator('input[placeholder="Search team number or name"]').fill('Cheesy Poofs');
+  await page.locator(smartSearchSelector).fill('Cheesy Poofs');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(1200);
   await page.screenshot({ path: '/private/tmp/adminv4-final-search-enter.png', fullPage: true });
@@ -65,8 +70,8 @@ try {
   assertText(page.url().includes('fixture=test-mode'), 'Enter search dropped fixture test-mode context.');
 
   await visit(page);
-  await page.locator('input[placeholder="Search team number or name"]').fill('Citrus Circuits');
-  await page.getByRole('button', { name: /Open searched team/i }).click();
+  await page.locator(smartSearchSelector).fill('Citrus Circuits');
+  await page.getByRole('button', { name: /Open Team 1678 - Citrus Circuits/i }).first().click();
   await page.waitForTimeout(1200);
   await page.screenshot({ path: '/private/tmp/adminv4-final-search-button.png', fullPage: true });
   const buttonSearchText = await page.locator('body').innerText();
@@ -114,6 +119,8 @@ try {
   await page.screenshot({ path: '/private/tmp/adminv4-final-picklist.png', fullPage: true });
   const pickText = await page.locator('body').innerText();
   assertText(meetingModePattern.test(pickText), 'Pick List did not open in meeting-mode framing.');
+  assertText(/Live Pick Call Sheet/i.test(pickText), 'Pick List is missing the live pick call sheet.');
+  assertText(/Primary choice/i.test(pickText), 'Pick List call sheet does not show the primary choice.');
 
   await visit(page, 'tab=wiki&stat=ppa');
   await page.screenshot({ path: '/private/tmp/adminv4-final-wiki.png', fullPage: true });
@@ -131,6 +138,19 @@ try {
   assertText(/stored only in this browser on this device/i.test(settingsText), 'Settings does not warn that local API keys stay on this browser/device.');
   assertText(/Local Credential Danger Zone/i.test(settingsText), 'Settings is missing the local credential danger zone.');
 
+  await visit(page);
+  await page.keyboard.press('Shift+D');
+  await page.waitForTimeout(1000);
+  await page.screenshot({ path: '/private/tmp/adminv4-final-demo-proof-shortcut.png', fullPage: true });
+  const demoText = await page.locator('body').innerText();
+  assertText(/Audience Report Packs/i.test(demoText), 'Demo proof shortcut did not open Reports.');
+  assertText(/Do This First\s+Model Demo Proof/i.test(demoText), 'Demo proof shortcut did not spotlight Model Demo Proof.');
+  assertNoText(
+    demoText,
+    [/judge mode/i, /judges are here/i],
+    'Demo proof shortcut exposed judge-mode wording'
+  );
+
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await visit(mobile);
   await mobile.screenshot({ path: '/private/tmp/adminv4-final-mobile.png', fullPage: true });
@@ -140,7 +160,7 @@ try {
     clientWidth: document.documentElement.clientWidth,
     hasWorkflowMenuButton: Boolean(document.querySelector('button[aria-label="Admin workflows"]'))
   }));
-  assertText(/Next Best Action/i.test(mobileText), 'Mobile first workflow is missing the primary next action copy.');
+  assertText(/Next Decision|Next Best Action/i.test(mobileText), 'Mobile first workflow is missing the primary next action copy.');
   assertText(/Match-Day Trust/i.test(mobileText), 'Mobile first workflow is missing match-day trust copy.');
   assertText(/Required Action/i.test(mobileText), 'Mobile first workflow is missing required action copy.');
   assertNoText(
@@ -166,6 +186,7 @@ try {
       '/private/tmp/adminv4-final-picklist.png',
       '/private/tmp/adminv4-final-wiki.png',
       '/private/tmp/adminv4-final-settings.png',
+      '/private/tmp/adminv4-final-demo-proof-shortcut.png',
       '/private/tmp/adminv4-final-mobile.png'
     ]
   }, null, 2));
