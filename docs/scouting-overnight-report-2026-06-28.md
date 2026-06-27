@@ -51,4 +51,4 @@ Expected posture from the last overnight check:
 
 ## Blocked Item
 
-The Button is not currently serving the expected Node relay at its public Render URL. Local source confirms `/health` exists, but `https://the-button.onrender.com/health` returns a Django-style 404. Use DirectChat as backup in the morning and keep The Button out of the critical path until its Render deployment target is fixed.
+The Button is not currently serving the expected Node relay at its public Render URL. Local source confirms `/health` exists, and local `main` matches `origin/main`, but `https://the-button.onrender.com/health` returns a Python/WSGI Django-style 404. Use DirectChat as backup in the morning and keep The Button out of the critical path until the Render service is relinked/redeployed to `leonardzyxu-ui/The_Button` with root directory `relay-web`.

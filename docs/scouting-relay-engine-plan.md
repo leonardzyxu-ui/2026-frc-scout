@@ -1,6 +1,6 @@
 # Scouting Relay Engine Plan
 
-Last reviewed: 2026-06-27 23:35 CST.
+Last reviewed: 2026-06-28 00:53 CST.
 
 This note describes how Admin V4 should use Leo's existing relay projects for faster head-scout coordination during competition. It is a design note, not a secret store. Do not put relay passwords, device secrets, receiver tokens, DirectChat safety codes, Firebase credentials, or TBA keys in this file or in public client code.
 
@@ -68,7 +68,10 @@ Current limitation:
 - Local source confirms `relay-web/server/render-server.js` serves `GET /health` with `service: "the-button"`.
 - `https://the-button.onrender.com/health` currently returns a Django-style HTTP 404 page, which does not match the local Node relay source.
 - `https://the-button-relay-web.onrender.com/health` also returns HTTP 404.
-- Treat The Button as designed but not currently deployed/reachable as the expected relay target. The next fix is Render service verification: confirm the public URL, root service, and deployed commit for the `relay-web` Node app.
+- The local The Button repo is clean on `main` and matches `origin/main` at `b139386` (`Fix nuke lifecycle and website profile flow`).
+- The local `render.yaml` defines Render service `the-button` as `runtime: node`, `rootDir: relay-web`, `buildCommand: npm ci && npm run build`, and `startCommand: npm start`.
+- The live `https://the-button.onrender.com/health` response includes `x-render-origin-server: WSGIServer/0.2 CPython/3.11.11`, so Render is serving a Python/WSGI app at that hostname, not the local Node relay described by this repo.
+- Treat The Button as designed but currently pointed at the wrong deployed service/app. The next fix is Render Dashboard verification: confirm the `the-button` service is linked to `leonardzyxu-ui/The_Button`, branch `main`, root directory `relay-web`, and commit `b139386` or later, then redeploy. Do not put The Button secrets into the scouting website to work around this.
 
 ## DirectChat Backup Relay
 
@@ -103,6 +106,7 @@ Scouting use:
 Current limitation:
 
 - The DirectChat relay is reachable, but Admin V4 currently performs only public health checks. It does not authenticate, send messages, or store DirectChat identities.
+- Latest live check returned JSON from `https://directchat-relay.onrender.com/health` with `service: "directchat-relay"` and `runtime: "render-upstash"`, matching the local Node Render service shape.
 
 ## Safe Integration Stages
 
