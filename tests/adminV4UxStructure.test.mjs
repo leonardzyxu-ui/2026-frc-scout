@@ -923,8 +923,15 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(adminSource, /Export Full Evidence Workbook/);
   assert.match(adminSource, /saveForecastSnapshotNow/);
   assert.match(adminSource, /Saved manual forecast snapshot at/);
+  assert.match(adminSource, /future forecasts/);
+  assert.match(adminSource, /Saved early forecast snapshot at/);
+  assert.match(adminSource, /Forecast snapshot needs future forecasts or model backtests first/);
+  assert.match(adminSource, /forecastSnapshotCount=\{adminV4ForecastSnapshots\.length\}/);
   assert.match(modelValidationSource, /Save Forecast Snapshot/);
   assert.match(modelValidationSource, /onSaveForecastSnapshot/);
+  assert.match(modelValidationSource, /Forecasts Ready/);
+  assert.match(modelValidationSource, /before enough played matches exist for backtesting/);
+  assert.match(modelValidationSource, /canSaveForecastSnapshot/);
   assert.doesNotMatch(adminSource, /window\.confirm/);
   assert.match(backupSyncPanelSource, /Preview And Sync To Firebase/);
   assert.match(backupSyncPanelSource, /Preview Import Backup/);

@@ -65,6 +65,7 @@ export default function AdminV4ModelValidationPanel({
   latestFeatureSnapshot,
   latestModelSnapshot,
   modelSnapshotStatus,
+  forecastSnapshotCount,
   ppaTeamCount,
   promotionCandidateCount,
   scoutCalibrationRows,
@@ -80,6 +81,7 @@ export default function AdminV4ModelValidationPanel({
   latestFeatureSnapshot: ModelFeatureSnapshot | null;
   latestModelSnapshot: ModelLabSnapshot | null;
   modelSnapshotStatus: string;
+  forecastSnapshotCount: number;
   ppaTeamCount: number;
   promotionCandidateCount: number;
   scoutCalibrationRows: ScoutCalibrationRow[];
@@ -90,6 +92,7 @@ export default function AdminV4ModelValidationPanel({
 }) {
   const calibrationBins = bestModelBacktest?.calibrationBins || [];
   const recentFeatureSnapshots = featureMatchSnapshots.slice(-10);
+  const canSaveForecastSnapshot = backtests.length > 0 || forecastSnapshotCount > 0;
 
   return (
     <div className="space-y-5">
@@ -144,19 +147,20 @@ export default function AdminV4ModelValidationPanel({
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-fuchsia-200">Forecast Ledger</div>
               <h3 className="mt-1 text-lg font-black text-white">Prediction Evidence Is Time-Stamped</h3>
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-fuchsia-50/80">
-                Every model refresh keeps the latest model snapshot and before-match feature snapshots together, so practice and qualification predictions can be reviewed by what was known at that point in time.
+                Every model refresh keeps the latest model snapshot and before-match feature snapshots together, so practice and qualification predictions can be reviewed by what was known at that point in time. Manual checkpoints work as soon as future forecasts exist, even before enough played matches exist for backtesting.
               </p>
               <AdminButton
                 tone="fuchsia"
                 className="mt-4"
                 onClick={() => void onSaveForecastSnapshot()}
-                disabled={backtests.length === 0}
+                disabled={!canSaveForecastSnapshot}
               >
                 Save Forecast Snapshot
               </AdminButton>
             </div>
             <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
               <SummaryCard label="Match Snapshots" value={featureMatchSnapshots.length} />
+              <SummaryCard label="Forecasts Ready" value={forecastSnapshotCount} />
               <SummaryCard label="Latest Feature Set" value={latestFeatureSnapshot ? formatLocalTimestamp(latestFeatureSnapshot.createdAt) : 'None'} />
             </div>
           </div>
