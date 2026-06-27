@@ -125,6 +125,12 @@ This gives the head scout reusable messages without creating a credential leak. 
 
 ### Stage 2: Head-Scout Local Agent
 
+First safe slice now exists:
+
+- `npm run check:head-scout` prints a one-screen local status summary.
+- It runs the live competition readiness check, reports latest CI, and repeats morning operating cues.
+- It does not open browser windows, store relay credentials, or send relay messages.
+
 Build a small local Mac agent or menu-bar app that holds secrets in Keychain and talks to:
 
 - The scouting Firebase site for public route health.

@@ -954,10 +954,14 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   const checklistPath = 'docs/adminv4-competition-review-checklist.md';
   const completionStatusPath = 'audits/ADMINV4_UX_CRITIQUE_COMPLETION_STATUS_2026-05-30.md';
   const visualQaSource = readFileSync('scripts/adminv4-visual-qa.mjs', 'utf8');
+  const headScoutStatusPath = 'scripts/scouting-head-scout-status.mjs';
+  const headScoutStatusSource = readFileSync(headScoutStatusPath, 'utf8');
   const e2eSource = readFileSync('tests/e2e/app.spec.ts', 'utf8');
+  const packageSource = readFileSync('package.json', 'utf8');
   assert.ok(existsSync(stateMapPath), 'state ownership map exists');
   assert.ok(existsSync(checklistPath), 'competition review checklist exists');
   assert.ok(existsSync(completionStatusPath), 'completion status audit exists');
+  assert.ok(existsSync(headScoutStatusPath), 'head scout status script exists');
 
   const stateMap = readFileSync(stateMapPath, 'utf8');
   const checklist = readFileSync(checklistPath, 'utf8');
@@ -987,6 +991,12 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(checklist, /Visualize must render vertical bar charts/);
   assert.match(checklist, /split into stacked\/wrapped chart panels/);
   assert.match(checklist, /PPA.*should appear in stat help/);
+  assert.match(checklist, /npm run check:head-scout/);
+  assert.match(packageSource, /"check:head-scout": "node scripts\/scouting-head-scout-status\.mjs"/);
+  assert.match(headScoutStatusSource, /Head Scout Status/);
+  assert.match(headScoutStatusSource, /Morning operating cues/);
+  assert.match(headScoutStatusSource, /scouting-competition-readiness\.mjs/);
+  assert.doesNotMatch(headScoutStatusSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(completionStatus, /Current Local Evidence/);
   assert.match(completionStatus, /Final Completion Evidence/);
   assert.match(completionStatus, /Firebase Hosting and Firestore rules deploy completed/);
