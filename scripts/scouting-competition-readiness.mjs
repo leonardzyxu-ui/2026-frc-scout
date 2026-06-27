@@ -143,7 +143,6 @@ if (adminV4Asset) {
     'Alliance Selection Prep',
     'Prediction checkpoint',
     'Save snapshot',
-    'reportsSpotlightPackKey',
     'demo-proof',
     'Relay Readiness',
     'Relay Outbox Drafts',
