@@ -27,6 +27,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
   - Qualifications: open the next known match and keep future qual forecasts, source freshness, and scout coverage in one loop.
   - Alliance Selection Prep: open the pick list, keep unavailable/picked teams updated, and review role fit plus trust before every pick.
 - Team search must work by number and name.
+- Use the Now-screen Prediction checkpoint shortcut before/after each match block to open Model Trust and save a forecast snapshot.
 - Pressing Enter in search must open the highlighted or matched team.
 - The search button must open the same team as Enter.
 - Match rows must open a focused match detail view with a visible back button.

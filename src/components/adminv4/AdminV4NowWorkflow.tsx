@@ -231,7 +231,7 @@ export function AdminV4NowWorkflow({
             </div>
             <div className="text-[11px] font-semibold text-slate-500">These open focused workflows.</div>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {competitionNeeds.map(need => (
               <button
                 key={need.label}

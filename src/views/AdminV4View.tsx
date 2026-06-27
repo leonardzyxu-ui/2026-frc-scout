@@ -6601,6 +6601,17 @@ export default function AdminV4View() {
         onAction: () => openDataPanel('audit')
       },
       {
+        label: 'Prediction checkpoint',
+        detail: latestFeatureSnapshot
+          ? `${latestFeatureSnapshot.forecastSnapshots?.length ?? adminV4ForecastSnapshots.length} future forecasts in the latest saved snapshot.`
+          : adminV4ForecastSnapshots.length > 0
+            ? `${adminV4ForecastSnapshots.length} future forecasts are ready to timestamp.`
+            : 'Open Model Trust and save a forecast snapshot before the next block.',
+        actionLabel: 'Save snapshot',
+        tone: adminV4ForecastSnapshots.length > 0 || latestFeatureSnapshot ? 'fuchsia' : 'amber',
+        onAction: () => openDataPanel('models')
+      },
+      {
         label: 'Assign scouts',
         detail: scoutAssignmentPlan
           ? 'Recheck coverage and same-team continuity.'

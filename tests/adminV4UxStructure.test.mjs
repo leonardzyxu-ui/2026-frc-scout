@@ -183,6 +183,9 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /Open Match Plan/);
   assert.match(adminSource, /label: 'Match soon'/);
   assert.match(adminSource, /label: 'Data looks wrong'/);
+  assert.match(adminSource, /label: 'Prediction checkpoint'/);
+  assert.match(adminSource, /actionLabel: 'Save snapshot'/);
+  assert.match(adminSource, /future forecasts are ready to timestamp/);
   assert.match(adminSource, /label: 'Assign scouts'/);
   assert.match(adminSource, /label: 'Alliance selection'/);
   assert.match(adminSource, /label: 'Demo proof'/);

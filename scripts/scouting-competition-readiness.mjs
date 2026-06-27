@@ -109,6 +109,8 @@ if (adminV4Asset) {
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
+    'Prediction checkpoint',
+    'Save snapshot',
     'Relay Readiness',
     'Relay Outbox Drafts',
     'Copy-Only Head Scout Alerts',
