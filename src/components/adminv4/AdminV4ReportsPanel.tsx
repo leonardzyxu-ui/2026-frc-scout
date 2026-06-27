@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Database, Gauge, Swords, TrendingUp, Trophy } from 'lucide-react';
+import { BookOpen, Database, Download, Gauge, Swords, TrendingUp, Trophy } from 'lucide-react';
 import AdminV4ReportsWorkflow, {
   type AdminV4ReportPack,
   type AdminV4WorkbookSection
@@ -133,6 +133,31 @@ export default function AdminV4ReportsPanel({
           tone: hasModelProof ? 'fuchsia' : 'amber',
           icon: <TrendingUp className="h-4 w-4" />,
           onClick: onOpenModelProof
+        }
+      ]
+    },
+    {
+      key: 'ledger-closeout',
+      title: 'Prediction Ledger Closeout',
+      audience: 'Model lead',
+      when: 'Before and after practice or qualification blocks when predictions must be preserved.',
+      contains: 'Forecast Snapshot checkpoint, Forecast Ledger workbook export, model validation, calibration, and before-match inputs.',
+      status: hasModelProof ? `${bestModelName} ready for checkpoint` : 'Needs played-match evidence',
+      tone: hasModelProof ? 'fuchsia' : 'amber',
+      icon: <TrendingUp className="h-5 w-5" />,
+      actions: [
+        {
+          label: 'Open Model Trust',
+          tone: hasModelProof ? 'fuchsia' : 'amber',
+          icon: <TrendingUp className="h-4 w-4" />,
+          onClick: onOpenModelProof
+        },
+        {
+          label: exportStatus === 'loading' ? 'Exporting' : exportStatus === 'success' ? 'Exported' : 'Export Workbook',
+          tone: 'emerald',
+          icon: <Download className="h-4 w-4" />,
+          onClick: onExportWorkbook,
+          disabled: exportStatus === 'loading'
         }
       ]
     },

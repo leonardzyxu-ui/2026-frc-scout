@@ -385,6 +385,10 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.doesNotMatch(adminSource, /from '..\/components\/adminv4\/AdminV4Charts'/);
   assert.match(reportsSource, /Show Full XLSX Export/);
   assert.match(reportsSource, /Audience Report Packs/);
+  assert.match(reportsPanelSource, /Prediction Ledger Closeout/);
+  assert.match(reportsPanelSource, /Forecast Snapshot checkpoint/);
+  assert.match(reportsPanelSource, /Open Model Trust/);
+  assert.match(reportsPanelSource, /Export Workbook/);
   assert.match(reportsSource, /All Report Pack Details/);
   assert.match(reportsSource, /admin-details-body/);
   assert.match(reportsSource, /audience shortcuts above are the normal competition path/);

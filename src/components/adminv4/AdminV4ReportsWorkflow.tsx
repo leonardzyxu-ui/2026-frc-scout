@@ -99,10 +99,10 @@ export function AdminV4ReportsWorkflow({
               <h3 className="mt-1 text-lg font-black text-white">Pick the audience first</h3>
             </div>
             <p className="max-w-2xl text-xs font-semibold leading-relaxed text-cyan-100/75">
-              Reports should answer the person in front of you: head scout, drive team, pick-list lead, model proof, or data owner. Full XLSX stays behind the advanced door.
+              Reports should answer the person in front of you: head scout, drive team, pick-list lead, model lead, model proof, or data owner. Full XLSX stays behind the advanced door.
             </p>
           </div>
-          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-6">
             {reportPacks.map(pack => {
               const action = pack.actions[0];
               return (

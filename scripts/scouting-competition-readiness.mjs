@@ -103,11 +103,13 @@ const sw = await requireHttpOk('Service worker manifest', '/sw.js');
 const adminV4Asset = resolveAsset(sw.body, 'AdminV4View');
 const adminV4PickListAsset = resolveAsset(sw.body, 'AdminV4PickListWorkflow');
 const adminV4ModelAsset = resolveAsset(sw.body, 'AdminV4ModelValidationPanel');
+const adminV4ReportsAsset = resolveAsset(sw.body, 'AdminV4ReportsPanel');
 const adminV2Asset = resolveAsset(sw.body, 'AdminMainframeView');
 
 addCheck('Admin V4 asset resolved', Boolean(adminV4Asset), adminV4Asset || 'Missing AdminV4View asset');
 addCheck('Admin V4 pick-list asset resolved', Boolean(adminV4PickListAsset), adminV4PickListAsset || 'Missing AdminV4PickListWorkflow asset');
 addCheck('Admin V4 model asset resolved', Boolean(adminV4ModelAsset), adminV4ModelAsset || 'Missing AdminV4ModelValidationPanel asset');
+addCheck('Admin V4 reports asset resolved', Boolean(adminV4ReportsAsset), adminV4ReportsAsset || 'Missing AdminV4ReportsPanel asset');
 addCheck('Admin V2 asset resolved', Boolean(adminV2Asset), adminV2Asset || 'Missing AdminMainframeView asset');
 
 if (adminV4Asset) {
@@ -150,6 +152,16 @@ if (adminV4ModelAsset) {
     'Save Forecast Snapshot',
     'forecast snapshots',
     'Forecast Ledger'
+  ]);
+}
+
+if (adminV4ReportsAsset) {
+  const assetBody = await requireAssetText('Admin V4 reports asset fetched', adminV4ReportsAsset);
+  if (assetBody) requireMarkers('Admin V4 prediction ledger closeout markers', assetBody, [
+    'Prediction Ledger Closeout',
+    'Forecast Snapshot checkpoint',
+    'Open Model Trust',
+    'Export Workbook'
   ]);
 }
 

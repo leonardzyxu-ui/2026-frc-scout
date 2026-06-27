@@ -39,6 +39,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 
 - Open Data, then Model Trust, and confirm the Forecast Ledger panel is visible.
 - Confirm the latest feature snapshot status shows feature teams, match snapshots, and forecast snapshots.
+- Open Reports and confirm `Prediction Ledger Closeout` appears as a model-lead report pack.
 - Export the full evidence workbook and confirm it includes a `Forecast Ledger` sheet.
 - In the `Forecast Ledger` sheet, confirm future forecast rows include snapshot time, model, match, red teams, blue teams, predicted winner, predicted scores, low-confidence status, actual winner, and actual score.
 - During practice and qualifications, export the full evidence workbook at the end of each block so prediction history is preserved outside the browser.
