@@ -1052,6 +1052,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(packageSource, /"report:morning": "node scripts\/scouting-morning-report\.mjs"/);
   assert.match(headScoutStatusSource, /Head Scout Status/);
   assert.match(headScoutStatusSource, /Morning operating cues/);
+  assert.match(headScoutStatusSource, /watch:head-scout/);
   assert.match(headScoutStatusSource, /Admin V4:/);
   assert.match(headScoutStatusSource, /adminv2\/prediction-vs-actual/);
   assert.match(headScoutStatusSource, /Reports -> Prediction Ledger Closeout/);
