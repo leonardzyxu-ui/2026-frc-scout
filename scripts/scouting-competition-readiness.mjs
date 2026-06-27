@@ -94,10 +94,12 @@ await requireHttpOk('Admin V4 route', '/adminv4');
 
 const sw = await requireHttpOk('Service worker manifest', '/sw.js');
 const adminV4Asset = resolveAsset(sw.body, 'AdminV4View');
+const adminV4PickListAsset = resolveAsset(sw.body, 'AdminV4PickListWorkflow');
 const adminV4ModelAsset = resolveAsset(sw.body, 'AdminV4ModelValidationPanel');
 const adminV2Asset = resolveAsset(sw.body, 'AdminMainframeView');
 
 addCheck('Admin V4 asset resolved', Boolean(adminV4Asset), adminV4Asset || 'Missing AdminV4View asset');
+addCheck('Admin V4 pick-list asset resolved', Boolean(adminV4PickListAsset), adminV4PickListAsset || 'Missing AdminV4PickListWorkflow asset');
 addCheck('Admin V4 model asset resolved', Boolean(adminV4ModelAsset), adminV4ModelAsset || 'Missing AdminV4ModelValidationPanel asset');
 addCheck('Admin V2 asset resolved', Boolean(adminV2Asset), adminV2Asset || 'Missing AdminMainframeView asset');
 
@@ -107,8 +109,6 @@ if (adminV4Asset) {
     'Competition Phase',
     'Practice Matches',
     'Alliance Selection Prep',
-    'Live Pick Status Entry',
-    'Picked by, e.g. A3',
     'Relay Readiness',
     'Relay Outbox Drafts',
     'Copy-Only Head Scout Alerts',
@@ -119,6 +119,16 @@ if (adminV4Asset) {
     'forecastSnapshots',
     'Row Kind',
     'Snapshot Created At'
+  ]);
+}
+
+if (adminV4PickListAsset) {
+  const asset = await fetchText(`${baseUrl}/${adminV4PickListAsset}`);
+  requireMarkers('Admin V4 pick-list live status markers', asset.body, [
+    'Live Pick Status Entry',
+    'Picked by, e.g. A3',
+    'Status change canceled',
+    'Uses the same confirm and undo path as row status menus'
   ]);
 }
 
