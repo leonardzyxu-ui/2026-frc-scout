@@ -171,7 +171,7 @@ export function AdminV4PickListWorkflow({
             </div>
             <div className="text-[11px] font-semibold text-slate-500">Uses the same confirm and undo path as row status menus.</div>
           </div>
-          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(120px,0.75fr)_minmax(120px,0.75fr)_repeat(4,auto)]">
+          <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(120px,0.75fr)_minmax(120px,0.75fr)_repeat(5,auto)]">
             <AdminInput
               value={quickStatusTeam}
               onChange={event => setQuickStatusTeam(event.target.value)}
@@ -190,6 +190,9 @@ export function AdminV4PickListWorkflow({
             </AdminButton>
             <AdminButton tone="slate" onClick={() => void applyQuickStatus('picked', quickStatusPickedBy.trim() || 'Other')}>
               Taken
+            </AdminButton>
+            <AdminButton tone="amber" onClick={() => void applyQuickStatus('declined')}>
+              Declined
             </AdminButton>
             <AdminButton tone="rose" onClick={() => void applyQuickStatus('unavailable')}>
               Unavailable

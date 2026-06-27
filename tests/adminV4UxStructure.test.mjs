@@ -300,6 +300,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(pickListSource, /Uses the same confirm and undo path as row status menus/);
   assert.match(pickListSource, /Picked by, e\.g\. A3/);
   assert.match(pickListSource, /applyQuickStatus\('picked', ownAllianceLabel\)/);
+  assert.match(pickListSource, /applyQuickStatus\('declined'\)/);
   assert.match(pickListSource, /Status change canceled/);
   assert.match(adminSource, /handleQuickPickStatusChange/);
   assert.match(adminSource, /return false/);

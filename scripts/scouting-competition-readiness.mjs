@@ -129,6 +129,7 @@ if (adminV4PickListAsset) {
   requireMarkers('Admin V4 pick-list live status markers', asset.body, [
     'Live Pick Status Entry',
     'Picked by, e.g. A3',
+    'Declined',
     'Status change canceled',
     'Uses the same confirm and undo path as row status menus'
   ]);
