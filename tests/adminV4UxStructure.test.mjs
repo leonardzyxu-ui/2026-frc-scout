@@ -160,9 +160,12 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.doesNotMatch(adminSource, /label: 'Data Health'/);
   assert.match(nowSource, /Next Best Action/);
   assert.match(nowSource, /Other Useful Actions/);
-  assert.match(nowSource, /Competition Mode/);
-  assert.match(nowSource, /Start with the situation, not the tab name/);
-  assert.match(nowSource, /aria-label="Competition mode launcher"/);
+  assert.match(nowSource, /Competition Phase/);
+  assert.match(nowSource, /Select the day we are operating in/);
+  assert.match(nowSource, /Fast Situation Switches/);
+  assert.match(nowSource, /Start with the problem, not the tab name/);
+  assert.match(nowSource, /aria-label="Competition phase selector"/);
+  assert.match(nowSource, /aria-label="Competition need launcher"/);
   assert.match(nowSource, /aria-label=\{`Competition mode: \$\{need\.label\}\. \$\{need\.detail\}`\}/);
   assert.match(nowSource, /Phone Shortcuts/);
   assert.match(nowSource, /Tap the match-day job, not the tab name/);
@@ -182,7 +185,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /label: 'Data looks wrong'/);
   assert.match(adminSource, /label: 'Assign scouts'/);
   assert.match(adminSource, /label: 'Alliance selection'/);
-  assert.match(adminSource, /label: 'Judges are here'/);
+  assert.match(adminSource, /label: 'Demo proof'/);
   assert.match(adminSource, /Scout Tasks/);
   assert.match(adminSource, /Collect missing evidence/);
   assert.match(adminSource, /Assign Evidence Tasks/);
@@ -430,7 +433,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(commandPaletteSource, /why DPR/);
   assert.match(commandPaletteSource, /future matches/);
   assert.match(commandPaletteSource, /API keys/);
-  assert.match(commandPaletteSource, /export for judges/);
+  assert.match(commandPaletteSource, /demo proof/);
   assert.match(commandPaletteSource, /NO_MATCH_FALLBACK_PHRASES/);
   assert.match(commandPaletteSource, /Pick a recovery phrase, try a team name, or clear the field for Quick Needs/);
   assert.match(commandPaletteSource, /aria-label=\{`Search for \$\{phrase\}`\}/);
@@ -481,7 +484,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /mobileNeed: 'Use when you just need the next safe click\.'/);
   assert.match(adminSource, /mobileNeed: 'Use when a qual is coming up or drive team needs a plan\.'/);
   assert.match(adminSource, /mobileNeed: 'Use when numbers, sources, scouts, sync, or trust feel wrong\.'/);
-  assert.match(adminSource, /mobileNeed: 'Use when judges, mentors, or another laptop need proof\.'/);
+  assert.match(adminSource, /mobileNeed: 'Use when mentors, visitors, or another laptop need proof\.'/);
   assert.match(adminSource, /onOpenCommandPalette=\{openCommandPalette\}/);
   assert.match(adminSource, /const \[teamSearchInput, setTeamSearchInput\] = useState\(''\)/);
   assert.match(adminSource, /setTeamSearchInput\(''\)/);
@@ -583,7 +586,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(dataOverviewSource, /aria-label=\{`Open Data help to \$\{need\.label\}\. \$\{need\.detail\}`\}/);
   assert.match(reportsSource, /If Someone Asks\.\.\./);
   assert.match(reportsSource, /Pick the audience first/);
-  assert.match(reportsSource, /head scout, drive team, pick-list lead, judges, or data owner/);
+  assert.match(reportsSource, /head scout, drive team, pick-list lead, model proof, or data owner/);
   assert.match(reportsSource, /aria-label=\{`Open report for \$\{pack\.audience\}: \$\{pack\.title\}\. \$\{pack\.when\}`\}/);
   assert.match(adminSource, /teamsDecisionCue/);
   assert.match(adminSource, /Fix low-trust teams before ranking too hard/);
@@ -607,7 +610,7 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /globalCommandBrief/);
   assert.match(adminSource, /Collect evidence before/);
   assert.match(smartSearchSource, /quickTitle: 'Assign scouts'/);
-  assert.match(smartSearchSource, /quickTitle: 'Export for judges'/);
+  assert.match(smartSearchSource, /quickTitle: 'Open demo proof'/);
   assert.match(smartSearchSource, /quickDescription: 'Open vertical chart panels/);
   assert.match(adminSource, /primaryEvidenceGapTeams\.length > 0\s*\?\s*\[evidenceNowAction, prepareNowAction, rangeNowAction, sourceNowAction\]/);
   assert.match(teamSearchSource, /getAdminV4TeamSearchSuggestions/);

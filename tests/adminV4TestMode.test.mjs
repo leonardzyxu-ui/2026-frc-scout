@@ -231,7 +231,7 @@ test('Admin V4 smart search resolves competition workflows, panels, tools, stats
     statInfo,
     limit: 8
   });
-  assert.deepEqual(quickNeeds.map(result => result.title), ['What do I do now?', 'Find a team', 'See future matches', 'Assign scouts', 'Compare stats', 'Explain a stat', 'Check sources', 'Export for judges']);
+  assert.deepEqual(quickNeeds.map(result => result.title), ['What do I do now?', 'Find a team', 'See future matches', 'Assign scouts', 'Compare stats', 'Explain a stat', 'Check sources', 'Open demo proof']);
   assert.ok(quickNeeds.every(result => result.matchLabel === 'Quick need'));
   assert.deepEqual(quickNeeds.map(result => result.panel || result.tool || result.workflowKey), ['command', 'sorter', 'predictor', 'scouts', 'visualize', 'statsWiki', 'sources', 'export']);
 });
