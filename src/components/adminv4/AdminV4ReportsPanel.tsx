@@ -19,6 +19,7 @@ export default function AdminV4ReportsPanel({
   rawMissingSlotCount,
   rawAnomalyRowCount,
   sourceRowCount,
+  spotlightPackKey,
   unsyncedCount,
   nextMatchTitle,
   onExportWorkbook,
@@ -42,6 +43,7 @@ export default function AdminV4ReportsPanel({
   rawMissingSlotCount: number;
   rawAnomalyRowCount: number;
   sourceRowCount: number;
+  spotlightPackKey?: string;
   unsyncedCount: number;
   nextMatchTitle: string;
   onExportWorkbook: () => void;
@@ -56,7 +58,7 @@ export default function AdminV4ReportsPanel({
   const hasModelProof = bestModelName.length > 0;
   const hasRawWarnings = rawMissingSlotCount > 0 || rawAnomalyRowCount > 0;
   const hasEvidenceSyncWarning = unsyncedCount > 0 || rawMissingSlotCount > 0;
-  const recommendedPackKey = hasEvidenceSyncWarning
+  const defaultRecommendedPackKey = hasEvidenceSyncWarning
     ? 'evidence'
     : hasNextMatch
       ? 'drive-team'
@@ -178,6 +180,9 @@ export default function AdminV4ReportsPanel({
       }]
     }
   ];
+  const recommendedPackKey = reportPacks.some(pack => pack.key === spotlightPackKey)
+    ? spotlightPackKey || defaultRecommendedPackKey
+    : defaultRecommendedPackKey;
 
   const workbookSections: AdminV4WorkbookSection[] = [
     {

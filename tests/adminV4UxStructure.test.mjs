@@ -474,6 +474,10 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /onSetSearchInput=\{setCommandPaletteInput\}/);
   assert.match(adminSource, /handleSmartSearchShortcut/);
   assert.match(adminSource, /isEditableShortcutTarget/);
+  assert.match(adminSource, /reportsSpotlightPackKey/);
+  assert.match(adminSource, /setReportsSpotlightPackKey\('demo-proof'\)/);
+  assert.match(adminSource, /event\.key\.toLowerCase\(\) !== 'd'/);
+  assert.match(adminSource, /openWorkflow\('export'\)/);
   assert.match(adminSource, /event\.key === '\/'/);
   assert.match(adminSource, /smartSearchInputRef\.current\?\.focus\(\)/);
   assert.match(adminSource, /smartSearchInputRef\.current\?\.select\(\)/);
@@ -617,6 +621,8 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(adminSource, /pickListDecisionCue/);
   assert.match(adminSource, /Review \$\{topAvailableRows\[0\]\.teamNumber\} before changing the board/);
   assert.match(reportsPanelSource, /recommendedPackKey/);
+  assert.match(reportsPanelSource, /spotlightPackKey/);
+  assert.match(reportsPanelSource, /pack\.key === spotlightPackKey/);
   assert.match(reportsPanelSource, /\? 'evidence'/);
   assert.doesNotMatch(dataOverviewSource, /Data Rooms And Maintenance/);
   assert.match(adminSource, /title: 'Check Model Trust'/);

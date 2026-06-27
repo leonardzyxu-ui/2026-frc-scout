@@ -500,6 +500,7 @@ export default function AdminV4View() {
   const [matchesMetric, setMatchesMetric] = useState<AdminV4SelectedMetric>('ppa');
   const [simulatorMetric, setSimulatorMetric] = useState<AdminV4SelectedMetric>('ppa');
   const [reportsMetric, setReportsMetric] = useState<AdminV4SelectedMetric>('ppa');
+  const [reportsSpotlightPackKey, setReportsSpotlightPackKey] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [localTbaApiKey, setLocalTbaApiKey] = useState('');
   const [apiKeyStatus, setApiKeyStatus] = useState('');
@@ -5883,6 +5884,9 @@ export default function AdminV4View() {
 
   const openWorkflow = (tab: WorkflowTab) => {
     rememberMainScroll();
+    if (tab !== 'export') {
+      setReportsSpotlightPackKey('');
+    }
     setActiveTab(tab);
     setDrilldownTeamNumber('');
     setSelectedMatchKey('');
@@ -5895,6 +5899,7 @@ export default function AdminV4View() {
 
   const openDataPanel = (panel: DataPanel) => {
     rememberMainScroll();
+    setReportsSpotlightPackKey('');
     setActiveTab('import');
     setDrilldownTeamNumber('');
     setSelectedMatchKey('');
@@ -5909,6 +5914,9 @@ export default function AdminV4View() {
     if (item.key === 'import' && panel) {
       openDataPanel(panel);
       return;
+    }
+    if (item.key === 'export') {
+      setReportsSpotlightPackKey('');
     }
     openWorkflow(item.key);
   };
@@ -5978,6 +5986,7 @@ export default function AdminV4View() {
         return;
       }
       event.preventDefault();
+      setReportsSpotlightPackKey('demo-proof');
       openWorkflow('export');
     };
 
@@ -8423,6 +8432,7 @@ export default function AdminV4View() {
         rawEvidenceRows={rawEvidenceRows}
         rawMissingSlotCount={rawEditorSummary.missingSlotCount}
         sourceRowCount={sourceStatusSummary.rowCount}
+        spotlightPackKey={reportsSpotlightPackKey}
         unsyncedCount={localArchiveSummary.unsyncedRecords.length}
         onExportWorkbook={() => void exportInsightsWorkbook()}
         onOpenModelProof={() => openDataPanel('models')}
