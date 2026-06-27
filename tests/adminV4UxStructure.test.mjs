@@ -850,6 +850,7 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   const rewardsPanelSource = readFileSync('src/components/adminv4/AdminV4ScoutRewardsPanel.tsx', 'utf8');
   const ppaPanelsSource = readFileSync('src/components/adminv4/AdminV4PpaPanels.tsx', 'utf8');
   const settingsModalSource = readFileSync('src/components/adminv4/AdminV4SettingsModal.tsx', 'utf8');
+  const modelValidationSource = readFileSync('src/components/adminv4/AdminV4ModelValidationPanel.tsx', 'utf8');
   const scoutIdentityLockSource = readFileSync('src/utils/scoutIdentityLock.ts', 'utf8');
   const scoutIdentityHookSource = readFileSync('src/components/adminv4/useAdminV4ScoutIdentitySettings.ts', 'utf8');
   const backupSyncPanelSource = readFileSync('src/components/adminv4/AdminV4BackupSyncPanel.tsx', 'utf8');
@@ -890,6 +891,10 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(adminSource, /recordTypeCounts/);
   assert.match(adminSource, /will be checked for conflicts before upload/);
   assert.match(adminSource, /Export Full Evidence Workbook/);
+  assert.match(adminSource, /saveForecastSnapshotNow/);
+  assert.match(adminSource, /Saved manual forecast snapshot at/);
+  assert.match(modelValidationSource, /Save Forecast Snapshot/);
+  assert.match(modelValidationSource, /onSaveForecastSnapshot/);
   assert.doesNotMatch(adminSource, /window\.confirm/);
   assert.match(backupSyncPanelSource, /Preview And Sync To Firebase/);
   assert.match(backupSyncPanelSource, /Preview Import Backup/);

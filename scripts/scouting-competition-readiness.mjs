@@ -124,6 +124,7 @@ if (adminV4ModelAsset) {
   const asset = await fetchText(`${baseUrl}/${adminV4ModelAsset}`);
   requireMarkers('Admin V4 model proof markers', asset.body, [
     'Prediction Evidence Is Time-Stamped',
+    'Save Forecast Snapshot',
     'forecast snapshots',
     'Forecast Ledger'
   ]);

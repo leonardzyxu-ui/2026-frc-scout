@@ -70,6 +70,7 @@ export default function AdminV4ModelValidationPanel({
   scoutCalibrationRows,
   usableModelCount,
   featureMatchSnapshots,
+  onSaveForecastSnapshot,
   onBack
 }: {
   backtests: ModelBacktestResult[];
@@ -84,6 +85,7 @@ export default function AdminV4ModelValidationPanel({
   scoutCalibrationRows: ScoutCalibrationRow[];
   usableModelCount: number;
   featureMatchSnapshots: NonNullable<ModelFeatureSnapshot['matchSnapshots']>;
+  onSaveForecastSnapshot: () => void | Promise<void>;
   onBack: () => void;
 }) {
   const calibrationBins = bestModelBacktest?.calibrationBins || [];
@@ -144,6 +146,14 @@ export default function AdminV4ModelValidationPanel({
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-fuchsia-50/80">
                 Every model refresh keeps the latest model snapshot and before-match feature snapshots together, so practice and qualification predictions can be reviewed by what was known at that point in time.
               </p>
+              <AdminButton
+                tone="fuchsia"
+                className="mt-4"
+                onClick={() => void onSaveForecastSnapshot()}
+                disabled={backtests.length === 0}
+              >
+                Save Forecast Snapshot
+              </AdminButton>
             </div>
             <div className="grid min-w-[260px] gap-3 sm:grid-cols-2">
               <SummaryCard label="Match Snapshots" value={featureMatchSnapshots.length} />

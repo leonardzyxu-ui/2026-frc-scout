@@ -2179,9 +2179,7 @@ export default function AdminV4View() {
     };
   }, [allianceRecommendations, ppaInsightsByTeam]);
 
-  useEffect(() => {
-    if (adminV4ModelBacktests.length === 0) return;
-    const createdAt = Date.now();
+  const buildCurrentModelSnapshotPair = useCallback((createdAt: number) => {
     const snapshot: ModelLabSnapshot = {
       id: `${eventKey}_${createdAt}`,
       eventKey,
@@ -2203,6 +2201,23 @@ export default function AdminV4View() {
       forecastSnapshots: adminV4ForecastSnapshots
     };
 
+    return { featureSnapshot, snapshot };
+  }, [
+    adminV4BestForecastLayer.modelName,
+    adminV4BestForecastLayer.modelSource,
+    adminV4FeatureMatchSnapshots,
+    adminV4ForecastSnapshots,
+    adminV4ModelBacktests,
+    adminV4PpaRatings,
+    bestModelBacktest?.modelName,
+    eventKey,
+    modelFeaturesByTeam
+  ]);
+
+  useEffect(() => {
+    if (adminV4ModelBacktests.length === 0) return;
+    const createdAt = Date.now();
+    const { featureSnapshot, snapshot } = buildCurrentModelSnapshotPair(createdAt);
     let cancelled = false;
     void Promise.all([
       saveModelLabSnapshot(snapshot),
@@ -2222,16 +2237,30 @@ export default function AdminV4View() {
       cancelled = true;
     };
   }, [
-    adminV4BestForecastLayer.modelName,
-    adminV4BestForecastLayer.modelSource,
-    adminV4FeatureMatchSnapshots,
-    adminV4ForecastSnapshots,
-    adminV4ModelBacktests,
-    adminV4PpaRatings,
-    bestModelBacktest?.modelName,
-    eventKey,
-    modelFeaturesByTeam
+    adminV4ModelBacktests.length,
+    buildCurrentModelSnapshotPair
   ]);
+
+  const saveForecastSnapshotNow = useCallback(async () => {
+    if (adminV4ModelBacktests.length === 0) {
+      setModelSnapshotStatus('Forecast snapshot needs played matches and model backtests first.');
+      return;
+    }
+    const createdAt = Date.now();
+    const { featureSnapshot, snapshot } = buildCurrentModelSnapshotPair(createdAt);
+    try {
+      await Promise.all([
+        saveModelLabSnapshot(snapshot),
+        saveModelFeatureSnapshot(featureSnapshot)
+      ]);
+      setLatestModelSnapshot(snapshot);
+      setLatestFeatureSnapshot(featureSnapshot);
+      setModelSnapshotStatus(`Saved manual forecast snapshot at ${formatLocalTimestamp(createdAt)}`);
+    } catch (error) {
+      console.warn('Failed to save manual Admin V4 forecast snapshot', error);
+      setModelSnapshotStatus('Manual forecast snapshot save failed on this device.');
+    }
+  }, [adminV4ModelBacktests.length, buildCurrentModelSnapshotPair]);
 
   const selectedTeamPerformanceProfile = useMemo(
     () => (searchedTeamNumber ? teamPerformanceProfiles.find(profile => profile.teamNumber === searchedTeamNumber) || null : null),
@@ -7971,6 +8000,7 @@ export default function AdminV4View() {
       promotionCandidateCount={promotionCandidateCount}
       scoutCalibrationRows={scoutCalibrationRows}
       usableModelCount={usableModelCount}
+      onSaveForecastSnapshot={saveForecastSnapshotNow}
       onBack={closeDataPanel}
     />
   );
