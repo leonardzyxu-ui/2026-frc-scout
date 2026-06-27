@@ -66,6 +66,7 @@ Scouting use:
 Current limitation:
 
 - Local source confirms `relay-web/server/render-server.js` serves `GET /health` with `service: "the-button"`.
+- Local validation passed: `relay-web/npm run check` completes, and a local `PORT=8787 npm start` responds at `http://127.0.0.1:8787/health` with `service: "the-button"`.
 - `https://the-button.onrender.com/health` currently returns a Django-style HTTP 404 page, which does not match the local Node relay source.
 - `https://the-button-relay-web.onrender.com/health` also returns HTTP 404.
 - The local The Button repo is clean on `main` and matches `origin/main` at `b139386` (`Fix nuke lifecycle and website profile flow`).

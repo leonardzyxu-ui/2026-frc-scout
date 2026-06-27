@@ -98,6 +98,7 @@ console.log('');
 console.log('Blocked or watch:');
 if (!buttonReady) {
   console.log('- The Button primary relay is not healthy from the public Render URL; live evidence shows the hostname is not serving the expected Node relay.');
+  console.log('- Local The Button relay code passes its check suite and local /health returns service "the-button"; the remaining fix is Render service relink/redeploy, not scouting-site code.');
 } else {
   console.log('- The Button primary relay is reachable; still keep DirectChat ready as backup before alliance-selection prep.');
 }
