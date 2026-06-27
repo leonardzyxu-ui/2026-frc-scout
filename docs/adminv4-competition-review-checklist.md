@@ -9,6 +9,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 - Run `npm run build`.
 - Run `npm run check:competition` with the proxy environment when verifying the official deployed site and relay readiness.
 - Run `npm run check:head-scout` for a one-screen morning status summary that includes live readiness, relay status, and latest CI.
+- Run `npm run report:morning` to turn the live head-scout status into the short business-style overnight report.
 - Run `git diff --check`.
 - List Playwright tests with `node ./node_modules/playwright/cli.js test --list`.
 

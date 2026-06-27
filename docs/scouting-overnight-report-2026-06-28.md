@@ -17,6 +17,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 - Use fast alliance-selection status entry for Our Pick, Taken, Declined, Unavailable, and Clear.
 - Use Now -> Prediction checkpoint for fast capture, or Reports -> Prediction Ledger Closeout when the model lead needs the snapshot plus workbook export path in one place.
 - Run one local morning command, `npm run check:head-scout`, for official-site readiness, Admin links, relay status, latest CI, and operating cues.
+- Run `npm run report:morning` after the status check to produce the concise business-style morning report from live evidence.
 - Use copy-only relay outbox drafts without putting relay credentials into public Firebase code.
 
 ## Why It Is Better
@@ -34,6 +35,7 @@ Run:
 ```sh
 export https_proxy=http://127.0.0.1:7890 http_proxy=http://127.0.0.1:7890 all_proxy=socks5://127.0.0.1:7890
 npm run check:head-scout
+npm run report:morning
 ```
 
 Expected posture from the last overnight check:
