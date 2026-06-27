@@ -33,7 +33,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 - Alliance-selection updates are faster and less error-prone because status changes have a dedicated live entry path.
 - Judge/demo proof is available without making the workspace look staged only for judges.
 - The deployed site is verified by a smoke check that resolves real service-worker assets and checks deployed bundle markers.
-- Relay work is safer: DirectChat is available as backup, while The Button is correctly documented as a deployment-target issue instead of silently trusted.
+- Relay work is safer: DirectChat is verified by service identity as backup, while The Button is correctly documented as a deployment-target issue instead of silently trusted.
 
 ## Morning Evidence To Refresh
 
@@ -52,9 +52,9 @@ Expected posture from the last overnight check:
 - Admin V2 route: HTTP 200.
 - Admin V4 route: HTTP 200.
 - Latest CI: success.
-- DirectChat backup relay: HTTP 200.
+- DirectChat backup relay: HTTP 200 with `service: "directchat-relay"`.
 - The Button primary relay: HTTP 404; treat as blocked until Render service URL/deployment is verified.
 
 ## Blocked Item
 
-The Button is not currently serving the expected Node relay at its public Render URL. Local source confirms `/health` exists, and local `main` matches `origin/main`, but `https://the-button.onrender.com/health` returns a Python/WSGI Django-style 404. Use DirectChat as backup in the morning and keep The Button out of the critical path until the Render service is relinked/redeployed to `leonardzyxu-ui/The_Button` with root directory `relay-web`.
+The Button is not currently serving the expected Node relay at its public Render URL. Local source confirms `/health` exists, and local `main` matches `origin/main`, but `https://the-button.onrender.com/health` returns a Python/WSGI Django-style 404. The scouting app and readiness script now require relay service identity, so a wrong service cannot look healthy by accident. Use `https://directchat-relay.onrender.com/health` as the verified backup in the morning and keep The Button out of the critical path until the Render service is relinked/redeployed to `leonardzyxu-ui/The_Button` with root directory `relay-web`.

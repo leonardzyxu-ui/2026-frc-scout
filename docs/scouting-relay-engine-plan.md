@@ -6,7 +6,7 @@ This note describes how Admin V4 should use Leo's existing relay projects for fa
 
 ## Current State
 
-- Admin V4 Settings has a Relay Readiness check that pings public health endpoints only.
+- Admin V4 Settings has a Relay Readiness check that pings public health endpoints only and requires the expected service identity.
 - The official deployed scouting site can be smoke-checked with:
 
 ```sh
@@ -16,7 +16,7 @@ npm run check:competition
 
 - Last live readiness run passed all critical scouting-site checks.
 - The Button primary relay returned HTTP 404 during the last check.
-- DirectChat backup relay responded with HTTP 200 during the last check.
+- DirectChat backup relay responded with HTTP 200 and `service: "directchat-relay"` during the last check.
 
 ## Relay Priority
 
@@ -113,7 +113,7 @@ Current limitation:
 ### Stage 0: Done
 
 - Admin V4 displays Relay Readiness in Settings.
-- The readiness check pings The Button and DirectChat health endpoints.
+- The readiness check pings The Button and DirectChat health endpoints and rejects a response whose JSON `service` value does not match the expected relay.
 - The local `npm run check:competition` script verifies live routes, deployed bundle markers, and relay reachability.
 
 ### Stage 1: Done

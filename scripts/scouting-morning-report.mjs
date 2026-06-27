@@ -66,7 +66,7 @@ console.log('1. Match-day control: Admin V4 now has explicit Practice Matches, Q
 console.log('2. Prediction trust: the Model Trust flow can save Forecast Snapshot checkpoints and export a workbook with a Forecast Ledger for practice and qualification forecasts.');
 console.log('3. Alliance selection speed: the Pick List now has live status entry plus a Live Pick Call Sheet for primary, backup, swing, and blocker choices.');
 console.log('4. Presentation value: the workspace has a hidden proof shortcut, judge-friendly model proof, the restored Admin V2 Prediction vs Actual graph, and a repeatable PPT background capture command.');
-console.log('5. Operations discipline: local status and watch commands now verify deployed routes, service-worker assets, relay health, latest CI, optional TBA event state, and morning action cues.');
+console.log('5. Operations discipline: local status and watch commands now verify deployed routes, service-worker assets, relay service identity, latest CI, optional TBA event state, and morning action cues.');
 console.log('');
 console.log('Users can now:');
 console.log('- Start the day by opening Admin V4, choosing the competition phase, and following the Now-screen next action.');
@@ -97,12 +97,14 @@ console.log(`- ${bulletValue(buttonRelay, 'Primary relay health: The Button unav
 console.log('');
 console.log('Blocked or watch:');
 if (!buttonReady) {
-  console.log('- The Button primary relay is not healthy from the public Render URL, so use DirectChat as the morning relay path.');
+  console.log('- The Button primary relay is not healthy from the public Render URL; live evidence shows the hostname is not serving the expected Node relay.');
 } else {
   console.log('- The Button primary relay is reachable; still keep DirectChat ready as backup before alliance-selection prep.');
 }
 if (!directChatReady) {
   console.log('- DirectChat backup relay is not healthy; stay on Firebase/local backup workflow until a relay endpoint is confirmed.');
+} else {
+  console.log('- DirectChat backup is verified on the correct directchat-relay service identity and is the morning relay path.');
 }
 if (readinessFailed) {
   console.log('- The official site needs attention before field use; rerun npm run check:head-scout after fixing the failed readiness line.');
