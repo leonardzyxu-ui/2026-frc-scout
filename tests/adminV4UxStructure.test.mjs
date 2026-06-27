@@ -929,6 +929,8 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(adminSource, /forecastSnapshotCount=\{adminV4ForecastSnapshots\.length\}/);
   assert.match(adminSource, /match\.comp_level === 'pm' \|\| match\.comp_level === 'qm'/);
   assert.match(adminSource, /getAdminV4MatchLabel\(match\)/);
+  assert.match(adminSource, /Forecast Scope/);
+  assert.match(adminSource, /Practice\/Qualification/);
   assert.match(adminSource, /Match Level/);
   assert.match(adminSource, /Match Title/);
   assert.match(modelValidationSource, /Save Forecast Snapshot/);

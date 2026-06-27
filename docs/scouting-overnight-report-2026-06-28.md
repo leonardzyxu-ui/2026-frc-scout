@@ -12,7 +12,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 
 - Open Admin V4 and choose the live operating phase: Practice Matches, Qualifications, or Alliance Selection Prep.
 - Use a Now-screen Prediction checkpoint to jump directly to Model Trust before or after a match block.
-- Save deliberate Forecast Snapshot checkpoints and export a full evidence workbook with a Forecast Ledger.
+- Save deliberate Forecast Snapshot checkpoints and export a full evidence workbook with a Forecast Ledger for practice and qualification forecasts.
 - Restore Admin V2's legacy Prediction vs Actual graph directly at `/adminv2/prediction-vs-actual`.
 - Use fast alliance-selection status entry for Our Pick, Taken, Declined, Unavailable, and Clear.
 - Work a Live Pick Call Sheet that keeps the next primary, backup, and swing choices visible as teams are picked or marked unavailable.
@@ -24,7 +24,7 @@ The strongest business value is speed plus trust: the head scout can act quickly
 
 ## Why It Is Better
 
-- Prediction history is now time-stamped instead of memory-based.
+- Prediction history is now time-stamped instead of memory-based, including practice-day forecasts before qualification backtests exist.
 - Alliance-selection updates are faster and less error-prone because status changes have a dedicated live entry path.
 - Judge/demo proof is available without making the workspace look staged only for judges.
 - The deployed site is verified by a smoke check that resolves real service-worker assets and checks deployed bundle markers.

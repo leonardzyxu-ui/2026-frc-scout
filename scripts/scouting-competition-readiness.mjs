@@ -154,7 +154,11 @@ if (adminV4Asset) {
     'Forecast Ledger',
     'forecastSnapshots',
     'Row Kind',
-    'Snapshot Created At'
+    'Snapshot Created At',
+    'Forecast Scope',
+    'Match Level',
+    'Match Title',
+    'Practice/Qualification'
   ]);
 }
 
