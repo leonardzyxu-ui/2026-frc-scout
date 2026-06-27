@@ -20,6 +20,10 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 
 ## Match-Day Workflow QA
 
+- Use the Competition Phase selector before each operating block:
+  - Practice Matches: open scout collection, collect coverage, and start early prediction review even if the model is still weak.
+  - Qualifications: open the next known match and keep future qual forecasts, source freshness, and scout coverage in one loop.
+  - Alliance Selection Prep: open the pick list, keep unavailable/picked teams updated, and review role fit plus trust before every pick.
 - Team search must work by number and name.
 - Pressing Enter in search must open the highlighted or matched team.
 - The search button must open the same team as Enter.
@@ -27,6 +31,32 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 - Team rows must open a focused team detail view with a visible back button.
 - Future matches must show automatic simulations before the manual simulator is needed.
 - Manual simulator must read as a custom what-if tool, not the default way to inspect known future matches.
+
+## Prediction Ledger QA
+
+- Open Data, then Model Trust, and confirm the Forecast Ledger panel is visible.
+- Confirm the latest feature snapshot status shows feature teams, match snapshots, and forecast snapshots.
+- Export the full evidence workbook and confirm it includes a `Forecast Ledger` sheet.
+- In the `Forecast Ledger` sheet, confirm future forecast rows include snapshot time, model, match, red teams, blue teams, predicted winner, predicted scores, low-confidence status, actual winner, and actual score.
+- During practice and qualifications, export the full evidence workbook at the end of each block so prediction history is preserved outside the browser.
+- When reviewing model accuracy, compare Forecast Ledger rows against Model Validation and Trust Calibration instead of relying on memory.
+
+## Relay Readiness QA
+
+- Open Settings and run Relay Readiness before the event, before lunch, and before alliance-selection prep.
+- Treat The Button as the primary head-scout alert relay when its `/health` endpoint responds quickly.
+- Treat DirectChat as the backup relay when The Button is slow or unreachable.
+- Do not put relay passwords, device tokens, or account secrets into Admin V4 settings. Admin V4 should only ping public health endpoints unless a separate authenticated relay plan is built.
+- If both relays are down, fall back to Firebase/local backup workflow and record that relay dispatch is unavailable in the morning or end-of-day report.
+
+## Alliance Selection Prep QA
+
+- Before the final qualification block, export a full evidence workbook and a safe device summary.
+- Open Pick List and mark known unavailable teams as soon as information arrives.
+- Check role fit, expected range, uncertainty, tail risk, coverage, and defense impact before moving a team up the list.
+- Keep our team number and alliance seed current before trusting alliance recommendations.
+- During live alliance selection, update picked/unavailable team statuses immediately after each selection, then recheck the next best available team.
+- If a model recommendation conflicts with a clear drive-team observation, record the reason in strategy notes rather than silently overriding the model.
 
 ## Data and Safety QA
 
