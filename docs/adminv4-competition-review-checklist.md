@@ -9,6 +9,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 - Run `npm run build`.
 - Run `npm run check:competition` with the proxy environment when verifying the official deployed site and relay readiness.
 - Run `npm run check:head-scout` for a one-screen morning status summary that includes live readiness, relay status, and latest CI.
+- Run `npm run watch:head-scout -- --once` for a single ops-watch snapshot, or `npm run watch:head-scout` for continuous official-site, CI, relay, and optional TBA event monitoring.
 - Run `npm run report:morning` to turn the live head-scout status into the short business-style overnight report.
 - Run `git diff --check`.
 - List Playwright tests with `node ./node_modules/playwright/cli.js test --list`.
@@ -51,6 +52,7 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 - Open Settings and run Relay Readiness before the event, before lunch, and before alliance-selection prep.
 - Treat The Button as the primary head-scout alert relay when its `/health` endpoint responds quickly.
 - Treat DirectChat as the backup relay when The Button is slow or unreachable.
+- Use `npm run watch:head-scout` as the local Mac-side status loop when you need passive monitoring; it performs health checks only and does not dispatch relay messages.
 - Do not put relay passwords, device tokens, or account secrets into Admin V4 settings. Admin V4 should only ping public health endpoints unless a separate authenticated relay plan is built.
 - If both relays are down, fall back to Firebase/local backup workflow and record that relay dispatch is unavailable in the morning or end-of-day report.
 

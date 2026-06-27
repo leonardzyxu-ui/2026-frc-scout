@@ -19,6 +19,7 @@
     "test:adminv4-visual:serve": "node scripts/adminv4-visual-qa-serve.mjs",
     "check:competition": "node scripts/scouting-competition-readiness.mjs",
     "check:head-scout": "node scripts/scouting-head-scout-status.mjs",
+    "watch:head-scout": "node scripts/scouting-ops-watch.mjs",
     "report:morning": "node scripts/scouting-morning-report.mjs",
     "smoke": "node tests/smoke.mjs",
     "model:init": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts init",

@@ -1000,6 +1000,8 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   const readinessSource = readFileSync('scripts/scouting-competition-readiness.mjs', 'utf8');
   const headScoutStatusPath = 'scripts/scouting-head-scout-status.mjs';
   const headScoutStatusSource = readFileSync(headScoutStatusPath, 'utf8');
+  const opsWatchPath = 'scripts/scouting-ops-watch.mjs';
+  const opsWatchSource = readFileSync(opsWatchPath, 'utf8');
   const morningReportPath = 'scripts/scouting-morning-report.mjs';
   const morningReportSource = readFileSync(morningReportPath, 'utf8');
   const e2eSource = readFileSync('tests/e2e/app.spec.ts', 'utf8');
@@ -1009,6 +1011,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.ok(existsSync(overnightReportPath), 'overnight report draft exists');
   assert.ok(existsSync(completionStatusPath), 'completion status audit exists');
   assert.ok(existsSync(headScoutStatusPath), 'head scout status script exists');
+  assert.ok(existsSync(opsWatchPath), 'head scout ops watch script exists');
   assert.ok(existsSync(morningReportPath), 'morning business report script exists');
 
   const stateMap = readFileSync(stateMapPath, 'utf8');
@@ -1041,9 +1044,11 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(checklist, /split into stacked\/wrapped chart panels/);
   assert.match(checklist, /PPA.*should appear in stat help/);
   assert.match(checklist, /npm run check:head-scout/);
+  assert.match(checklist, /npm run watch:head-scout/);
   assert.match(checklist, /npm run report:morning/);
   assert.match(checklist, /Live Pick Call Sheet/);
   assert.match(packageSource, /"check:head-scout": "node scripts\/scouting-head-scout-status\.mjs"/);
+  assert.match(packageSource, /"watch:head-scout": "node scripts\/scouting-ops-watch\.mjs"/);
   assert.match(packageSource, /"report:morning": "node scripts\/scouting-morning-report\.mjs"/);
   assert.match(headScoutStatusSource, /Head Scout Status/);
   assert.match(headScoutStatusSource, /Morning operating cues/);
@@ -1052,6 +1057,12 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(headScoutStatusSource, /Reports -> Prediction Ledger Closeout/);
   assert.match(headScoutStatusSource, /scouting-competition-readiness\.mjs/);
   assert.doesNotMatch(headScoutStatusSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
+  assert.match(opsWatchSource, /Head Scout Ops Watch/);
+  assert.match(opsWatchSource, /SCOUTING_TBA_AUTH_KEY/);
+  assert.match(opsWatchSource, /TBA_AUTH_KEY/);
+  assert.match(opsWatchSource, /scouting-head-scout-status\.mjs/);
+  assert.match(opsWatchSource, /display notification/);
+  assert.doesNotMatch(opsWatchSource, /POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(morningReportSource, /Scouting Morning Business Report - June 28, 2026/);
   assert.match(morningReportSource, /scouting-head-scout-status\.mjs/);
   assert.match(morningReportSource, /After our overnight work/);
@@ -1061,6 +1072,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(morningReportSource, /Live Pick Call Sheet/);
   assert.match(morningReportSource, /hidden proof shortcut/);
   assert.match(morningReportSource, /copy-only relay drafts/);
+  assert.match(morningReportSource, /watch:head-scout/);
   assert.doesNotMatch(morningReportSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(readinessSource, /SCOUTING_READINESS_FETCH_RETRIES/);
   assert.match(readinessSource, /after retry/);
@@ -1069,6 +1081,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(overnightReport, /Live Pick Call Sheet/);
   assert.match(overnightReport, /hidden proof shortcut/);
   assert.match(overnightReport, /npm run check:head-scout/);
+  assert.match(overnightReport, /npm run watch:head-scout/);
   assert.match(overnightReport, /npm run report:morning/);
   assert.match(overnightReport, /Reports -> Prediction Ledger Closeout/);
   assert.match(overnightReport, /The Button primary relay: HTTP 404/);
