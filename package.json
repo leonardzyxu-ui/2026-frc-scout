@@ -17,6 +17,7 @@
     "test:e2e": "node ./node_modules/playwright/cli.js test",
     "test:adminv4-visual": "node scripts/adminv4-visual-qa.mjs",
     "test:adminv4-visual:serve": "node scripts/adminv4-visual-qa-serve.mjs",
+    "check:competition": "node scripts/scouting-competition-readiness.mjs",
     "smoke": "node tests/smoke.mjs",
     "model:init": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts init",
     "model:ingest:tba": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts ingest:tba",
