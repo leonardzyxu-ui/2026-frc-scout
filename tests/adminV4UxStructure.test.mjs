@@ -869,6 +869,10 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(settingsModalSource, /sourceState/);
   assert.match(settingsModalSource, /rehearsalState/);
   assert.match(settingsModalSource, /API keys and FIRST credentials remain local to this browser\/device/);
+  assert.match(settingsModalSource, /Relay Outbox Drafts/);
+  assert.match(settingsModalSource, /Copy-Only Head Scout Alerts/);
+  assert.match(settingsModalSource, /does not send them automatically/);
+  assert.match(settingsModalSource, /does not store relay passwords, device tokens, or DirectChat account secrets/);
   assert.match(settingsModalSource, /Clear FIRST/);
   assert.match(settingsModalSource, /Clear TBA/);
   assert.match(settingsModalSource, /Scout Identity Lock/);
