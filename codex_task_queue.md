@@ -62,7 +62,7 @@
 - [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
 - [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
 - [x] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
-- [ ] Add browser-cache export support for detailed JSON with export time and scout metadata.
+- [x] Add browser-cache export support for detailed JSON with export time and scout metadata.
 - [ ] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
 - [x] Deliver `shift-architecture-review-001`: inspect web/Admin V4, modeling, SyntheticFullSystemTest, and PowerScout and produce a concise phased architecture report with exact file paths, migration plan, and MVP-vs-later slices.
 - [x] Maintain the 15-minute overnight watchdog/recovery loop so context loss does not stop the June 29 work.

@@ -59,10 +59,27 @@ export type ScoutArchiveRecord = MatchArchiveRecord | MatchV4ArchiveRecord | Mat
 
 export interface ScoutArchiveBundle {
   format: 'rebuilt-2026-scout-archive';
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   username: string;
   exportedAt: number;
   deviceId: string;
+  exportMetadata?: {
+    exportedAtIso: string;
+    exportedByScoutName: string;
+    source: 'browser-indexeddb';
+    includesDeletedRecords: boolean;
+    includesPowerCoinRecords: boolean;
+    retryHint: string;
+  };
+  recordCounts?: {
+    total: number;
+    active: number;
+    deleted: number;
+    pendingSync: number;
+    unsynced: number;
+    byType: Record<ScoutArchiveRecordType, number>;
+    byEventKey: Record<string, number>;
+  };
   records: ScoutArchiveRecord[];
   powerCoinBets?: PowerCoinBet[];
   powerCoinLedger?: PowerCoinLedgerEntry[];
@@ -551,13 +568,42 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
   const powerCoinLedger = (await Promise.all(eventKeys.map(eventKey => listPowerCoinLedger(eventKey).catch(() => []))))
     .flat()
     .filter(entry => entry.scoutName.trim().toLowerCase() === normalizedScoutName);
+  const exportedAt = Date.now();
+  const recordCounts = normalizedRecords.reduce<ScoutArchiveBundle['recordCounts']>((counts, record) => {
+    if (!counts) return counts;
+    counts.total += 1;
+    if (record.deleted) counts.deleted += 1;
+    else counts.active += 1;
+    if (record.syncStatus === 'pending_sync') counts.pendingSync += 1;
+    if (record.syncStatus === 'unsynced') counts.unsynced += 1;
+    counts.byType[record.recordType] = (counts.byType[record.recordType] || 0) + 1;
+    counts.byEventKey[record.eventKey] = (counts.byEventKey[record.eventKey] || 0) + 1;
+    return counts;
+  }, {
+    total: 0,
+    active: 0,
+    deleted: 0,
+    pendingSync: 0,
+    unsynced: 0,
+    byType: { match: 0, matchV4: 0, matchDefense: 0, pit: 0 },
+    byEventKey: {}
+  });
 
   return {
     format: 'rebuilt-2026-scout-archive',
-    version: 5,
+    version: 6,
     username: normalizedUsername,
-    exportedAt: Date.now(),
+    exportedAt,
     deviceId: normalizedRecords[0]?.deviceId || '',
+    exportMetadata: {
+      exportedAtIso: new Date(exportedAt).toISOString(),
+      exportedByScoutName: normalizedUsername,
+      source: 'browser-indexeddb',
+      includesDeletedRecords: true,
+      includesPowerCoinRecords: powerCoinBets.length > 0 || powerCoinLedger.length > 0,
+      retryHint: 'If the browser download fails, reopen History and press Export Evidence JSON again; this file is generated from local IndexedDB.'
+    },
+    recordCounts,
     records: normalizedRecords,
     powerCoinBets,
     powerCoinLedger
@@ -569,7 +615,7 @@ export const isScoutArchiveBundle = (value: unknown): value is ScoutArchiveBundl
   const maybeBundle = value as Partial<ScoutArchiveBundle>;
   return (
     maybeBundle.format === 'rebuilt-2026-scout-archive' &&
-    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5) &&
+    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5 || maybeBundle.version === 6) &&
     Array.isArray(maybeBundle.records)
   );
 };
