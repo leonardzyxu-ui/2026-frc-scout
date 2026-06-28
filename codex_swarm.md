@@ -145,3 +145,20 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Agentic Event Batch Replay 4
+
+- Task id: `sft-agentic-batch-004`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: continue the active long-running replay goal by running another discovered batch of completed 2026 public TBA events through the agentic score-consistent scout simulation.
+- Status: complete
+- Evidence: `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 22 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
+- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 22 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 22 known agentic successes.
+- Newly completed events: `2026inmis`, `2026mabil`, `2026mefal`, `2026miche`, `2026mimtp`, and `2026nccab`.
+- All known agentic events after this run: `2026bcvi`, `2026brba`, `2026casnv`, `2026cosp`, `2026flor`, `2026gadal`, `2026inmis`, `2026mabil`, `2026mefal`, `2026miche`, `2026milak`, `2026mimtp`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026nccab`, `2026okok`, `2026orsal`, `2026sccha`, `2026tuis`, `2026tuis2`, and `2026txbel`.
+- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.
