@@ -10,6 +10,7 @@
 - [x] Delegate and integrate a logic-bug review for scouting form edge cases.
 - [x] Fix high-impact logic review issues: required match role, explicit pit scoring mismatch handling, and defense metric touched-state.
 - [x] Verify PowerScout and web changes locally.
-- [x] Give `PowerScout.app` a real macOS app icon, using the existing website logo as the first pass.
+- [x] Give `PowerScout.app` a temporary macOS app icon using the existing website logo.
+- [x] Replace the temporary website-logo icon with a real custom PowerScout logo.
 - [ ] Find Leo's older Cloudflare relay server in the Developer folder and integrate it as a VPN/US-use backup while keeping mainland-China relay priority for Sanya.
 - [ ] Push to GitHub after Leo provides the fresh secret code required for external sharing.

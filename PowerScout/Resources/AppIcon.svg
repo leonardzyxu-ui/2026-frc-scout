@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="122" y1="80" x2="902" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0d1b2d"/>
+      <stop offset="0.55" stop-color="#07121f"/>
+      <stop offset="1" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="205" y1="142" x2="748" y2="839" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67e8f9"/>
+      <stop offset="0.44" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="535" y1="206" x2="746" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fef08a"/>
+      <stop offset="0.5" stop-color="#facc15"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+    <clipPath id="tile">
+      <rect width="1024" height="1024" rx="228"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <path d="M98 780C246 706 374 702 512 758c145 59 271 46 414-44v310H98Z" fill="#0f766e" opacity="0.14"/>
+    <path d="M-20 214C164 122 306 112 456 177c191 83 344 39 588-113v262C826 438 620 453 423 367 254 293 123 305-20 391Z" fill="#1d4ed8" opacity="0.17"/>
+
+    <g opacity="0.16" stroke="#93c5fd" stroke-width="3">
+      <path d="M112 302h800"/>
+      <path d="M112 462h800"/>
+      <path d="M112 622h800"/>
+      <path d="M112 782h800"/>
+      <path d="M242 160v704"/>
+      <path d="M402 160v704"/>
+      <path d="M562 160v704"/>
+      <path d="M722 160v704"/>
+      <path d="M882 160v704"/>
+    </g>
+
+    <g transform="translate(512 512)" opacity="0.28" fill="none" stroke="#22d3ee" stroke-width="18">
+      <circle r="286"/>
+      <circle r="190"/>
+      <path d="M0-340v120"/>
+      <path d="M0 220v120"/>
+      <path d="M-340 0h120"/>
+      <path d="M220 0h120"/>
+    </g>
+
+    <g filter="url(#softShadow)">
+      <rect x="252" y="206" width="146" height="612" rx="73" fill="url(#blue)"/>
+      <path d="M342 206h252c148 0 252 95 252 230 0 138-104 233-252 233H398V532h188c70 0 116-38 116-96s-46-95-116-95H342Z" fill="url(#blue)"/>
+      <path d="M602 166 444 522h126l-94 337 234-426H584Z" fill="url(#gold)"/>
+    </g>
+
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M230 772c107-73 210-93 318-60 87 27 160 15 246-45" stroke="#facc15" stroke-width="28"/>
+      <path d="M230 772c107-73 210-93 318-60 87 27 160 15 246-45" stroke="#fff7ed" stroke-width="8" opacity="0.75"/>
+      <circle cx="230" cy="772" r="26" fill="#facc15" stroke="#fff7ed" stroke-width="8"/>
+      <circle cx="548" cy="712" r="26" fill="#22d3ee" stroke="#e0f2fe" stroke-width="8"/>
+      <circle cx="794" cy="667" r="26" fill="#facc15" stroke="#fff7ed" stroke-width="8"/>
+    </g>
+
+    <path d="M118 132c36-45 86-70 150-74" fill="none" stroke="#e0f2fe" stroke-width="14" stroke-linecap="round" opacity="0.42"/>
+    <path d="M748 940c73-10 126-43 160-98" fill="none" stroke="#fef3c7" stroke-width="14" stroke-linecap="round" opacity="0.38"/>
+  </g>
+</svg>
