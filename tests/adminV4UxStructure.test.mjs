@@ -1227,9 +1227,12 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(defenseScoutSource, /Defense Evidence Map/);
   assert.match(defenseScoutSource, /Role Guard/);
   assert.doesNotMatch(defenseScoutSource, /Defense PPA Evidence Map|PPA Role Guard|Protects PPA|No PPA role correction/);
-  assert.match(appSource, /Evidence To Match Strategy/);
+  assert.match(appSource, /Scouting Lanes/);
+  assert.match(setupSource, /Which scouting lane are you in\?/);
+  assert.match(setupSource, /Facts beat claims/);
+  assert.match(setupSource, /Only live truth/);
   assert.doesNotMatch(appSource, /Evidence To PPA To Strategy/);
-  assert.match(workflowSource, /expected range, downside risk/);
+  assert.match(workflowSource, /actual capability, downside risk/);
   assert.match(workflowSource, /EXPECTED_RANGE_COLLECTION_FIELDS/);
   assert.doesNotMatch(workflowSource, /PPA_COLLECTION_FIELDS|PPA expected range|strongest local signal for PPA|protects PPA from role confusion/);
   assert.match(pitSource, /early expected-range prior/);

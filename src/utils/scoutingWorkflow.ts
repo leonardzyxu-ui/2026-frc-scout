@@ -32,11 +32,11 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     shortTitle: 'Before Event',
     route: '/pre',
     when: 'Before the event or before the first real match cycle.',
-    question: 'What do public sources already tell us, and what is still missing?',
-    rawInputs: ['TBA team list', 'robot media', 'season results', 'manual research gaps'],
-    processedSignals: ['pre-event coverage gaps', 'public context', 'pit priority list'],
-    usedFor: ['pit scouting priorities', 'early qualification expectations', 'demo proof context'],
-    modelImpact: 'Starts the public-only context before local scouting has enough rows.',
+    question: 'What can we learn calmly before match pressure starts?',
+    rawInputs: ['TBA team list', 'robot media', 'season results', 'video notes', 'manual research gaps'],
+    processedSignals: ['pre-event coverage gaps', 'public context', 'pit priority list', 'match watch questions'],
+    usedFor: ['pit scouting priorities', 'early qualification expectations', 'claim verification', 'demo proof context'],
+    modelImpact: 'Pushes slow research out of match scout and creates public-only priors before local rows exist.',
     tone: 'violet'
   },
   pitScout: {
@@ -45,11 +45,11 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     shortTitle: 'At Pits',
     route: '/pit',
     when: 'When the robot is available and the drive team can answer capability questions.',
-    question: 'What can this robot probably do, and what should match scouts verify?',
-    rawInputs: ['robot architecture', 'expected scoring split', 'endgame capability', 'drivetrain notes'],
-    processedSignals: ['capability prior', 'compatibility notes', 'mechanism risk', 'pick-list context'],
-    usedFor: ['alliance selection', 'match role planning', 'pre-match questions'],
-    modelImpact: 'Creates a human prior for role fit and reliability before enough match rows exist.',
+    question: 'What can we observe, and which claims need proof in real matches?',
+    rawInputs: ['robot architecture', 'objective mechanisms', 'photos', 'claimed scoring split', 'claimed defense value', 'endgame capability'],
+    processedSignals: ['observed capability prior', 'claim confidence', 'compatibility notes', 'mechanism risk', 'pick-list context'],
+    usedFor: ['alliance selection', 'match role planning', 'pre-match questions', 'claim verification'],
+    modelImpact: 'Creates a human prior while labeling subjective claims as discounted until match evidence confirms them.',
     tone: 'emerald'
   },
   matchScout: {
@@ -58,11 +58,11 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     shortTitle: 'During Match',
     route: '/scout',
     when: 'During practice and qualification matches, one assigned robot at a time.',
-    question: 'What did the robot actually contribute, and how stable was it?',
-    rawInputs: ['auto points/cycles', 'teleop points/cycles', 'endgame', 'role played', 'failures', 'reliability'],
-    processedSignals: ['scouted point contribution', 'expected range', 'role fit', 'volatility', 'scout confidence'],
-    usedFor: ['future qual forecasts', 'manual simulator', 'team profiles', 'pick-list ordering'],
-    modelImpact: 'This is the strongest local signal for expected range, downside risk, and future match prediction.',
+    question: 'What actual live capability did the robot prove, without overloading the scout?',
+    rawInputs: ['auto points/cycles', 'teleop points/cycles', 'endgame', 'role played', 'traffic behavior', 'pressure response', 'failures', 'reliability'],
+    processedSignals: ['actual contribution', 'expected range', 'role fit', 'volatility', 'claim contradictions', 'scout confidence'],
+    usedFor: ['future qual forecasts', 'manual simulator', 'team profiles', 'pick-list ordering', 'pit-claim verification'],
+    modelImpact: 'This is the strongest local signal for actual capability, downside risk, and future match prediction, so the form must stay feasible.',
     tone: 'cyan'
   },
   defenseScout: {
@@ -154,11 +154,11 @@ export const getMissionToneClasses = (tone: ScoutingMission['tone']) => {
 };
 
 export const EXPECTED_RANGE_COLLECTION_FIELDS = [
-  'Auto/teleop/endgame points define the expected value.',
+  'Auto/teleop/endgame points define the expected value only after pre-scout and pit priors are already loaded.',
   'Cycles help explain whether the score is repeatable.',
   'Role, defended team, and defender faced prevent role confusion.',
   'Reliability and failures define the floor and tail risk.',
-  'Strategy notes explain why the expected range changed.'
+  'Strategy notes explain whether live match evidence confirmed or contradicted earlier claims.'
 ];
 
 export const SCOUTING_DAY_SEQUENCE = [

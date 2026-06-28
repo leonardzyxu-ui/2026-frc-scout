@@ -621,6 +621,7 @@ export default function MatchScoutV4View() {
     if (!normalizedData.teamNumber.trim()) return 'Team number is required.';
     if (!normalizedData.assignedScoutName.trim()) return 'Select the fixed scout assignment.';
     if (!normalizedData.alliance) return 'Alliance is required.';
+    if (!normalizedData.rolePlayed) return 'Role played is required. Choose Offense, Defense, Mixed, Support, or Disabled.';
     return '';
   };
 

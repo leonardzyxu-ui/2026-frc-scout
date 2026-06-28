@@ -17,7 +17,25 @@ import { getCachedPreMatchSheet } from '../utils/preMatchCache';
 import { DEFAULT_EVENT_KEY, getStoredEventKey } from '../utils/sharedEventState';
 import { isCurrentUserAdmin } from '../utils/adminAuth';
 
-const missionOrder: ScoutingMissionKey[] = ['matchScout', 'defenseScout', 'pitScout', 'preScout'];
+const missionOrder: ScoutingMissionKey[] = ['preScout', 'pitScout', 'matchScout', 'defenseScout'];
+
+const lanePrinciples = [
+  {
+    title: 'Pre Scout',
+    rule: 'Push work here first.',
+    detail: 'Use public records, video, history, and model priors while the team still has time.'
+  },
+  {
+    title: 'Pit Scout',
+    rule: 'Facts beat claims.',
+    detail: 'Trust observed robot specs. Discount self-reported scoring or defense until matches prove it.'
+  },
+  {
+    title: 'Match Scout',
+    rule: 'Only live truth.',
+    detail: 'Capture actual capability, pressure behavior, reliability, and contradictions without overloading one scout.'
+  }
+];
 
 const missionIcons: Record<ScoutingMissionKey, React.ReactNode> = {
   preScout: <Search className="h-5 w-5" />,
@@ -141,10 +159,10 @@ export default function SetupView() {
       <div className="mx-auto flex min-h-full min-w-0 max-w-7xl flex-col gap-5 pb-8">
         <header className="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0" onClick={handleTitleClick} style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <div className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">REBUILT</div>
-            <h1 className="mt-1 text-3xl font-black tracking-tight text-white md:text-5xl">Choose the job in front of you</h1>
+            <div className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">PowerScout</div>
+            <h1 className="mt-1 text-3xl font-black tracking-tight text-white md:text-5xl">Which scouting lane are you in?</h1>
             <p className="mt-2 max-w-2xl break-words text-sm font-semibold leading-relaxed text-slate-400">
-              Pick by what is happening right now. The admin side will turn each row into match help, pick-list context, charts, and reports later.
+              Start with the calmest source of truth available. Pre-scout reduces unknowns, pit scout separates facts from claims, and match scout records what only live action can prove.
             </p>
           </div>
           <div className={`grid gap-2 ${canShowAdminTools ? 'sm:grid-cols-2' : ''} lg:w-[360px]`}>
@@ -236,6 +254,16 @@ export default function SetupView() {
             </div>
           </section>
         )}
+
+        <section className="grid gap-3 lg:grid-cols-3">
+          {lanePrinciples.map(principle => (
+            <div key={principle.title} className="admin-g2-sm border border-slate-800 bg-slate-900/55 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{principle.title}</div>
+              <div className="mt-2 text-lg font-black text-white">{principle.rule}</div>
+              <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-400">{principle.detail}</p>
+            </div>
+          ))}
+        </section>
 
         <main className="grid min-w-0 flex-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <section className="min-w-0">
@@ -333,10 +361,10 @@ export default function SetupView() {
             <section className="admin-g2 border border-slate-800 bg-slate-900/65 p-5 shadow-sm shadow-slate-950/10">
               <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Choose By Moment</div>
               <div className="mt-3 space-y-3 text-sm font-semibold leading-relaxed text-slate-300">
+                <MomentRule lead="Before enough rows exist" action="open Pre Scout." />
+                <MomentRule lead="Robot is in the pit" action="open Pit Scout." />
                 <MomentRule lead="Match about to start" action="open Match Scout." />
                 <MomentRule lead="Defense mattered" action="open Defense Scout." />
-                <MomentRule lead="Robot is in the pit" action="open Pit Scout." />
-                <MomentRule lead="Before enough rows exist" action="open Pre Scout." />
               </div>
             </section>
 

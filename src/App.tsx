@@ -29,7 +29,7 @@ function RouteLoading({ label = 'Loading workflow...' }: { label?: string }) {
 
 function ScoutShell({ isLocalMode }: { isLocalMode: boolean }) {
   const scoutRoutes = [
-    { to: '/', label: 'Jobs', icon: <Home className="h-4 w-4" />, end: true },
+    { to: '/', label: 'Lanes', icon: <Home className="h-4 w-4" />, end: true },
     { to: '/pre', label: 'Pre Scout', icon: <Search className="h-4 w-4" /> },
     { to: '/pit', label: 'Pit Scout', icon: <Wrench className="h-4 w-4" /> },
     { to: '/scout', label: 'Match Scout', icon: <ClipboardList className="h-4 w-4" /> },
@@ -42,9 +42,9 @@ function ScoutShell({ isLocalMode }: { isLocalMode: boolean }) {
       <header className="shrink-0 overflow-hidden border-b border-slate-800 bg-slate-950/95 px-4 py-3 shadow-xl shadow-slate-950/30 md:px-6">
         <div className="mx-auto flex min-w-0 max-w-7xl flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300">REBUILT Scout</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300">PowerScout</div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="min-w-0 text-xl font-black tracking-tight text-white md:text-2xl">Evidence To Match Strategy</h1>
+              <h1 className="min-w-0 text-xl font-black tracking-tight text-white md:text-2xl">Scouting Lanes</h1>
               {isLocalMode && (
                 <span className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[10px] font-black uppercase text-amber-100">
                   Local

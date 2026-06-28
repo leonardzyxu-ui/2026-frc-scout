@@ -1,0 +1,6 @@
+[commands]
+run = "./script/build_and_run.sh"
+verify = "./script/build_and_run.sh --verify"
+logs = "./script/build_and_run.sh --logs"
+telemetry = "./script/build_and_run.sh --telemetry"
+debug = "./script/build_and_run.sh --debug"

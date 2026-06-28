@@ -590,48 +590,16 @@ export default function PitScoutView() {
 
   const handleBallFieldChange = (field: BallField, rawValue: string) => {
     const value = parseNonNegativeInteger(rawValue);
-    const nextValues = {
-      match: form.expectedHubBallsPerMatch,
-      auto: form.expectedAutoBalls,
-      teleop: form.expectedTeleopBalls
+    const fieldUpdates: Record<BallField, Partial<PitScoutingV2>> = {
+      match: { expectedHubBallsPerMatch: value },
+      auto: { expectedAutoBalls: value },
+      teleop: { expectedTeleopBalls: value }
     };
-    nextValues[field] = value;
-
-    const nextHistory = [...ballFieldHistory.filter(entry => entry !== field), field].slice(-2);
-
-    if (nextHistory.length === 2) {
-      const [olderField, newerField] = nextHistory;
-      if (
-        (olderField === 'auto' && newerField === 'teleop') ||
-        (olderField === 'teleop' && newerField === 'auto')
-      ) {
-        nextValues.match = nextValues.auto + nextValues.teleop;
-      } else if (
-        (olderField === 'match' && newerField === 'auto') ||
-        (olderField === 'auto' && newerField === 'match')
-      ) {
-        if (nextValues.match < nextValues.auto) {
-          nextValues.match = nextValues.auto;
-        }
-        nextValues.teleop = nextValues.match - nextValues.auto;
-      } else if (
-        (olderField === 'match' && newerField === 'teleop') ||
-        (olderField === 'teleop' && newerField === 'match')
-      ) {
-        if (nextValues.match < nextValues.teleop) {
-          nextValues.match = nextValues.teleop;
-        }
-        nextValues.auto = nextValues.match - nextValues.teleop;
-      }
-    }
-
     setForm(prev => ({
       ...prev,
-      expectedHubBallsPerMatch: nextValues.match,
-      expectedAutoBalls: nextValues.auto,
-      expectedTeleopBalls: nextValues.teleop
+      ...fieldUpdates[field]
     }));
-    setBallFieldHistory(nextHistory);
+    setBallFieldHistory(prev => [...prev.filter(entry => entry !== field), field].slice(-2));
   };
 
   const buildPersistedPitData = () => {
@@ -755,6 +723,20 @@ export default function PitScoutView() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const expectedSplitTotal = form.expectedAutoBalls + form.expectedTeleopBalls;
+  const hasExpectedSplit = form.expectedAutoBalls > 0 || form.expectedTeleopBalls > 0;
+  const hasScoringClaimMismatch =
+    form.expectedHubBallsPerMatch > 0 &&
+    hasExpectedSplit &&
+    form.expectedHubBallsPerMatch !== expectedSplitTotal;
+  const reconcileExpectedScoringTotal = () => {
+    updateForm({ expectedHubBallsPerMatch: expectedSplitTotal });
+    setBallFieldHistory(prev => {
+      const nextHistory: BallField[] = [...prev.filter(entry => entry !== 'match'), 'match'];
+      return nextHistory.slice(-2);
+    });
   };
 
   return (
@@ -964,6 +946,22 @@ export default function PitScoutView() {
                 />
               )}
             </div>
+
+            {hasScoringClaimMismatch && (
+              <div className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">
+                <div className="font-black text-amber-50">Claim mismatch: total does not equal auto plus teleop.</div>
+                <div className="mt-1">
+                  Keep it if the team gave an uncertain estimate, or explicitly set total to {expectedSplitTotal}.
+                </div>
+                <button
+                  type="button"
+                  onClick={reconcileExpectedScoringTotal}
+                  className="admin-g2-sm mt-3 border border-amber-300/30 bg-amber-400/15 px-3 py-2 text-xs font-black text-amber-50 hover:bg-amber-400/25"
+                >
+                  Set total to auto + teleop
+                </button>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">

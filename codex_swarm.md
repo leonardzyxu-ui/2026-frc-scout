@@ -1,0 +1,18 @@
+# PowerScout Swarm Board
+
+## Goal
+
+Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadership, while stepping back to audit whether pre-scout, pit scout, and match scout are truly covered by the current system.
+
+## Agents
+
+- [x] Scout system auditor (`019f0b89-f922-7d50-819e-fa5eb4bc19d5`, explorer, `gpt-5.3-codex-spark`, medium reasoning): errored from output size; main thread completed the audit in `codex_agent_reports/scout-system-audit.md`.
+- [x] macOS pattern scout (`019f0b8a-3248-7ee1-a8b5-4b7c78f63683`, explorer, `gpt-5.3-codex-spark`, medium reasoning): inspected nearby SwiftPM macOS apps/build scripts for reusable app packaging patterns.
+- [x] Logic reviewer (`019f0b94-9310-7fc0-bad0-f2f46bab679f`, explorer, `gpt-5.4-mini`, high reasoning): inspected scouting forms and PowerScout logic for missing real-world cases and overloaded form moments.
+- [ ] Main Codex conductor: implement and verify PowerScout, integrate useful findings, and keep Leo's queue updated.
+
+## Integration Notes
+
+- Keep implementation ownership in the main thread for `PowerScout/`.
+- Subagents may write only their own files under `codex_agent_reports/`.
+- Do not revert unrelated local changes.

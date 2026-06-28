@@ -155,7 +155,11 @@ function ChoiceButton({
   );
 }
 
-const getDefenseStepReadiness = (step: DefenseScoutStepKey, data: MatchDefenseScoutingV1) => {
+const getDefenseStepReadiness = (
+  step: DefenseScoutStepKey,
+  data: MatchDefenseScoutingV1,
+  hasTouchedDefenseMetric = false
+) => {
   const commentSignal = [data.defenseComments, data.generalComments].join(' ').trim();
   switch (step) {
     case 'match':
@@ -163,7 +167,7 @@ const getDefenseStepReadiness = (step: DefenseScoutStepKey, data: MatchDefenseSc
     case 'target':
       return Boolean(data.teamNumber && data.alliance);
     case 'impact':
-      return data.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric;
+      return hasTouchedDefenseMetric;
     case 'evidence':
       return commentSignal.length >= 40;
     case 'handoff':
@@ -174,10 +178,12 @@ const getDefenseStepReadiness = (step: DefenseScoutStepKey, data: MatchDefenseSc
 function DefenseStepNav({
   activeStep,
   data,
+  hasTouchedDefenseMetric,
   onChange
 }: {
   activeStep: DefenseScoutStepKey;
   data: MatchDefenseScoutingV1;
+  hasTouchedDefenseMetric: boolean;
   onChange: (step: DefenseScoutStepKey) => void;
 }) {
   return (
@@ -185,7 +191,7 @@ function DefenseStepNav({
       <div className="grid auto-cols-[minmax(180px,1fr)] grid-flow-col gap-2 overflow-x-auto pb-1 lg:grid-flow-row lg:grid-cols-5 lg:overflow-visible lg:pb-0">
         {DEFENSE_SCOUT_STEPS.map((step, index) => {
           const isActive = activeStep === step.key;
-          const ready = getDefenseStepReadiness(step.key, data);
+          const ready = getDefenseStepReadiness(step.key, data, hasTouchedDefenseMetric);
           return (
             <button
               key={step.key}
@@ -433,6 +439,7 @@ export default function MatchDefenseScoutView() {
   const [teamWarning, setTeamWarning] = useState('');
   const [activeStep, setActiveStep] = useState<DefenseScoutStepKey>('match');
   const [hasUsedStepNav, setHasUsedStepNav] = useState(false);
+  const [hasTouchedDefenseMetric, setHasTouchedDefenseMetric] = useState(false);
   const activeStepRef = useRef<HTMLDivElement | null>(null);
   const skipNextDraftSaveRef = useRef(false);
   const shouldShowDefenseMap =
@@ -441,7 +448,7 @@ export default function MatchDefenseScoutView() {
       data.teamNumber.trim() ||
       data.defenseComments.trim() ||
       data.generalComments.trim() ||
-      data.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric
+      hasTouchedDefenseMetric
     );
 
   const selectedAssignment = useMemo(
@@ -546,6 +553,7 @@ export default function MatchDefenseScoutView() {
       const parsed = JSON.parse(editPayload) as MatchDefenseScoutingV1;
       const nextData = normalizeMatchDefenseScoutingV1({ ...parsed, deviceId: parsed.deviceId || persistentDeviceId });
       setData(nextData);
+      setHasTouchedDefenseMetric(true);
       setIsEditing(true);
       setOriginalDocId(getMatchDefenseDocId(nextData));
     } catch (error) {
@@ -565,7 +573,12 @@ export default function MatchDefenseScoutView() {
       try {
         const draft = await getScoutDraft<MatchDefenseDraftPayload>(activeDraftKey);
         if (cancelled || !draft) return;
-        setData(normalizeMatchDefenseScoutingV1(draft.data.data));
+        const nextData = normalizeMatchDefenseScoutingV1(draft.data.data);
+        setData(nextData);
+        setHasTouchedDefenseMetric(
+          nextData.defenseMetric !== initialMatchDefenseScoutingV1.defenseMetric ||
+            Boolean(nextData.defenseComments.trim() || nextData.generalComments.trim())
+        );
       } catch (error) {
         console.error('Failed to hydrate defense draft', error);
       } finally {
@@ -897,6 +910,7 @@ export default function MatchDefenseScoutView() {
           deviceId: payload.deviceId || persistentDeviceId
         })
       );
+      setHasTouchedDefenseMetric(false);
       window.scrollTo(0, 0);
     } catch (error) {
       console.error('Error submitting defense record', error);
@@ -945,7 +959,7 @@ export default function MatchDefenseScoutView() {
       <ScoutingMissionPanel missionKey="defenseScout" compact className="mt-6" />
 
       <div className="space-y-6">
-        <DefenseStepNav activeStep={activeStep} data={data} onChange={handleStepChange} />
+        <DefenseStepNav activeStep={activeStep} data={data} hasTouchedDefenseMetric={hasTouchedDefenseMetric} onChange={handleStepChange} />
         {shouldShowDefenseMap && <DefenseImpactStrip data={data} />}
 
         <div ref={activeStepRef} className="scroll-mt-4">
@@ -1094,7 +1108,13 @@ export default function MatchDefenseScoutView() {
           {activeStep === 'impact' && (
             <DefenseStepFrame step="impact">
               <div>
-                <DefenseMetricSlider value={data.defenseMetric} onChange={value => updateData({ defenseMetric: value })} />
+                <DefenseMetricSlider
+                  value={data.defenseMetric}
+                  onChange={value => {
+                    setHasTouchedDefenseMetric(true);
+                    updateData({ defenseMetric: value });
+                  }}
+                />
               </div>
               <div className="mt-5">
                 <DefenseStepFooter activeStep={activeStep} onChange={handleStepChange} />
