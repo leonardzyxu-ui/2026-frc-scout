@@ -960,6 +960,9 @@ export const buildTeamPerformanceProfiles = ({
     const projectedNextScore = Math.max(0, averageScore + slope * (nextMatchNumber - avgMatchNumber));
     const floorScore = Math.max(0, percentile(rawScores, 0.2));
     const ceilingScore = percentile(rawScores, 0.8);
+    const floorNonZeroScore = rawScores.filter(score => score > 0).sort((left, right) => left - right)[0] ?? null;
+    const contribution = ppcLookup[teamNumber] ?? averageScore;
+    const defense = defenseImpactLookup[teamNumber] ?? null;
     const volatility = averageScore === 0 ? 0 : deviation / Math.max(1, averageScore);
     const consistencyIndex = scores.length === 0
       ? 0
@@ -1001,11 +1004,14 @@ export const buildTeamPerformanceProfiles = ({
       matchesPlayed: scores.length,
       peakScore: rawScores.length ? Math.max(...rawScores) : 0,
       worstScore: rawScores.length ? Math.min(...rawScores) : 0,
-      lowestNonZeroScore: rawScores.filter(score => score > 0).sort((left, right) => left - right)[0] ?? null,
+      lowestNonZeroScore: floorNonZeroScore,
       averageScore,
       standardDeviation: deviation,
+      contribution,
+      contributionDeviation: deviation,
       floorScore,
       ceilingScore,
+      floorNonZeroScore,
       projectedNextScore,
       volatility,
       consistencyIndex,
@@ -1018,7 +1024,9 @@ export const buildTeamPerformanceProfiles = ({
       dpr: dprRatings[teamNumber] ?? null,
       epa: epaRatings[teamNumber] ?? null,
       ppa: ppaRatings[teamNumber] ?? null,
-      defenseImpact: defenseImpactLookup[teamNumber] ?? null,
+      defense,
+      defenseDeviation: 0,
+      defenseImpact: defense,
       normalLowScore: Math.max(0, averageScore - deviation),
       normalHighScore: averageScore + deviation,
       curve,

@@ -1,4 +1,4 @@
-import { TBAScoreBreakdownAlliance } from './mathEngine';
+import type { TBAScoreBreakdownAlliance } from './mathEngine.ts';
 
 export interface GameBonusMetrics {
   towerMetric: number;
@@ -82,9 +82,9 @@ export const rebuilt2026GameAdapter: SeasonGameAdapter = {
   },
   calculateRankingPoints: (isWinner, bonusMetrics) => {
     const winRp = isWinner ? REBUILT_2026_RP_RULES.winRp : 0;
-    const towerRp = bonusMetrics && bonusMetrics.towerMetric > REBUILT_2026_RP_RULES.towerRpThreshold ? 1 : 0;
-    const energizedRp = bonusMetrics && bonusMetrics.fuelMetric > REBUILT_2026_RP_RULES.energizedRpThreshold ? 1 : 0;
-    const superchargedRp = bonusMetrics && bonusMetrics.fuelMetric > REBUILT_2026_RP_RULES.superchargedRpThreshold ? 1 : 0;
+    const towerRp = bonusMetrics && bonusMetrics.towerMetric >= REBUILT_2026_RP_RULES.towerRpThreshold ? 1 : 0;
+    const energizedRp = bonusMetrics && bonusMetrics.fuelMetric >= REBUILT_2026_RP_RULES.energizedRpThreshold ? 1 : 0;
+    const superchargedRp = bonusMetrics && bonusMetrics.fuelMetric >= REBUILT_2026_RP_RULES.superchargedRpThreshold ? 1 : 0;
     return {
       totalRp: winRp + towerRp + energizedRp + superchargedRp,
       winRp,

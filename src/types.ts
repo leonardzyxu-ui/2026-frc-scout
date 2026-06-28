@@ -149,6 +149,37 @@ export type MatchScoutingV3SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
 export type MatchDefenseScoutingV1SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
 export type MatchScoutingV4SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
 export type MatchScoutingV4Role = '' | 'Offense' | 'Defense' | 'Mixed' | 'Support' | 'Disabled';
+export type MatchScoutingV4ShiftRole = 'offense' | 'defense' | 'stockpile' | 'inactive' | 'mixed';
+export type MatchScoutingV4ShiftOwner = 'own' | 'opponent';
+
+export interface MatchScoutingV4DefenseAssignment {
+  targetTeamNumber: string;
+  claimedSharePercent: number;
+  normalizedSharePercent?: number;
+  notes?: string;
+}
+
+export interface MatchScoutingV4ShiftEntry {
+  id: string;
+  index: number;
+  owner: MatchScoutingV4ShiftOwner;
+  role: MatchScoutingV4ShiftRole;
+  ballsScored: number;
+  stockpileShiftCredit: number;
+  defenseShiftCredit: number;
+  defendedTeams: MatchScoutingV4DefenseAssignment[];
+  notes?: string;
+  submittedAt?: number;
+}
+
+export interface MatchScoutingV4OfficialReconciliation {
+  officialAllianceFuelPoints: number;
+  rawAllianceFuelPoints: number;
+  scaleFactor: number;
+  adjustedTeamFuelPoints: number;
+  warnings: string[];
+  reconciledAt: number;
+}
 
 export interface MatchDefenseScoutingV1 {
   schemaVersion: 'defense-v1';
@@ -254,6 +285,12 @@ export interface MatchScoutingV4 {
 
   notes: string;
   strategyNotes: string;
+
+  teleopFirstShiftAlliance?: MatchScoutingV3Alliance;
+  shiftBreakdown?: MatchScoutingV4ShiftEntry[];
+  defenseAssignments?: MatchScoutingV4DefenseAssignment[];
+  officialReconciliation?: MatchScoutingV4OfficialReconciliation;
+  shiftAuditFlags?: string[];
 }
 
 export interface PowerCoinBet {
@@ -404,8 +441,11 @@ export interface TeamPerformanceProfile {
   lowestNonZeroScore: number | null;
   averageScore: number;
   standardDeviation: number;
+  contribution: number;
+  contributionDeviation: number;
   floorScore: number;
   ceilingScore: number;
+  floorNonZeroScore: number | null;
   projectedNextScore: number;
   volatility: number;
   consistencyIndex: number;
@@ -418,6 +458,8 @@ export interface TeamPerformanceProfile {
   dpr: number | null;
   epa: number | null;
   ppa: number | null;
+  defense: number | null;
+  defenseDeviation: number;
   defenseImpact: number | null;
   normalLowScore: number;
   normalHighScore: number;

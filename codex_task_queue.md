@@ -64,4 +64,9 @@
 - [ ] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
 - [ ] Add browser-cache export support for detailed JSON with export time and scout metadata.
 - [ ] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
+- [x] Deliver `shift-architecture-review-001`: inspect web/Admin V4, modeling, SyntheticFullSystemTest, and PowerScout and produce a concise phased architecture report with exact file paths, migration plan, and MVP-vs-later slices.
+- [x] Maintain the 15-minute overnight watchdog/recovery loop so context loss does not stop the June 29 work.
+- [x] Add the token-budget rollover rule to current chat memory and the current recovery goal file.
+- [blocked] Add the token-budget rollover rule to `/Users/leoxu/.codex/AGENTS.md`; blocked until Leo provides a fresh direct secret-code reply because that file is protected by the local safety rules.
+- [ ] Keep local Git checkpoint commits at meaningful completed slices, without pushing/deploying during overnight constraints.
 - [ ] Prepare the June 29 8:30 AM business-style morning report with completed work, assumptions, blockers, and next actions.
