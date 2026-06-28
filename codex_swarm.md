@@ -162,3 +162,19 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Agentic Event Batch Replay 5
+
+- Task id: `sft-agentic-batch-005`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: continue the active long-running replay goal with another discovered batch of completed 2026 events, and compact `latestBatch` so skipped-existing events are summarized by count instead of listed individually.
+- Status: complete
+- Evidence: `node --test tests/syntheticAgenticBatchReplay.test.mjs`, `npm run sft:agentic-replay:batch -- --limit 0 --min-matches 30`, `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 28 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
+- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 28 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 28 known agentic successes and a compact `latestBatchSkippedExisting` count.
+- Newly completed events: `2026ncwak`, `2026njwas`, `2026pahat`, `2026vaale`, `2026wiply`, and `2026cahal`.
+- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.

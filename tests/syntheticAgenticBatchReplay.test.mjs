@@ -120,7 +120,6 @@ test('agentic replay batch does not persist already-replayed skips', () => {
   assert.equal(summary.totalEntries, 1);
   assert.equal(summary.successes, 1);
   assert.equal(summary.skipped, 0);
-  assert.equal(summary.latestBatch.length, 1);
-  assert.equal(summary.latestBatch[0].status, 'skipped');
-  assert.equal(summary.latestBatch[0].reason, 'already-agentic-success');
+  assert.equal(summary.latestBatchSkippedExisting, 1);
+  assert.deepEqual(summary.latestBatch, []);
 });

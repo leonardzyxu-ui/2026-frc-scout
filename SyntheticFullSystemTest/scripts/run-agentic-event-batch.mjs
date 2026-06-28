@@ -243,7 +243,7 @@ const appendCatalog = entry => {
   appendFileSync(catalogPath, `${JSON.stringify({ recordedAt: new Date().toISOString(), ...entry })}\n`);
 };
 
-const writeSummary = (batchEntries, knownSuccesses) => {
+const writeSummary = (batchEntries, knownSuccesses, skippedExistingCount) => {
   const allEntries = existsSync(catalogPath)
     ? readFileSync(catalogPath, 'utf8')
         .split('\n')
@@ -292,6 +292,7 @@ const writeSummary = (batchEntries, knownSuccesses) => {
         failures: allEntries.filter(entry => entry.status === 'failed').length,
         skipped: allEntries.filter(entry => entry.status === 'skipped').length,
         knownAgenticSuccesses: knownAgenticSuccesses.length,
+        latestBatchSkippedExisting: skippedExistingCount,
         latestBatch: batchEntries,
         successfulEvents: knownAgenticSuccesses.map(entry => ({
           eventKey: entry.eventKey,
@@ -322,6 +323,7 @@ mkdirSync(generatedManifestRoot, { recursive: true });
 
 const batchEntries = [];
 let attempts = 0;
+let skippedExistingCount = 0;
 
 console.log('Agentic event replay batch');
 console.log(`Season: ${season}`);
@@ -334,17 +336,7 @@ for (const event of discovered) {
   if (attempts >= limit) break;
   const existing = successes.get(event.eventKey);
   if (existing && !includeExisting) {
-    const entry = {
-      status: 'skipped',
-      reason: 'already-agentic-success',
-      eventKey: event.eventKey,
-      eventName: event.eventName,
-      sourceUrl: event.sourceUrl,
-      runId: existing.runId,
-      outputDir: existing.outputDir,
-      counts: { totalMatches: existing.totalMatches }
-    };
-    batchEntries.push(entry);
+    skippedExistingCount += 1;
     continue;
   }
 
@@ -405,7 +397,7 @@ for (const event of discovered) {
   }
 }
 
-writeSummary(batchEntries, successes);
+writeSummary(batchEntries, successes, skippedExistingCount);
 
-console.log(`\nBatch complete: ${batchEntries.filter(entry => entry.status === 'success').length} success, ${batchEntries.filter(entry => entry.status === 'skipped').length} skipped, ${batchEntries.filter(entry => entry.status === 'failed').length} failed.`);
+console.log(`\nBatch complete: ${batchEntries.filter(entry => entry.status === 'success').length} success, ${skippedExistingCount} skipped, ${batchEntries.filter(entry => entry.status === 'failed').length} failed.`);
 console.log(`Summary: ${summaryPath}`);
