@@ -26,6 +26,7 @@ const requiredFiles = [
   'scripts/full-event-replay.mjs',
   'scripts/real-event-replay.mjs',
   'scripts/run-agentic-event-batch.mjs',
+  'scripts/tune-agentic-workflow.mjs',
   'scripts/validate-framework.mjs'
 ];
 
@@ -102,5 +103,6 @@ assert.ok(packageJson.scripts['sft:real-replay'], 'root package.json must expose
 assert.ok(packageJson.scripts['sft:real-replay:silicon-valley'], 'root package.json must expose sft:real-replay:silicon-valley');
 assert.ok(packageJson.scripts['sft:agentic-replay:silicon-valley'], 'root package.json must expose sft:agentic-replay:silicon-valley');
 assert.ok(packageJson.scripts['sft:agentic-replay:batch'], 'root package.json must expose sft:agentic-replay:batch');
+assert.ok(packageJson.scripts['sft:tune-agentic'], 'root package.json must expose sft:tune-agentic');
 
-console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest, agentic Silicon Valley manifest.`);
+console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest, agentic Silicon Valley manifest, and agentic tuning workflow.`);

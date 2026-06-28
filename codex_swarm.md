@@ -193,3 +193,37 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this closure step.
+
+## Current Run: Agentic Tuning Workflow
+
+- Task id: `sft-agentic-tuning-001`
+- Owner: main Codex conductor
+- Role: conductor, implementer, and verifier
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: implement the repeatable event replay/tune/retest workflow, expose selected independent variables and dependent metrics, run a full score-consistent scout simulation, and stop only after all selected variables converged or stabilized.
+- Status: complete locally; GitHub sync is ready but not pushed because exporting changes requires fresh direct authorization.
+- Accepted tuning run: `sft-tune-2026-20260628T112002-20260628`
+- Event: `2026ilpe`, Central Illinois Regional 2026, replayed with six score-consistent scout personas and local public-page data only.
+- Result: objective loss improved from `61.293639` to `54.98116`; winner accuracy improved from `0.714` to `0.754`; Brier score improved from `0.177` to `0.165`; all selected variables converged or stabilized.
+- Final selected parameters: `priorWeight=0.55`, `liveEvidenceWeight=0.48`, `recencyHalfLifeMatches=2`, `marginConfidenceScale=63`, `scoreScaleCorrection=1`, `defenseImpactWeight=0.76`, `reliabilityWeight=18`, `scoutNoisePenalty=0.06`, `upsetSensitivity=0`.
+- Ledgers: `SyntheticFullSystemTest/tuning/tuning-ledger.md`, `SyntheticFullSystemTest/tuning/tuning-runs.jsonl`, `SyntheticFullSystemTest/tuning/event-results.csv`, `SyntheticFullSystemTest/tuning/parameter-history.csv`, and `SyntheticFullSystemTest/tuning/variable-contract.md`.
+- Evidence: `npm run sft:validate`, `node --test tests/syntheticTuningWorkflow.test.mjs tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm test`, `npm run typecheck`, `npm run model:typecheck`, `git diff --check`, convergence assertion on `SyntheticFullSystemTest/tuning/runs/sft-tune-2026-20260628T112002-20260628/summary.json`, and credential scan over the new tuning files.
+- Safety: public TBA pages only through proxy-aware fetch/curl path, no credentials used, no production Firebase writes, no deploy, no GitHub push.
+- Subagents: none launched for this run.
+
+## Current Run: Overnight Shift Strategy Redesign
+
+- Task id: `shift-strategy-redesign-overnight-001`
+- Owner: main Codex conductor
+- Role: conductor, implementer, and final integrator
+- Model: current main Codex model
+- Reasoning effort: high
+- Stop time: 8:30 AM on June 29, 2026 Asia/Shanghai
+- Scope: redesign the scouting metric vocabulary, add shift-aware match scouting concepts, implement official-score/defense-share reconciliation, build role-combination strategy simulation with variance and ranking-point incentives, surface useful outputs in Admin V4 and PowerScout where feasible, run SFT/QA, and prepare the morning report.
+- Status: in progress
+- Safety: overnight protocol active; no questions to Leo, no credentials, no destructive actions, no deploy/push/export outside the workspace without fresh direct authorization.
+- Subagents launched:
+  - Euclid (`019f0ed9-4d1f-73a3-8608-e87ec05bf8bc`), Scout Spec Decoder, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: translate Leo's long prompt into implementation spec. Stronger model not used because this is bounded extraction. Status: complete. Files changed: none. Report: `codex_agent_reports/scout-spec-decoder-001.md`.
+  - Avicenna (`019f0ed9-7b5a-77c1-84cb-19e0aac81954`), DPR/Rules Researcher, explorer, `gpt-5.4-mini`, high reasoning, read-only. Purpose: initial DPR/rule research. Note: Leo clarified after launch that `gpt-5.4` means full 5.4, not mini; future heavier review will use full `gpt-5.4`.
+  - Mendel (`019f0ed9-acd1-70b2-bf20-ad4ab3922ef4`), Strategy Logic Redteam, explorer/verifier, `gpt-5.4-mini`, high reasoning, read-only. Purpose: find math/scouting-logic loopholes. Note: same model clarification applies for future heavy reviewers.

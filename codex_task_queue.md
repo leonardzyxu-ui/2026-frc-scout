@@ -50,3 +50,18 @@
 - [x] Continue the active replay goal with a fifth completed-event agentic replay batch.
 - [x] Verify and record the expanded 2026 agentic replay catalog after batch 5.
 - [x] Finish the active replay run and close the long-running goal after final verification.
+- [x] Implement the SFT tuning workflow that selects unused 2026 events, runs full score-consistent agentic replays, tunes selected model variables, and records text-first ledgers.
+- [x] Run the tuning workflow until all selected variables converge or stabilize.
+- [x] Verify the tuning workflow, artifacts, and regression coverage.
+- [x] Leave GitHub sync ready, with push blocked unless Leo provides fresh direct secret-code authorization.
+- [ ] Decode Leo's scouting redesign prompt into an implementation spec and morning assumptions list.
+- [ ] Read Leo's attached statistical analysis report and translate its standard-deviation math into the scouting model design.
+- [ ] Research DPR math and latest REBUILT ranking-point rules from reliable sources.
+- [ ] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
+- [ ] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
+- [ ] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
+- [ ] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
+- [ ] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
+- [ ] Add browser-cache export support for detailed JSON with export time and scout metadata.
+- [ ] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
+- [ ] Prepare the June 29 8:30 AM business-style morning report with completed work, assumptions, blockers, and next actions.

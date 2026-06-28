@@ -14,6 +14,7 @@ npm run sft:real-replay
 npm run sft:real-replay:silicon-valley
 npm run sft:agentic-replay:silicon-valley
 npm run sft:agentic-replay:batch -- --event-keys 2026flor,2026mndu,2026tuis
+npm run sft:tune-agentic -- --events 1 --max-passes 4 --min-matches 30
 node --test tests/syntheticFullSystemFramework.test.mjs
 ```
 
@@ -47,6 +48,7 @@ No future leakage. A prediction checkpoint may only use public data, pit data, s
 - `scripts/full-event-replay.mjs` produces full-event replay artifacts under `SyntheticFullSystemTest/artifacts/`.
 - `scripts/real-event-replay.mjs` fetches/parses a public TBA event page and replays every parsed match without using a TBA API key.
 - `scripts/run-agentic-event-batch.mjs` repeatedly runs agentic score-consistent scout replays and appends a cross-event catalog.
+- `scripts/tune-agentic-workflow.mjs` selects unused 2026 events, runs full score-consistent agentic replays, tunes selected model variables, and writes text-first tuning ledgers.
 
 ## History Storage
 
@@ -70,6 +72,14 @@ Agentic scout replay files:
 - `score-consistency-audit.json` fails the replay if score-consistent mode does not reconcile both alliances in every match.
 - `agentic-event-replay-catalog.jsonl` is the append-only cross-event history for agentic replay batches.
 - `agentic-event-replay-catalog-summary.json` is the latest cross-event rollup with run IDs, artifact folders, counts, gates, and model metrics.
+
+Tuning workflow history:
+
+- `SyntheticFullSystemTest/tuning/tuning-ledger.md` is the human-readable text log of every baseline, candidate, accepted/held change, convergence decision, and final parameter set.
+- `SyntheticFullSystemTest/tuning/tuning-runs.jsonl` is the append-only machine-readable replay ledger for each baseline/candidate/final run.
+- `SyntheticFullSystemTest/tuning/event-results.csv` stores dependent metrics for each replay, including winner accuracy, Brier score, score MAE, margin MAE, calibration error, and objective loss.
+- `SyntheticFullSystemTest/tuning/parameter-history.csv` stores every independent-variable tweak, hold, convergence, or stabilization decision.
+- `SyntheticFullSystemTest/tuning/variable-contract.md` stores the tested independent variables and dependent variables for review.
 
 Example agentic command:
 

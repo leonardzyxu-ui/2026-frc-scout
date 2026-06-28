@@ -1,0 +1,98 @@
+{
+  "tuningRunId": "sft-tune-2026-20260628T111939-20260628",
+  "season": 2026,
+  "selectedVariables": [
+    "priorWeight",
+    "liveEvidenceWeight",
+    "recencyHalfLifeMatches",
+    "marginConfidenceScale",
+    "scoreScaleCorrection",
+    "defenseImpactWeight",
+    "reliabilityWeight",
+    "scoutNoisePenalty",
+    "upsetSensitivity"
+  ],
+  "allIndependentVariables": [
+    "priorWeight",
+    "liveEvidenceWeight",
+    "recencyHalfLifeMatches",
+    "marginConfidenceScale",
+    "scoreScaleCorrection",
+    "defenseImpactWeight",
+    "reliabilityWeight",
+    "foulPenaltyWeight",
+    "scoutNoisePenalty",
+    "pitClaimTrustWeight",
+    "upsetSensitivity",
+    "playoffAdaptationWeight",
+    "scoreConsistencyStrictness",
+    "missingScoutRowPenalty",
+    "confidenceFloor",
+    "confidenceCeiling"
+  ],
+  "dependentVariables": [
+    "winnerAccuracy",
+    "qualificationWinnerAccuracy",
+    "playoffWinnerAccuracy",
+    "brierScore",
+    "scoreMae",
+    "marginMae",
+    "earlyEventAccuracy",
+    "lateEventAccuracy",
+    "overconfidenceRate",
+    "calibrationError",
+    "upsetMissRate",
+    "objectiveLoss"
+  ],
+  "completedEvents": [
+    {
+      "eventKey": "2026ilpe",
+      "eventName": "2026ilpe",
+      "outputDir": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/artifacts/sft-tune-2026-20260628T111939-20260628/2026ilpe-final",
+      "objectiveLoss": 54.98116,
+      "winnerAccuracy": 0.754,
+      "brierScore": 0.165,
+      "finalParameters": {
+        "priorWeight": 0.55,
+        "liveEvidenceWeight": 0.48,
+        "recencyHalfLifeMatches": 2,
+        "marginConfidenceScale": 63,
+        "scoreScaleCorrection": 1,
+        "defenseImpactWeight": 0.76,
+        "reliabilityWeight": 18,
+        "foulPenaltyWeight": 2,
+        "scoutNoisePenalty": 0.06,
+        "pitClaimTrustWeight": 0,
+        "upsetSensitivity": 0,
+        "playoffAdaptationWeight": 1,
+        "scoreConsistencyStrictness": 1,
+        "missingScoutRowPenalty": 0,
+        "confidenceFloor": 0.025,
+        "confidenceCeiling": 0.975
+      }
+    }
+  ],
+  "variableStatuses": {
+    "priorWeight": "active",
+    "liveEvidenceWeight": "active",
+    "recencyHalfLifeMatches": "converged",
+    "marginConfidenceScale": "active",
+    "scoreScaleCorrection": "converged",
+    "defenseImpactWeight": "active",
+    "reliabilityWeight": "converged",
+    "scoutNoisePenalty": "stabilized",
+    "upsetSensitivity": "converged"
+  },
+  "converged": false,
+  "ledgers": {
+    "tuningLedger": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/tuning/tuning-ledger.md",
+    "tuningRunsJsonl": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/tuning/tuning-runs.jsonl",
+    "eventResultsCsv": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/tuning/event-results.csv",
+    "parameterHistoryCsv": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/tuning/parameter-history.csv",
+    "variableContract": "/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/SyntheticFullSystemTest/tuning/variable-contract.md"
+  },
+  "githubSync": {
+    "status": "ready-but-not-pushed",
+    "reason": "Pushing to GitHub exports data outside this workspace and requires fresh authorization."
+  }
+}

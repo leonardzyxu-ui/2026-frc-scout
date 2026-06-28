@@ -58,8 +58,12 @@ const fetchWithCurl = url =>
     maxBuffer: 20 * 1024 * 1024
   });
 
+const proxyConfigured = () =>
+  Boolean(process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || process.env.all_proxy || process.env.ALL_PROXY);
+
 const loadHtml = async () => {
   if (htmlFile) return readFileSync(path.resolve(htmlFile), 'utf8');
+  if (proxyConfigured()) return fetchWithCurl(sourceUrl);
   try {
     return await fetchText(sourceUrl);
   } catch (error) {
@@ -71,6 +75,25 @@ const loadHtml = async () => {
 const html = await loadHtml();
 const scoutSimulationMode = manifest.simulation.scoutMode ?? 'deterministic-synthetic';
 const agenticScoutMode = scoutSimulationMode === 'agentic-score-consistent';
+const defaultTuningParameters = {
+  priorWeight: 1,
+  liveEvidenceWeight: 0.32,
+  recencyHalfLifeMatches: 2,
+  marginConfidenceScale: 42,
+  scoreScaleCorrection: 1,
+  defenseImpactWeight: 0.6,
+  reliabilityWeight: 18,
+  foulPenaltyWeight: 2,
+  scoutNoisePenalty: 0,
+  pitClaimTrustWeight: 0,
+  upsetSensitivity: 0,
+  playoffAdaptationWeight: 1,
+  scoreConsistencyStrictness: 1,
+  missingScoutRowPenalty: 0,
+  confidenceFloor: 0.025,
+  confidenceCeiling: 0.975
+};
+const tuningParameters = { ...defaultTuningParameters, ...(manifest.tuningParameters ?? {}) };
 
 const decodeHtml = value =>
   value
@@ -224,7 +247,18 @@ const pitScoutRecords = teams.map(teamKey => {
   };
 });
 
-const onlineRatings = new Map(teams.map(teamKey => [teamKey, teamProfiles.get(teamKey).publicPriorPower]));
+const baselineMeanPower = scoreMean / 3;
+const onlineRatings = new Map(
+  teams.map(teamKey => {
+    const profile = teamProfiles.get(teamKey);
+    const pitAdjustedPrior =
+      profile.publicPriorPower * (1 - tuningParameters.pitClaimTrustWeight) +
+      profile.claimedContribution * tuningParameters.pitClaimTrustWeight;
+    const weightedPrior =
+      baselineMeanPower * (1 - tuningParameters.priorWeight) + pitAdjustedPrior * tuningParameters.priorWeight;
+    return [teamKey, clamp(weightedPrior, 20, 240)];
+  })
+);
 const standings = new Map(teams.map(teamKey => [teamKey, { wins: 0, losses: 0, ties: 0, matches: 0, scoreFor: 0, scoreAgainst: 0 }]));
 const checkpoints = [];
 const predictionEntries = [];
@@ -301,18 +335,23 @@ const addCheckpoint = checkpoint => checkpoints.push({ index: checkpoints.length
 const predictMatch = match => {
   const projection = (allianceTeams, opponentTeams) =>
     allianceTeams.reduce((sum, teamKey) => sum + onlineRatings.get(teamKey), 0) +
-    mean(allianceTeams.map(teamKey => teamProfiles.get(teamKey).reliability)) * 18 -
-    mean(opponentTeams.map(teamKey => teamProfiles.get(teamKey).defense)) * 0.6;
+    mean(allianceTeams.map(teamKey => teamProfiles.get(teamKey).reliability)) * tuningParameters.reliabilityWeight -
+    mean(opponentTeams.map(teamKey => teamProfiles.get(teamKey).defense)) * tuningParameters.defenseImpactWeight;
   const redProjection = projection(match.red.teamKeys, match.blue.teamKeys);
   const blueProjection = projection(match.blue.teamKeys, match.red.teamKeys);
   const margin = redProjection - blueProjection;
-  const redWinProbability = 1 / (1 + Math.exp(-margin / 42));
+  const rawRedWinProbability = 1 / (1 + Math.exp(-margin / tuningParameters.marginConfidenceScale));
+  const redWinProbability = clamp(
+    rawRedWinProbability,
+    tuningParameters.confidenceFloor,
+    tuningParameters.confidenceCeiling
+  );
   const scale = scoreMean / Math.max(1, mean([...onlineRatings.values()]) * 3);
   return {
     predictedWinner: Math.abs(redWinProbability - 0.5) < 0.025 ? 'tie' : redWinProbability >= 0.5 ? 'red' : 'blue',
     redWinProbability: round(redWinProbability),
-    predictedRedScore: Math.round(clamp(redProjection * scale, 0, 600)),
-    predictedBlueScore: Math.round(clamp(blueProjection * scale, 0, 600))
+    predictedRedScore: Math.round(clamp(redProjection * scale * tuningParameters.scoreScaleCorrection, 0, 600)),
+    predictedBlueScore: Math.round(clamp(blueProjection * scale * tuningParameters.scoreScaleCorrection, 0, 600))
   };
 };
 
@@ -413,12 +452,29 @@ const updateStandings = match => {
 };
 
 const updateRatings = match => {
+  const alliancePriorAverage = allianceTeams => mean(allianceTeams.map(teamKey => onlineRatings.get(teamKey)));
+  const redPriorAverage = alliancePriorAverage(match.red.teamKeys);
+  const bluePriorAverage = alliancePriorAverage(match.blue.teamKeys);
+  const redUpset = match.winningAlliance === 'red' && redPriorAverage < bluePriorAverage;
+  const blueUpset = match.winningAlliance === 'blue' && bluePriorAverage < redPriorAverage;
+  const recencyScale = clamp(1 - Math.pow(0.5, 1 / tuningParameters.recencyHalfLifeMatches), 0.05, 0.65) / 0.2929;
+  const phaseScale = match.compLevel === 'qm' ? 1 : tuningParameters.playoffAdaptationWeight;
+  const baseUpdateWeight = clamp(tuningParameters.liveEvidenceWeight * recencyScale * phaseScale, 0.02, 0.82);
+
   if (agenticScoutMode) {
     const currentRows = matchScoutRows.filter(row => row.tbaMatchKey === match.matchKey);
     for (const row of currentRows) {
       const oldRating = onlineRatings.get(row.teamKey);
-      const observed = row.fields.observedContribution + row.fields.defensePressureApplied * 0.08 - (row.fields.foulConcern ? 2 : 0);
-      onlineRatings.set(row.teamKey, clamp(oldRating * 0.68 + observed * 0.32, 20, 230));
+      const allianceUpset =
+        (row.alliance === 'red' && redUpset) || (row.alliance === 'blue' && blueUpset) ? tuningParameters.upsetSensitivity : 0;
+      const confidencePenalty = clamp((1 - row.confidence) * tuningParameters.scoutNoisePenalty, 0, 0.75);
+      const rowUpdateWeight = clamp(baseUpdateWeight * (1 - confidencePenalty) + allianceUpset * 0.08, 0.02, 0.86);
+      const observed =
+        row.fields.observedContribution +
+        row.fields.defensePressureApplied * 0.08 -
+        (row.fields.foulConcern ? tuningParameters.foulPenaltyWeight : 0) -
+        (row.fields.reliabilityIssue ? tuningParameters.scoutNoisePenalty * 4 : 0);
+      onlineRatings.set(row.teamKey, clamp(oldRating * (1 - rowUpdateWeight) + observed * rowUpdateWeight, 20, 230));
     }
     return;
   }
@@ -426,8 +482,12 @@ const updateRatings = match => {
     for (const teamKey of allianceTeams) {
       const profile = teamProfiles.get(teamKey);
       const oldRating = onlineRatings.get(teamKey);
-      const observed = allianceScore / 3 + (allianceScore - opponentScore) * 0.07 + (won ? 5 : -3) + profile.defense * 0.06;
-      onlineRatings.set(teamKey, clamp(oldRating * 0.78 + observed * 0.22, 20, 210));
+      const observed =
+        allianceScore / 3 +
+        (allianceScore - opponentScore) * 0.07 +
+        (won ? 5 : -3) +
+        profile.defense * 0.06;
+      onlineRatings.set(teamKey, clamp(oldRating * (1 - baseUpdateWeight) + observed * baseUpdateWeight, 20, 210));
     }
   };
   updateAlliance(match.red.teamKeys, match.red.score, match.blue.score, match.winningAlliance === 'red');
@@ -823,6 +883,7 @@ addCheckpoint({
 const decisiveEntries = predictionEntries.filter(entry => entry.actualWinner !== 'tie' && entry.predictedWinner !== 'tie');
 const modelMetrics = {
   modelName: 'public-real-event-online-power-v1',
+  tuningParameters,
   matchesPredicted: predictionEntries.length,
   decisivePredictions: decisiveEntries.length,
   winnerAccuracy: round(mean(decisiveEntries.map(entry => (entry.winnerCorrect ? 1 : 0)))),
@@ -1114,6 +1175,7 @@ const runSummary = {
   pretendOwnTeam,
   ownTeamLabel,
   scoutSimulationMode,
+  tuningParameters,
   counts: {
     teams: teams.length,
     qualificationMatches: matches.filter(match => match.compLevel === 'qm').length,
