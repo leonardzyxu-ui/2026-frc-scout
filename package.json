@@ -47,7 +47,8 @@
     "sft:validate": "node SyntheticFullSystemTest/scripts/validate-framework.mjs",
     "sft:dry-run": "node SyntheticFullSystemTest/scripts/dry-run.mjs --manifest SyntheticFullSystemTest/manifests/example-local-smoke.json",
     "sft:full-replay": "node SyntheticFullSystemTest/scripts/full-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/full-local-event.json",
-    "sft:real-replay": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/orlando-2026-public.json"
+    "sft:real-replay": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/orlando-2026-public.json",
+    "sft:real-replay:silicon-valley": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/silicon-valley-2026-public-254.json"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

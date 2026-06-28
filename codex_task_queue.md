@@ -31,3 +31,5 @@
 - [x] Run web/model/PowerScout bridge readiness checks after the full replay.
 - [x] Find a real completed 2026 FRC event and build a real-data full event replay from its teams and match results.
 - [x] Run and verify the real-event synthetic replay artifacts.
+- [x] Re-run the real-event synthetic replay for 2026 Silicon Valley as team 254, The Cheesy Poofs.
+- [x] Add explicit event-history artifacts for team metric timelines and future-match predictions at every checkpoint.

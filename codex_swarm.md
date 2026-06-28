@@ -62,3 +62,18 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for public-page real replay. Live authenticated API refresh remains separate and would need explicit authorization.
 - Safety: no TBA API key used, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Silicon Valley 254 Real Event Replay
+
+- Task id: `sft-real-replay-silicon-valley-254`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: replay the public TBA `2026casnv` event as `frc254`, The Cheesy Poofs, and persist checkpoint history for match predictions, future predictions, and team OPR/EPA/PPC/PPA timelines.
+- Status: complete
+- Evidence: `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs`, `npm run sft:real-replay:silicon-valley`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `npm test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
+- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026casnv-20260628-071936-2542026`.
+- Blockers: none for local public-page replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA page only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.

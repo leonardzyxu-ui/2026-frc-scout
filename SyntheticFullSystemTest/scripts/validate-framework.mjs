@@ -20,6 +20,7 @@ const requiredFiles = [
   'manifests/example-local-smoke.json',
   'manifests/full-local-event.json',
   'manifests/orlando-2026-public.json',
+  'manifests/silicon-valley-2026-public-254.json',
   'scripts/dry-run.mjs',
   'scripts/full-event-replay.mjs',
   'scripts/real-event-replay.mjs',
@@ -34,6 +35,7 @@ assert.deepEqual(missing, [], `Missing framework files: ${missing.join(', ')}`);
 const manifest = readJson('manifests/example-local-smoke.json');
 const fullManifest = readJson('manifests/full-local-event.json');
 const realManifest = readJson('manifests/orlando-2026-public.json');
+const siliconValleyManifest = readJson('manifests/silicon-valley-2026-public-254.json');
 assert.equal(manifest.schemaVersion, 1, 'manifest schemaVersion must be 1');
 assert.equal(manifest.simulation.mode, 'synthetic-smoke', 'smoke manifest must avoid network by default');
 assert.ok(Number.isInteger(manifest.simulation.seed), 'smoke manifest must have an integer seed');
@@ -49,6 +51,7 @@ for (const bridge of ['modelCore', 'webApp', 'powerScout']) {
   assert.ok(manifest.bridges[bridge], `manifest missing ${bridge} bridge`);
   assert.ok(fullManifest.bridges[bridge], `full manifest missing ${bridge} bridge`);
   assert.ok(realManifest.bridges[bridge], `real manifest missing ${bridge} bridge`);
+  assert.ok(siliconValleyManifest.bridges[bridge], `Silicon Valley manifest missing ${bridge} bridge`);
 }
 
 assert.equal(fullManifest.simulation.mode, 'synthetic-full-event', 'full manifest must use synthetic-full-event mode');
@@ -58,6 +61,15 @@ assert.equal(fullManifest.bridges.firebase.productionWrites, false, 'full replay
 assert.equal(realManifest.simulation.mode, 'public-real-event', 'real manifest must use public-real-event mode');
 assert.ok(realManifest.fixture.sourceUrl.includes('thebluealliance.com/event/'), 'real manifest must point at a TBA public event page');
 assert.equal(realManifest.bridges.firebase.productionWrites, false, 'real replay must not write production Firebase');
+assert.equal(siliconValleyManifest.simulation.mode, 'public-real-event', 'Silicon Valley manifest must use public-real-event mode');
+assert.equal(siliconValleyManifest.fixture.eventKey, '2026casnv', 'Silicon Valley manifest must target the 2026casnv event');
+assert.equal(siliconValleyManifest.fixture.pretendOwnTeamPolicy.teamKey, 'frc254', 'Silicon Valley replay must role-play as frc254');
+assert.equal(siliconValleyManifest.fixture.ownTeamLabel, 'The Cheesy Poofs', 'Silicon Valley replay must label frc254 as The Cheesy Poofs');
+assert.equal(siliconValleyManifest.bridges.firebase.productionWrites, false, 'Silicon Valley replay must not write production Firebase');
+for (const artifact of ['metric-definitions.json', 'team-metric-timeline.json', 'future-prediction-snapshots.json', 'event-history-index.json']) {
+  assert.ok(realManifest.gates.requiredArtifacts.includes(artifact), `real manifest missing history artifact ${artifact}`);
+  assert.ok(siliconValleyManifest.gates.requiredArtifacts.includes(artifact), `Silicon Valley manifest missing history artifact ${artifact}`);
+}
 
 for (const schemaPath of [
   'schemas/simulation-manifest.schema.json',
@@ -75,5 +87,6 @@ assert.ok(packageJson.scripts['sft:validate'], 'root package.json must expose sf
 assert.ok(packageJson.scripts['sft:dry-run'], 'root package.json must expose sft:dry-run');
 assert.ok(packageJson.scripts['sft:full-replay'], 'root package.json must expose sft:full-replay');
 assert.ok(packageJson.scripts['sft:real-replay'], 'root package.json must expose sft:real-replay');
+assert.ok(packageJson.scripts['sft:real-replay:silicon-valley'], 'root package.json must expose sft:real-replay:silicon-valley');
 
-console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases.`);
+console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest.`);

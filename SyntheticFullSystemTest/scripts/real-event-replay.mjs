@@ -156,6 +156,8 @@ const candidateOwnTeams = teams.filter(teamKey => !excludedTeams.has(teamKey));
 const ownTeamRandom = seededRandom(manifest.fixture.pretendOwnTeamPolicy.seed);
 const pretendOwnTeam =
   manifest.fixture.pretendOwnTeamPolicy.teamKey ?? candidateOwnTeams[Math.floor(ownTeamRandom() * candidateOwnTeams.length)];
+assert.ok(teams.includes(pretendOwnTeam), `Pretend own team ${pretendOwnTeam} is not present in ${eventKey}.`);
+const ownTeamLabel = manifest.fixture.ownTeamLabel ?? (pretendOwnTeam === 'frc254' ? 'The Cheesy Poofs' : 'Pretend Powerhouse Team');
 
 const teamProfiles = new Map(
   teams.map(teamKey => {
@@ -228,10 +230,46 @@ const matchScoutRows = [];
 const officialResults = [];
 const noFutureChecks = [];
 const stationNames = ['red1', 'red2', 'red3', 'blue1', 'blue2', 'blue3'];
+const teamMetricTimeline = [];
+const futurePredictionSnapshots = [];
+const lastQualificationIndex = matches.reduce((last, match, index) => (match.compLevel === 'qm' ? index : last), -1);
+
+const metricDefinitions = {
+  opr: {
+    label: 'OPR',
+    fullName: 'Offensive Power Rating',
+    direction: 'backward-looking',
+    storedAs: 'teamMetricTimeline[].teams[].opr',
+    meaning:
+      'A score-derived estimate of how much offensive output a team has contributed in completed matches. In this replay it is approximated from known official alliance scores before or after each checkpoint.'
+  },
+  epa: {
+    label: 'EPA',
+    fullName: 'Expected Points Added',
+    direction: 'forward-looking rating',
+    storedAs: 'teamMetricTimeline[].teams[].epa',
+    meaning:
+      'The current online expected contribution rating used by the replay model. It starts from the public pre-scout prior and is updated only after each completed match is ingested.'
+  },
+  ppc: {
+    label: 'PPC',
+    fullName: 'Local scout-credited average contribution',
+    direction: 'backward-looking local scouting average',
+    storedAs: 'teamMetricTimeline[].teams[].ppc',
+    meaning:
+      'The average points your scouts directly credited to this team from completed local match scout rows. It is evidence from what our scouts actually observed at this event.'
+  },
+  ppa: {
+    label: 'PPA',
+    fullName: 'Admin V4 expected range decision object',
+    direction: 'forward-looking expected range',
+    storedAs: 'teamMetricTimeline[].teams[].ppa',
+    meaning:
+      'A forecast object with expected, floor, and ceiling contribution values. It blends the current EPA rating, local PPC evidence when available, and defense/role context.'
+  }
+};
 
 const addCheckpoint = checkpoint => checkpoints.push({ index: checkpoints.length, ...checkpoint });
-addCheckpoint({ id: 'T_MINUS_7_DAYS', phase: 'pre_scout', availableRecords: preScoutRecords.length });
-addCheckpoint({ id: 'PIT_SCOUT_WINDOW', phase: 'pit_scout', availableRecords: preScoutRecords.length + pitScoutRecords.length });
 
 const predictMatch = match => {
   const projection = (allianceTeams, opponentTeams) =>
@@ -250,6 +288,79 @@ const predictMatch = match => {
     predictedBlueScore: Math.round(clamp(blueProjection * scale, 0, 600))
   };
 };
+
+const buildTeamMetricSnapshot = ({ checkpoint, afterMatchIndex }) => ({
+  checkpoint,
+  afterMatchIndex,
+  afterMatchKey: matches[afterMatchIndex]?.shortKey ?? null,
+  sourceRule:
+    afterMatchIndex < 0
+      ? 'Only pre-scout and pit-scout evidence is available.'
+      : 'Official results and match-scout rows are included only through the completed match named by afterMatchKey.',
+  teams: teams.map(teamKey => {
+    const profile = teamProfiles.get(teamKey);
+    const stats = standings.get(teamKey);
+    const scoutRows = matchScoutRows.filter(row => row.teamKey === teamKey);
+    const localContributions = scoutRows.map(row => row.fields.observedContribution);
+    const ppc = scoutRows.length > 0 ? mean(localContributions) : null;
+    const observedDefense = scoutRows.length > 0 ? mean(scoutRows.map(row => row.fields.defensePressureApplied)) : profile.defense;
+    const expected = onlineRatings.get(teamKey) * 0.56 + (ppc ?? profile.publicPriorPower) * 0.34 + observedDefense * 0.1;
+    const uncertainty = scoutRows.length < 3 ? 0.28 : scoutRows.length < 5 ? 0.18 : 0.12;
+
+    return {
+      teamKey,
+      label: teamKey === pretendOwnTeam ? ownTeamLabel : profile.nickname,
+      matchesPlayed: stats.matches,
+      wins: stats.wins,
+      losses: stats.losses,
+      ties: stats.ties,
+      opr: stats.matches > 0 ? round(stats.scoreFor / stats.matches / 3, 2) : null,
+      epa: round(onlineRatings.get(teamKey), 2),
+      ppc: ppc === null ? null : round(ppc, 2),
+      ppa: {
+        expected: round(expected, 2),
+        floor: round(clamp(expected * (1 - uncertainty), 0, 260), 2),
+        ceiling: round(clamp(expected * (1 + uncertainty), 0, 280), 2),
+        scoutRows: scoutRows.length,
+        defenseImpact: round(observedDefense, 2),
+        source: scoutRows.length > 0 ? 'epa-plus-local-scouting' : 'epa-plus-pre-pit-prior'
+      }
+    };
+  })
+});
+
+const isFutureMatchKnownAtCheckpoint = (match, afterMatchIndex) => {
+  if (match.compLevel === 'qm') return true;
+  if (afterMatchIndex <= lastQualificationIndex) return false;
+  return matches[afterMatchIndex]?.compLevel !== 'qm';
+};
+
+const buildFuturePredictionSnapshot = ({ checkpoint, afterMatchIndex }) => ({
+  checkpoint,
+  afterMatchIndex,
+  afterMatchKey: matches[afterMatchIndex]?.shortKey ?? null,
+  scheduleVisibilityRule:
+    'Qualification schedule is known before the event. Playoff future snapshots are withheld until playoff replay has started.',
+  predictions: matches
+    .filter((match, index) => index > afterMatchIndex && isFutureMatchKnownAtCheckpoint(match, afterMatchIndex))
+    .map((match, index) => {
+      const prediction = predictMatch(match);
+      return {
+        futureOrder: index + 1,
+        matchIndex: matches.indexOf(match),
+        matchKey: match.shortKey,
+        tbaMatchKey: match.matchKey,
+        title: match.title,
+        phase: match.compLevel === 'qm' ? 'qualification' : 'playoff',
+        redTeams: match.red.teamKeys,
+        blueTeams: match.blue.teamKeys,
+        predictedWinner: prediction.predictedWinner,
+        redWinProbability: prediction.redWinProbability,
+        predictedRedScore: prediction.predictedRedScore,
+        predictedBlueScore: prediction.predictedBlueScore
+      };
+    })
+});
 
 const updateStandings = match => {
   const redWon = match.winningAlliance === 'red';
@@ -332,6 +443,11 @@ const scorePrediction = entry => {
   };
 };
 
+addCheckpoint({ id: 'T_MINUS_7_DAYS', phase: 'pre_scout', availableRecords: preScoutRecords.length });
+addCheckpoint({ id: 'PIT_SCOUT_WINDOW', phase: 'pit_scout', availableRecords: preScoutRecords.length + pitScoutRecords.length });
+teamMetricTimeline.push(buildTeamMetricSnapshot({ checkpoint: 'PIT_SCOUT_WINDOW', afterMatchIndex: -1 }));
+futurePredictionSnapshots.push(buildFuturePredictionSnapshot({ checkpoint: 'PIT_SCOUT_WINDOW', afterMatchIndex: -1 }));
+
 matches.forEach((match, replayIndex) => {
   const phase = match.compLevel === 'qm' ? 'qualification_replay' : 'playoff_replay';
   addCheckpoint({
@@ -392,6 +508,10 @@ matches.forEach((match, replayIndex) => {
     phase,
     availableRecords: preScoutRecords.length + pitScoutRecords.length + officialResults.length + matchScoutRows.length
   });
+  teamMetricTimeline.push(buildTeamMetricSnapshot({ checkpoint: `${match.shortKey.toUpperCase()}_SCOUT_SYNCED`, afterMatchIndex: replayIndex }));
+  futurePredictionSnapshots.push(
+    buildFuturePredictionSnapshot({ checkpoint: `${match.shortKey.toUpperCase()}_SCOUT_SYNCED`, afterMatchIndex: replayIndex })
+  );
 });
 
 addCheckpoint({
@@ -466,6 +586,7 @@ const alreadyPickedTeams = new Set(allianceCaptains.map(team => team.teamKey));
 const bestRemaining = picklist.filter(team => !alreadyPickedTeams.has(team.teamKey) && team.teamKey !== pretendOwnTeam).slice(0, 12);
 const allianceSelectionReplay = {
   pretendOwnTeam,
+  ownTeamLabel,
   simulatedAllianceCaptains: allianceCaptains,
   alreadyPickedTeams: [...alreadyPickedTeams],
   bestRemaining,
@@ -478,6 +599,7 @@ const replayEvent = {
   season: manifest.fixture.season,
   sourceUrl,
   pretendOwnTeam,
+  ownTeamLabel,
   teams: teams.map(teamKey => ({
     teamKey,
     nickname: teamProfiles.get(teamKey).nickname,
@@ -496,14 +618,59 @@ const predictionLedger = {
   metrics: modelMetrics
 };
 
+const eventHistoryIndex = {
+  runId,
+  eventKey,
+  eventName,
+  sourceUrl,
+  pretendOwnTeam,
+  ownTeamLabel,
+  storage: {
+    root: outputDir,
+    generatedArtifactsAreGitIgnored: manifest.artifacts.keepGeneratedOutOfGit === true,
+    productionWrites: false,
+    apiKeyUsed: false,
+    note: 'This run stores local replay evidence under SyntheticFullSystemTest/artifacts/<runId>. The runner code and manifests are committed, while generated event histories stay out of Git unless intentionally promoted.'
+  },
+  checkpoints: {
+    count: checkpoints.length,
+    first: checkpoints[0]?.id ?? null,
+    last: checkpoints.at(-1)?.id ?? null
+  },
+  artifacts: {
+    runSummary: 'run-summary.json',
+    sourcePageMetadata: 'source-page-metadata.json',
+    replayEvent: 'replay-event.json',
+    scoutObservations: 'scout-observations.json',
+    predictionLedger: 'prediction-ledger.json',
+    modelMetrics: 'model-metrics.json',
+    metricDefinitions: 'metric-definitions.json',
+    teamMetricTimeline: 'team-metric-timeline.json',
+    futurePredictionSnapshots: 'future-prediction-snapshots.json',
+    noFutureLeakageAudit: 'no-future-leakage-audit.json',
+    scoutCoverageAudit: 'scout-coverage-audit.json',
+    allianceSelectionReplay: 'alliance-selection-replay.json',
+    appBridgeSummary: 'app-bridge-summary.json',
+    eventHistoryIndex: 'event-history-index.json',
+    morningReport: 'morning-report.html'
+  }
+};
+
 const appBridgeSummary = {
   modelCore: {
     status: 'passed',
-    evidence: ['prediction-ledger.json', 'model-metrics.json', 'no-future-leakage-audit.json']
+    evidence: [
+      'prediction-ledger.json',
+      'model-metrics.json',
+      'metric-definitions.json',
+      'team-metric-timeline.json',
+      'future-prediction-snapshots.json',
+      'no-future-leakage-audit.json'
+    ]
   },
   webApp: {
     status: 'artifact-ready',
-    evidence: ['morning-report.html', 'prediction-ledger.json'],
+    evidence: ['morning-report.html', 'prediction-ledger.json', 'team-metric-timeline.json', 'future-prediction-snapshots.json'],
     note: 'Run npm run build or browser checks after this replay to validate UI rendering.'
   },
   firebase: {
@@ -513,7 +680,7 @@ const appBridgeSummary = {
   },
   powerScout: {
     status: 'artifact-ready',
-    evidence: ['morning-report.html', 'app-bridge-summary.json']
+    evidence: ['morning-report.html', 'app-bridge-summary.json', 'event-history-index.json']
   }
 };
 
@@ -545,6 +712,7 @@ const morningReportHtml = `<!doctype html>
     <p class="muted">Powerhouse Scouting Real-Event Synthetic Replay</p>
     <h1>${htmlEscape(eventName)}</h1>
     <p class="muted">Run ${htmlEscape(runId)}. Source: <a href="${htmlEscape(sourceUrl)}">${htmlEscape(sourceUrl)}</a>. No TBA API key, no production Firebase writes.</p>
+    <p class="muted">Powerhouse role: ${htmlEscape(pretendOwnTeam)} (${htmlEscape(ownTeamLabel)}).</p>
     <section class="grid">
       <div class="card"><div class="metric">${matches.length}</div><div>real matches replayed</div></div>
       <div class="card"><div class="metric">${teams.length}</div><div>real teams</div></div>
@@ -554,7 +722,7 @@ const morningReportHtml = `<!doctype html>
     <section class="card">
       <h2>Readiness Verdict</h2>
       <p>No-future audit: <strong>${htmlEscape(noFutureLeakageAudit.status)}</strong>. Scout coverage audit: <strong>${htmlEscape(scoutCoverageAudit.status)}</strong>.</p>
-      <p>This replay used real Orlando teams, real schedule, and real final scores, while generating synthetic pre-scout, pit-scout, match-scout, prediction, and alliance-selection artifacts.</p>
+      <p>This replay used real teams, real schedule, and real final scores, while generating synthetic pre-scout, pit-scout, match-scout, prediction, metric-timeline, future-prediction, and alliance-selection artifacts.</p>
     </section>
     <section class="card">
       <h2>Alliance Selection Next Choices</h2>
@@ -593,6 +761,7 @@ const runSummary = {
   sourceUrl,
   season: manifest.fixture.season,
   pretendOwnTeam,
+  ownTeamLabel,
   counts: {
     teams: teams.length,
     qualificationMatches: matches.filter(match => match.compLevel === 'qm').length,
@@ -602,7 +771,9 @@ const runSummary = {
     preScoutRecords: preScoutRecords.length,
     pitScoutRecords: pitScoutRecords.length,
     matchScoutRows: matchScoutRows.length,
-    predictionEntries: predictionEntries.length
+    predictionEntries: predictionEntries.length,
+    teamMetricSnapshots: teamMetricTimeline.length,
+    futurePredictionSnapshots: futurePredictionSnapshots.length
   },
   gates: {
     minMatches: manifest.gates.minMatches,
@@ -622,10 +793,14 @@ writeJson('replay-event.json', replayEvent);
 writeJson('scout-observations.json', [...preScoutRecords, ...pitScoutRecords, ...matchScoutRows]);
 writeJson('prediction-ledger.json', predictionLedger);
 writeJson('model-metrics.json', modelMetrics);
+writeJson('metric-definitions.json', metricDefinitions);
+writeJson('team-metric-timeline.json', teamMetricTimeline);
+writeJson('future-prediction-snapshots.json', futurePredictionSnapshots);
 writeJson('no-future-leakage-audit.json', noFutureLeakageAudit);
 writeJson('scout-coverage-audit.json', scoutCoverageAudit);
 writeJson('alliance-selection-replay.json', allianceSelectionReplay);
 writeJson('app-bridge-summary.json', appBridgeSummary);
+writeJson('event-history-index.json', eventHistoryIndex);
 writeFileSync(path.join(outputDir, 'morning-report.html'), morningReportHtml);
 
 for (const artifact of artifactNames) {

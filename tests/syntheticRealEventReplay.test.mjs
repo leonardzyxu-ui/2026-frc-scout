@@ -50,10 +50,14 @@ test('real-event replay parser can run from a TBA public-page fixture', () => {
             'scout-observations.json',
             'prediction-ledger.json',
             'model-metrics.json',
+            'metric-definitions.json',
+            'team-metric-timeline.json',
+            'future-prediction-snapshots.json',
             'no-future-leakage-audit.json',
             'scout-coverage-audit.json',
             'alliance-selection-replay.json',
             'app-bridge-summary.json',
+            'event-history-index.json',
             'morning-report.html'
           ]
         },
@@ -75,11 +79,18 @@ test('real-event replay parser can run from a TBA public-page fixture', () => {
   assert.equal(summary.eventKey, '2026fix');
   assert.equal(summary.counts.totalMatches, 2);
   assert.equal(summary.counts.matchScoutRows, 12);
+  assert.equal(summary.counts.teamMetricSnapshots, 3);
+  assert.equal(summary.counts.futurePredictionSnapshots, 3);
   assert.equal(summary.gates.noFutureLeakage, 'passed');
   assert.equal(summary.gates.scoutCoverage, 'passed');
   assert.ok(existsSync(path.join(outputDir, 'morning-report.html')));
 
   const source = JSON.parse(readFileSync(path.join(outputDir, 'source-page-metadata.json'), 'utf8'));
   assert.equal(source.apiKeyUsed, false);
+  const metricDefinitions = JSON.parse(readFileSync(path.join(outputDir, 'metric-definitions.json'), 'utf8'));
+  assert.equal(metricDefinitions.ppc.label, 'PPC');
+  assert.equal(metricDefinitions.ppa.label, 'PPA');
+  const historyIndex = JSON.parse(readFileSync(path.join(outputDir, 'event-history-index.json'), 'utf8'));
+  assert.equal(historyIndex.artifacts.teamMetricTimeline, 'team-metric-timeline.json');
+  assert.equal(historyIndex.artifacts.futurePredictionSnapshots, 'future-prediction-snapshots.json');
 });
-

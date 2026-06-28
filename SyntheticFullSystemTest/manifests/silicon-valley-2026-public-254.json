@@ -2,27 +2,29 @@
   "$schema": "../schemas/simulation-manifest.schema.json",
   "schemaVersion": 1,
   "simulation": {
-    "name": "orlando-2026-public-real-event",
+    "name": "silicon-valley-2026-public-real-event-254",
     "mode": "public-real-event",
-    "seed": 32817,
-    "description": "Real-event replay using the public The Blue Alliance Orlando Regional 2026 page for actual teams, schedule, and scores."
+    "seed": 2542026,
+    "description": "Real-event replay using the public The Blue Alliance Silicon Valley 2026 page for actual teams, schedule, and scores, with Powerhouse role-played as frc254."
   },
   "fixture": {
-    "eventKey": "2026flor",
+    "eventKey": "2026casnv",
     "season": 2026,
-    "eventName": "Orlando Regional 2026",
-    "sourceUrl": "https://www.thebluealliance.com/event/2026flor",
-    "excludedTeamKeys": ["frc6706"],
+    "eventName": "CA District Silicon Valley Event presented by Apple 2026",
+    "sourceUrl": "https://www.thebluealliance.com/event/2026casnv",
+    "excludedTeamKeys": [],
+    "ownTeamLabel": "The Cheesy Poofs",
     "pretendOwnTeamPolicy": {
-      "strategy": "seeded-random-participant",
-      "seed": 32817
+      "strategy": "fixed-team",
+      "teamKey": "frc254",
+      "seed": 2542026
     }
   },
   "dataSources": {
     "tbaPublicPage": {
       "mode": "public-html",
       "required": true,
-      "url": "https://www.thebluealliance.com/event/2026flor"
+      "url": "https://www.thebluealliance.com/event/2026casnv"
     },
     "tbaApi": { "mode": "disabled-no-key", "required": false },
     "statbotics": { "mode": "disabled-public-page-replay", "required": false },
@@ -43,7 +45,7 @@
   "bridges": {
     "modelCore": {
       "mode": "real-event-ledger-runner",
-      "commands": ["npm run sft:real-replay", "npm run model:typecheck"]
+      "commands": ["npm run sft:real-replay:silicon-valley", "npm run model:typecheck"]
     },
     "webApp": {
       "mode": "build-and-artifact-ready",
@@ -60,7 +62,7 @@
   },
   "gates": {
     "noFutureLeakage": "required",
-    "minMatches": 80,
+    "minMatches": 60,
     "minScoutRowsPerMatch": 6,
     "maxUncoveredMatches": 0,
     "requiredArtifacts": [
