@@ -16,5 +16,7 @@
 - [x] Handle invalid TBA API keys clearly and give scouts/admins a direct replace-or-clear path when TBA returns 401.
 - [x] Remove the stale website text about missing TBA key setup so current Admin V4 flow is referenced.
 - [x] Find Leo's older Cloudflare relay server in the Developer folder and integrate it as a VPN/US-use backup while keeping mainland-China relay priority for Sanya.
-- [blocked] Push to GitHub after Leo provides the fresh secret code required for external sharing.
-- [blocked] Deploy the rebuilt Firebase hosting bundle after Leo provides the fresh secret code required for external publishing.
+- [x] Push the committed scouting fixes to GitHub now that Leo provided the fresh secret code.
+- [x] Deploy the rebuilt Firebase hosting bundle now that Leo provided the fresh secret code.
+- [x] Verify the live Firebase site no longer serves the stale TBA Admin V2 sidebar message.
+- [x] Keep improving PowerScout/scouting polish instead of treating the current product as perfect.

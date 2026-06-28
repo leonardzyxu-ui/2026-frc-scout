@@ -10,6 +10,7 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("PowerScout")
+        .navigationSplitViewColumnWidth(min: 235, ideal: 250, max: 300)
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Powerhouse")

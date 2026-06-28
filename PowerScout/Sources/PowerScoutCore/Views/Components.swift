@@ -43,20 +43,22 @@ struct PSPageHeader: View {
 
 struct PSScoreRing: View {
     let score: Int
+    var diameter: CGFloat = 58
+    var lineWidth: CGFloat = 8
 
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.secondary.opacity(0.18), lineWidth: 8)
+                .stroke(.secondary.opacity(0.18), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: CGFloat(max(0, min(score, 100))) / 100)
-                .stroke(scoreColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .stroke(scoreColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(score)")
                 .font(.title3.weight(.bold))
                 .monospacedDigit()
         }
-        .frame(width: 58, height: 58)
+        .frame(width: diameter, height: diameter)
         .accessibilityLabel("Readiness score \(score)")
     }
 
