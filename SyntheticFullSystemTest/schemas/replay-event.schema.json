@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://powerhouse.local/scouting/synthetic-full-system-test/replay-event.schema.json",
+  "title": "Replay Event",
+  "type": "object",
+  "required": ["eventKey", "season", "teams", "matches", "availability"],
+  "additionalProperties": true,
+  "properties": {
+    "eventKey": { "type": "string" },
+    "season": { "type": "integer" },
+    "teams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["teamKey"],
+        "additionalProperties": true,
+        "properties": {
+          "teamKey": { "type": "string" },
+          "nickname": { "type": "string" }
+        }
+      }
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["matchKey", "compLevel", "matchNumber", "red", "blue"],
+        "additionalProperties": true,
+        "properties": {
+          "matchKey": { "type": "string" },
+          "compLevel": { "type": "string" },
+          "matchNumber": { "type": "integer" },
+          "red": { "$ref": "#/$defs/alliance" },
+          "blue": { "$ref": "#/$defs/alliance" },
+          "availableAt": { "type": "string" }
+        }
+      }
+    },
+    "availability": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["recordId", "availableAt"],
+        "additionalProperties": true,
+        "properties": {
+          "recordId": { "type": "string" },
+          "availableAt": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "alliance": {
+      "type": "object",
+      "required": ["teamKeys"],
+      "additionalProperties": true,
+      "properties": {
+        "teamKeys": { "type": "array", "items": { "type": "string" }, "minItems": 3, "maxItems": 3 },
+        "score": { "type": "integer" }
+      }
+    }
+  }
+}
+

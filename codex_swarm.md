@@ -11,10 +11,24 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - [x] Logic reviewer (`019f0b94-9310-7fc0-bad0-f2f46bab679f`, explorer, `gpt-5.4-mini`, high reasoning): inspected scouting forms and PowerScout logic for missing real-world cases and overloaded form moments.
 - [x] RelayCartographer (`019f0bc2-8394-7fd3-9169-0c90ce315bec`, explorer, `gpt-5.3-codex-spark`, medium reasoning): attempted read-only search for Leo's older Cloudflare relay server, then failed from context-window exhaustion before producing a report. Closed with no file changes; main thread completed the search and wrote `codex_agent_reports/cloudflare-relay-search.md`.
 - [x] KeyJanitor (`019f0bda-d245-7bf1-8dcd-70e84a2c9c60`, worker, `gpt-5.3-codex-spark`, medium reasoning): removed the stale TBA missing-key sidebar copy, added regression coverage, and confirmed a fresh Firebase deploy is required for the live site to stop serving old bundles.
-- [ ] Main Codex conductor: implement and verify PowerScout, integrate useful findings, and keep Leo's queue updated.
+- [x] Main Codex conductor: implemented and verified PowerScout, integrated useful findings, and kept Leo's queue updated.
 
 ## Integration Notes
 
 - Keep implementation ownership in the main thread for `PowerScout/`.
 - Subagents may write only their own files under `codex_agent_reports/`.
 - Do not revert unrelated local changes.
+
+## Current Run: Synthetic Full System Test
+
+- Task id: `sft-framework-001`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: create the initial `SyntheticFullSystemTest/` framework and validation hooks.
+- Status: complete
+- Evidence: `npm run sft:validate`, `npm run sft:dry-run`, `node --test tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `cd PowerScout && swift test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
+- Blockers: none for local framework creation.
+- Safety: no credentials, no deploy, no production Firebase writes.
+- Subagents: none launched for this run.

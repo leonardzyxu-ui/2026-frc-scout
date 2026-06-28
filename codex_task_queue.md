@@ -22,3 +22,6 @@
 - [x] Keep improving PowerScout/scouting polish instead of treating the current product as perfect.
 - [x] Make the invalid TBA key recovery path clearer so Leo can clear the bad browser-local key and replace it without guessing.
 - [blocked] Push and deploy the clearer invalid-key recovery copy after Leo provides a fresh direct secret-code reply.
+- [x] Create a safe local TBA API key JSON file for Leo to upload in Admin V4 Settings.
+- [x] Add the Winners Graph visual to the native PowerScout Mac app.
+- [x] Create the `SyntheticFullSystemTest/` framework for repeatable full-event scouting simulations across model, web app, and Mac app surfaces.

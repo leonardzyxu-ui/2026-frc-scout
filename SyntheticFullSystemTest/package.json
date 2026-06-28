@@ -1,0 +1,10 @@
+{
+  "name": "synthetic-full-system-test",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-framework.mjs",
+    "dry-run": "node scripts/dry-run.mjs --manifest manifests/example-local-smoke.json"
+  }
+}
+

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://powerhouse.local/scouting/synthetic-full-system-test/scout-observation.schema.json",
+  "title": "Scout Observation",
+  "type": "object",
+  "required": ["id", "lane", "eventKey", "teamKey", "availableAt", "trustClass", "simulatedBy"],
+  "additionalProperties": true,
+  "properties": {
+    "id": { "type": "string" },
+    "lane": { "enum": ["preScout", "pitScout", "matchScout", "videoReview"] },
+    "eventKey": { "type": "string" },
+    "matchKey": { "type": "string" },
+    "teamKey": { "type": "string" },
+    "alliance": { "enum": ["red", "blue", "unknown"] },
+    "availableAt": { "type": "string" },
+    "trustClass": { "enum": ["public-prior", "objective-observed", "subjective-claim", "live-observed", "derived"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "simulatedBy": { "type": "string" },
+    "noFutureAfterMatchIndex": { "type": "integer", "minimum": -1 },
+    "fields": { "type": "object", "additionalProperties": true }
+  }
+}
+

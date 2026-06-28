@@ -1,0 +1,67 @@
+{
+  "$schema": "../schemas/simulation-manifest.schema.json",
+  "schemaVersion": 1,
+  "simulation": {
+    "name": "local-smoke",
+    "mode": "synthetic-smoke",
+    "seed": 2607,
+    "description": "Tiny no-network replay used to prove the Synthetic Full System Test contract."
+  },
+  "fixture": {
+    "eventKey": "2026simsmoke",
+    "season": 2026,
+    "excludedTeamKeys": ["frc6706"],
+    "pretendOwnTeamPolicy": {
+      "strategy": "seeded-random-participant",
+      "seed": 2607
+    },
+    "matches": ["qm1", "qm2", "qm3", "qm4"]
+  },
+  "dataSources": {
+    "tba": { "mode": "cache-only", "required": false },
+    "statbotics": { "mode": "cache-only", "required": false },
+    "firebase": { "mode": "emulator-or-disabled", "required": false }
+  },
+  "phases": [
+    { "id": "pre_scout", "startsAt": "T_MINUS_7_DAYS" },
+    { "id": "pit_scout", "startsAt": "PIT_SCOUT_WINDOW" },
+    { "id": "practice", "startsAt": "PRACTICE_START" },
+    { "id": "qualification_replay", "startsAt": "MATCH_1_POSTED" },
+    { "id": "alliance_selection", "startsAt": "ALLIANCE_SELECTION_PREP" }
+  ],
+  "agentPlan": {
+    "defaultPolicy": "deterministic-code-first",
+    "spawnAgentsByDefault": false,
+    "requiredReportsWhenAgentsUsed": ["codex_swarm.md", "codex_agent_reports/<agent>.md"]
+  },
+  "bridges": {
+    "modelCore": {
+      "mode": "direct-cli",
+      "commands": ["npm run model:typecheck", "npm run model:final-check"]
+    },
+    "webApp": {
+      "mode": "playwright-local",
+      "routes": ["/adminv2", "/adminv2/prediction-vs-actual", "/adminv4"]
+    },
+    "firebase": {
+      "mode": "emulator-first",
+      "productionWrites": false
+    },
+    "powerScout": {
+      "mode": "swiftpm",
+      "commands": ["cd PowerScout && swift test", "cd PowerScout && ./script/build_and_run.sh --verify"]
+    }
+  },
+  "gates": {
+    "noFutureLeakage": "required",
+    "minScoutRowsPerMatch": 6,
+    "maxWinnerAccuracyRegression": 0.03,
+    "maxBrierRegression": 0.025,
+    "requiredArtifacts": ["run-summary.json", "prediction-ledger.json", "no-future-leakage-audit.json"]
+  },
+  "artifacts": {
+    "root": "SyntheticFullSystemTest/artifacts",
+    "keepGeneratedOutOfGit": true
+  }
+}
+

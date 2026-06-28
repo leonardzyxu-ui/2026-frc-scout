@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://powerhouse.local/scouting/synthetic-full-system-test/prediction-ledger.schema.json",
+  "title": "Prediction Ledger",
+  "type": "object",
+  "required": ["runId", "eventKey", "entries", "metrics"],
+  "additionalProperties": true,
+  "properties": {
+    "runId": { "type": "string" },
+    "eventKey": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["checkpoint", "matchKey", "predictedWinner", "availableRecords", "modelName"],
+        "additionalProperties": true,
+        "properties": {
+          "checkpoint": { "type": "string" },
+          "matchKey": { "type": "string" },
+          "modelName": { "type": "string" },
+          "predictedWinner": { "enum": ["red", "blue", "tie", "unknown"] },
+          "actualWinner": { "enum": ["red", "blue", "tie", "unknown"] },
+          "redWinProbability": { "type": "number", "minimum": 0, "maximum": 1 },
+          "predictedRedScore": { "type": "number" },
+          "predictedBlueScore": { "type": "number" },
+          "availableRecords": { "type": "array", "items": { "type": "string" } },
+          "createdAt": { "type": "string" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "winnerAccuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+        "brierScore": { "type": "number", "minimum": 0 },
+        "scoreMae": { "type": "number", "minimum": 0 },
+        "marginMae": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
+

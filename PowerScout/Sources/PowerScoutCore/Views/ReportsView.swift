@@ -12,6 +12,8 @@ struct ReportsView: View {
                 subtitle: "Open the artifacts that sell the scouting system and preserve model evidence."
             )
 
+            PredictionEvidenceGraphView()
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 14)], spacing: 14) {
                 reportCard(
                     title: "HTML Morning Report",

@@ -43,7 +43,9 @@
     "model:verify-dashboard": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts verify-dashboard",
     "model:diagnose": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts diagnose",
     "model:typecheck": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.modeling.json --noEmit",
-    "model:final-check": "node scripts/model-final-check.mjs"
+    "model:final-check": "node scripts/model-final-check.mjs",
+    "sft:validate": "node SyntheticFullSystemTest/scripts/validate-framework.mjs",
+    "sft:dry-run": "node SyntheticFullSystemTest/scripts/dry-run.mjs --manifest SyntheticFullSystemTest/manifests/example-local-smoke.json"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
