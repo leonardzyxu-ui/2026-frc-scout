@@ -44,10 +44,13 @@ DIST_DIR="$PWD/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
 MACOS="$CONTENTS/MacOS"
+RESOURCES="$CONTENTS/Resources"
+APP_ICON_SOURCE="$PWD/Resources/AppIcon.icns"
 
 rm -rf "$APP_BUNDLE"
-mkdir -p "$MACOS"
+mkdir -p "$MACOS" "$RESOURCES"
 cp "$EXECUTABLE" "$MACOS/$APP_NAME"
+cp "$APP_ICON_SOURCE" "$RESOURCES/AppIcon.icns"
 
 cat > "$CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -62,6 +65,10 @@ cat > "$CONTENTS/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleIconName</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
