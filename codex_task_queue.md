@@ -29,3 +29,5 @@
 - [x] Implement a full-length Synthetic Full System Test event replay runner with prediction ledger and artifacts.
 - [x] Run the full event replay and verify its artifacts.
 - [x] Run web/model/PowerScout bridge readiness checks after the full replay.
+- [x] Find a real completed 2026 FRC event and build a real-data full event replay from its teams and match results.
+- [x] Run and verify the real-event synthetic replay artifacts.

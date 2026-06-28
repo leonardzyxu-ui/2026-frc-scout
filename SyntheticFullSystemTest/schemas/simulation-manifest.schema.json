@@ -13,7 +13,7 @@
       "additionalProperties": true,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "mode": { "enum": ["synthetic-smoke", "synthetic-full-event", "cached-real-event", "live-refresh"] },
+        "mode": { "enum": ["synthetic-smoke", "synthetic-full-event", "public-real-event", "cached-real-event", "live-refresh"] },
         "seed": { "type": "integer" },
         "description": { "type": "string" }
       }
@@ -24,6 +24,8 @@
       "additionalProperties": true,
       "properties": {
         "eventKey": { "type": "string", "minLength": 1 },
+        "eventName": { "type": "string" },
+        "sourceUrl": { "type": "string" },
         "season": { "type": "integer", "minimum": 1992 },
         "teamCount": { "type": "integer", "minimum": 6 },
         "qualificationMatches": { "type": "integer", "minimum": 1 },

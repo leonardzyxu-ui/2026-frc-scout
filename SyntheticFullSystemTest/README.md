@@ -10,6 +10,7 @@ The goal is to replay an event as if Powerhouse attended it, feed time-locked pr
 npm run sft:validate
 npm run sft:dry-run
 npm run sft:full-replay
+npm run sft:real-replay
 node --test tests/syntheticFullSystemFramework.test.mjs
 ```
 
@@ -35,6 +36,8 @@ No future leakage. A prediction checkpoint may only use public data, pit data, s
 - `schemas/` defines JSON contracts for manifests, event replay data, scout observations, and prediction ledgers.
 - `manifests/example-local-smoke.json` is a tiny deterministic smoke manifest.
 - `manifests/full-local-event.json` is the local full-event replay manifest.
+- `manifests/orlando-2026-public.json` replays real Orlando Regional 2026 teams, schedule, and scores from The Blue Alliance's public event page.
 - `scripts/validate-framework.mjs` checks the framework contract.
 - `scripts/dry-run.mjs` produces a deterministic no-network smoke replay summary.
 - `scripts/full-event-replay.mjs` produces full-event replay artifacts under `SyntheticFullSystemTest/artifacts/`.
+- `scripts/real-event-replay.mjs` fetches/parses a public TBA event page and replays every parsed match without using a TBA API key.

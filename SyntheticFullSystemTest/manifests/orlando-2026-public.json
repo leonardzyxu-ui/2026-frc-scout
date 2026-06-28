@@ -1,0 +1,85 @@
+{
+  "$schema": "../schemas/simulation-manifest.schema.json",
+  "schemaVersion": 1,
+  "simulation": {
+    "name": "orlando-2026-public-real-event",
+    "mode": "public-real-event",
+    "seed": 32817,
+    "description": "Real-event replay using the public The Blue Alliance Orlando Regional 2026 page for actual teams, schedule, and scores."
+  },
+  "fixture": {
+    "eventKey": "2026flor",
+    "season": 2026,
+    "eventName": "Orlando Regional 2026",
+    "sourceUrl": "https://www.thebluealliance.com/event/2026flor",
+    "excludedTeamKeys": ["frc6706"],
+    "pretendOwnTeamPolicy": {
+      "strategy": "seeded-random-participant",
+      "seed": 32817
+    }
+  },
+  "dataSources": {
+    "tbaPublicPage": {
+      "mode": "public-html",
+      "required": true,
+      "url": "https://www.thebluealliance.com/event/2026flor"
+    },
+    "tbaApi": { "mode": "disabled-no-key", "required": false },
+    "statbotics": { "mode": "disabled-public-page-replay", "required": false },
+    "firebase": { "mode": "disabled-local-replay", "required": false }
+  },
+  "phases": [
+    { "id": "pre_scout", "startsAt": "T_MINUS_7_DAYS" },
+    { "id": "pit_scout", "startsAt": "PIT_SCOUT_WINDOW" },
+    { "id": "qualification_replay", "startsAt": "MATCH_1_POSTED" },
+    { "id": "playoff_replay", "startsAt": "PLAYOFF_MATCH_1_POSTED" },
+    { "id": "alliance_selection", "startsAt": "ALLIANCE_SELECTION_PREP" }
+  ],
+  "agentPlan": {
+    "defaultPolicy": "deterministic-code-first",
+    "spawnAgentsByDefault": false,
+    "requiredReportsWhenAgentsUsed": ["codex_swarm.md", "codex_agent_reports/<agent>.md"]
+  },
+  "bridges": {
+    "modelCore": {
+      "mode": "real-event-ledger-runner",
+      "commands": ["npm run sft:real-replay", "npm run model:typecheck"]
+    },
+    "webApp": {
+      "mode": "build-and-artifact-ready",
+      "routes": ["/adminv2", "/adminv2/prediction-vs-actual", "/adminv4"]
+    },
+    "firebase": {
+      "mode": "disabled-local-replay",
+      "productionWrites": false
+    },
+    "powerScout": {
+      "mode": "swiftpm",
+      "commands": ["cd PowerScout && ./script/build_and_run.sh --verify"]
+    }
+  },
+  "gates": {
+    "noFutureLeakage": "required",
+    "minMatches": 80,
+    "minScoutRowsPerMatch": 6,
+    "maxUncoveredMatches": 0,
+    "requiredArtifacts": [
+      "run-summary.json",
+      "source-page-metadata.json",
+      "replay-event.json",
+      "scout-observations.json",
+      "prediction-ledger.json",
+      "model-metrics.json",
+      "no-future-leakage-audit.json",
+      "scout-coverage-audit.json",
+      "alliance-selection-replay.json",
+      "app-bridge-summary.json",
+      "morning-report.html"
+    ]
+  },
+  "artifacts": {
+    "root": "SyntheticFullSystemTest/artifacts",
+    "keepGeneratedOutOfGit": true
+  }
+}
+

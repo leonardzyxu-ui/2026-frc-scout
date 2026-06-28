@@ -47,3 +47,18 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for the local full replay. Live TBA/Statbotics refresh remains a separate secret-code-gated step.
 - Safety: no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Real Event Replay
+
+- Task id: `sft-real-replay-001`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: fetch the public The Blue Alliance page for Orlando Regional 2026, parse real teams and match results, and replay the event through synthetic scouting/prediction artifacts.
+- Status: complete
+- Evidence: `npm run sft:real-replay`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `npm test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
+- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026flor-20260628-060040-32817`.
+- Blockers: none for public-page real replay. Live authenticated API refresh remains separate and would need explicit authorization.
+- Safety: no TBA API key used, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.

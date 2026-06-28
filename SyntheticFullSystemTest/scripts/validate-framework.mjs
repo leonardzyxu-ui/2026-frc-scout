@@ -19,8 +19,10 @@ const requiredFiles = [
   'schemas/prediction-ledger.schema.json',
   'manifests/example-local-smoke.json',
   'manifests/full-local-event.json',
+  'manifests/orlando-2026-public.json',
   'scripts/dry-run.mjs',
   'scripts/full-event-replay.mjs',
+  'scripts/real-event-replay.mjs',
   'scripts/validate-framework.mjs'
 ];
 
@@ -31,6 +33,7 @@ assert.deepEqual(missing, [], `Missing framework files: ${missing.join(', ')}`);
 
 const manifest = readJson('manifests/example-local-smoke.json');
 const fullManifest = readJson('manifests/full-local-event.json');
+const realManifest = readJson('manifests/orlando-2026-public.json');
 assert.equal(manifest.schemaVersion, 1, 'manifest schemaVersion must be 1');
 assert.equal(manifest.simulation.mode, 'synthetic-smoke', 'smoke manifest must avoid network by default');
 assert.ok(Number.isInteger(manifest.simulation.seed), 'smoke manifest must have an integer seed');
@@ -45,12 +48,16 @@ for (const phase of ['pre_scout', 'pit_scout', 'qualification_replay', 'alliance
 for (const bridge of ['modelCore', 'webApp', 'powerScout']) {
   assert.ok(manifest.bridges[bridge], `manifest missing ${bridge} bridge`);
   assert.ok(fullManifest.bridges[bridge], `full manifest missing ${bridge} bridge`);
+  assert.ok(realManifest.bridges[bridge], `real manifest missing ${bridge} bridge`);
 }
 
 assert.equal(fullManifest.simulation.mode, 'synthetic-full-event', 'full manifest must use synthetic-full-event mode');
 assert.ok(fullManifest.fixture.qualificationMatches >= 60, 'full manifest must include a full qualification schedule');
 assert.ok(fullManifest.fixture.playoffMatches >= 8, 'full manifest must include playoffs');
 assert.equal(fullManifest.bridges.firebase.productionWrites, false, 'full replay must not write production Firebase');
+assert.equal(realManifest.simulation.mode, 'public-real-event', 'real manifest must use public-real-event mode');
+assert.ok(realManifest.fixture.sourceUrl.includes('thebluealliance.com/event/'), 'real manifest must point at a TBA public event page');
+assert.equal(realManifest.bridges.firebase.productionWrites, false, 'real replay must not write production Firebase');
 
 for (const schemaPath of [
   'schemas/simulation-manifest.schema.json',
@@ -67,5 +74,6 @@ const packageJson = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'),
 assert.ok(packageJson.scripts['sft:validate'], 'root package.json must expose sft:validate');
 assert.ok(packageJson.scripts['sft:dry-run'], 'root package.json must expose sft:dry-run');
 assert.ok(packageJson.scripts['sft:full-replay'], 'root package.json must expose sft:full-replay');
+assert.ok(packageJson.scripts['sft:real-replay'], 'root package.json must expose sft:real-replay');
 
-console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases.`);
+console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases.`);
