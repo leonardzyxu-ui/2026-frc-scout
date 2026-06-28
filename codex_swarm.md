@@ -178,3 +178,18 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Replay Goal Closure
+
+- Task id: `sft-agentic-goal-closure`
+- Owner: main Codex conductor
+- Role: conductor and verifier
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: finish the open-ended replay loop at Leo's instruction, verify the final recorded history, and close the active goal.
+- Status: complete
+- Evidence: artifact-gate inspection across all 28 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, `git diff --check`, and source secret scan.
+- Final catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` has 28 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 28 known agentic successes, 0 failures, and compact latest-batch skip accounting.
+- Blockers: none. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this closure step.

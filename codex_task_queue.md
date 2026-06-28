@@ -49,3 +49,4 @@
 - [x] Compact latest-batch summaries so future replay loops stay readable.
 - [x] Continue the active replay goal with a fifth completed-event agentic replay batch.
 - [x] Verify and record the expanded 2026 agentic replay catalog after batch 5.
+- [x] Finish the active replay run and close the long-running goal after final verification.
