@@ -35,7 +35,13 @@ import { MatchScoutingV2 } from '../types';
 import { calculateTestMetrics, MathEngine, TeamMetrics, TestTeamMetrics } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 import { getPersistentDeviceId, getSharedEventDocRef, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
-import { loadTbaApiKey, saveTbaApiKey } from '../utils/adminV4LocalStore';
+import { clearTbaApiKey, loadTbaApiKey, saveTbaApiKey } from '../utils/adminV4LocalStore';
+import {
+  buildTbaHttpError,
+  getTbaUserFacingError,
+  isTbaAuthError,
+  TBA_KEY_MISSING_MESSAGE
+} from '../utils/tbaErrors';
 import DataControlView from './DataControlView';
 import PitDataView from './PitDataView';
 import PreMatchView from './PreMatchView';
@@ -160,7 +166,7 @@ export default function AdminMainframeView({
       }
 
       if (!tbaApiKey.trim()) {
-        throw new Error('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
+        throw new Error(TBA_KEY_MISSING_MESSAGE);
       }
 
       const scoutingSnapshot = await getDocs(collection(db, `events/${eventKey}/matchScouting`));
@@ -180,10 +186,12 @@ export default function AdminMainframeView({
       setAnalyticsMode(eventKey === 'TEST' ? 'test' : 'official');
       if (fetchError instanceof Error) {
         if (
-          fetchError.message === 'ERROR: TBA API Key Missing' ||
           fetchError.message.includes('ERROR: No Matches Found')
         ) {
           setError(fetchError.message);
+        } else if (isTbaAuthError(fetchError)) {
+          setError(getTbaUserFacingError(fetchError));
+          setTbaApiKeyStatus('Saved key failed TBA auth');
         } else {
           setError(`Failed to load analytics data: ${fetchError.message}`);
         }
@@ -228,7 +236,7 @@ export default function AdminMainframeView({
     if (!isTbaApiKeyReady) return;
 
     if (!tbaApiKey.trim()) {
-      setError('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
+      setError(TBA_KEY_MISSING_MESSAGE);
       return;
     }
 
@@ -239,11 +247,18 @@ export default function AdminMainframeView({
       const response = await fetch(`https://www.thebluealliance.com/api/v3/events/${searchYear}`, {
         headers: { 'X-TBA-Auth-Key': tbaApiKey.trim() }
       });
-      if (!response.ok) throw new Error('Failed to fetch events');
+      if (!response.ok) {
+        throw buildTbaHttpError('TBA events', response.status, response.statusText, await response.text());
+      }
       setSearchResults(await response.json());
     } catch (searchError) {
       console.error(searchError);
-      setError('Error searching events.');
+      if (isTbaAuthError(searchError)) {
+        setError(getTbaUserFacingError(searchError));
+        setTbaApiKeyStatus('Saved key failed TBA auth');
+      } else {
+        setError(searchError instanceof Error ? `Error searching events: ${searchError.message}` : 'Error searching events.');
+      }
     } finally {
       setIsSearchingEvents(false);
     }
@@ -267,6 +282,24 @@ export default function AdminMainframeView({
     } catch (saveError) {
       console.error('Failed to save TBA API key in legacy admin.', saveError);
       setTbaApiKeyStatus('Save failed');
+    } finally {
+      setIsSavingTbaApiKey(false);
+      setIsTbaApiKeyReady(true);
+    }
+  };
+
+  const clearLegacyTbaApiKey = async () => {
+    setIsSavingTbaApiKey(true);
+    setTbaApiKeyStatus('');
+    try {
+      await clearTbaApiKey();
+      setLocalTbaApiKey('');
+      setTbaApiKeyDraft('');
+      setError('');
+      setTbaApiKeyStatus('Cleared saved key');
+    } catch (clearError) {
+      console.error('Failed to clear TBA API key in legacy admin.', clearError);
+      setTbaApiKeyStatus('Clear failed');
     } finally {
       setIsSavingTbaApiKey(false);
       setIsTbaApiKeyReady(true);
@@ -716,9 +749,16 @@ export default function AdminMainframeView({
                   <Save className="w-3.5 h-3.5" />
                   {isSavingTbaApiKey ? '...' : 'SAVE'}
                 </button>
+                <button
+                  onClick={() => void clearLegacyTbaApiKey()}
+                  disabled={isSavingTbaApiKey || !hasTbaApiKey}
+                  className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
+                >
+                  CLEAR
+                </button>
               </div>
               {tbaApiKeyStatus && (
-                <p className={`mt-2 text-[11px] ${tbaApiKeyStatus === 'Saved' ? 'text-emerald-400' : 'text-red-300'}`}>
+                <p className={`mt-2 text-[11px] ${tbaApiKeyStatus === 'Saved' || tbaApiKeyStatus === 'Cleared saved key' ? 'text-emerald-400' : 'text-red-300'}`}>
                   {tbaApiKeyStatus}
                 </p>
               )}

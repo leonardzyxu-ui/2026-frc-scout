@@ -18,6 +18,7 @@ import { MathEngine, TeamMetrics } from '../utils/mathEngine';
 import { formatPitChassisSpeed, getClimbCapabilityLabel, getShooterLabel, getTraversalLabel } from '../utils/pitScouting';
 import { TBA_API_KEY } from '../config';
 import { DEFAULT_EVENT_KEY, getStoredEventKey } from '../utils/sharedEventState';
+import { getTbaUserFacingError, isTbaAuthError } from '../utils/tbaErrors';
 
 const calculateConsistency = (history: { match: number; epac: number }[]) => {
   if (!history || history.length < 2) return 0;
@@ -117,10 +118,11 @@ export default function TeamLookupView({
       console.error('Error fetching team data:', lookupError);
       if (lookupError instanceof Error) {
         if (
-          lookupError.message === 'ERROR: TBA API Key Missing' ||
           lookupError.message.includes('ERROR: No Matches Found')
         ) {
           setError(lookupError.message);
+        } else if (isTbaAuthError(lookupError)) {
+          setError(getTbaUserFacingError(lookupError));
         } else {
           setError('An error occurred while fetching analytics.');
         }

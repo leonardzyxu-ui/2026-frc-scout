@@ -18,6 +18,7 @@ import {
   TBAEventSummary
 } from '../../utils/matchPredictor';
 import { fetchEventStatboticsEpa, StatboticsNormalizedTeamEpa } from '../../utils/statbotics';
+import { buildTbaHttpError, TBA_KEY_MISSING_MESSAGE } from '../../utils/tbaErrors';
 
 type ComparisonPhaseFilter = 'all' | 'qualification' | 'playoff';
 type PredictorViewTab = 'quals' | 'playoffs' | 'comparison';
@@ -468,7 +469,7 @@ export default function MatchPredictor({
     setError('');
     setStatboticsEpaWarning('');
     if (!tbaApiKey.trim()) {
-      setError('TBA API Key is missing. Save a TBA key in the Admin V2 sidebar.');
+      setError(TBA_KEY_MISSING_MESSAGE);
       setIsLoading(false);
       return;
     }
@@ -485,7 +486,7 @@ export default function MatchPredictor({
 
       if (!matchesResponse.ok) {
         const errorText = await matchesResponse.text();
-        throw new Error(`Failed to fetch TBA matches: ${matchesResponse.status} ${matchesResponse.statusText} - ${errorText}`);
+        throw buildTbaHttpError('TBA matches', matchesResponse.status, matchesResponse.statusText, errorText);
       }
 
       const nextMatches = (await matchesResponse.json()) as TBAMatch[];

@@ -1286,3 +1286,25 @@ test('scouting relay health checks require the expected service identity', () =>
   assert.match(readinessSource, /Mainland relay path is reachable/);
   assert.match(readinessSource, /wrong service \$\{service \|\| 'missing'\}; expected \$\{expectedService\}/);
 });
+
+test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
+  const tbaErrorSource = readFileSync('src/utils/tbaErrors.ts', 'utf8');
+  const legacySidebarLabel = 'Admin V2 ' + 'sidebar';
+  const legacyMissingMessage = `TBA API Key is missing. Save a TBA key in the ${legacySidebarLabel}.`;
+  const tbaConsumerSource = [
+    tbaErrorSource,
+    readFileSync('src/components/admin/MatchPredictor.tsx', 'utf8'),
+    readFileSync('src/views/AdminMainframeView.tsx', 'utf8'),
+    readFileSync('src/views/AdminV4View.tsx', 'utf8'),
+    readFileSync('src/utils/mathEngine.ts', 'utf8'),
+    readFileSync('src/utils/preMatchScouting.ts', 'utf8')
+  ].join('\n');
+
+  assert.match(tbaErrorSource, /TBA_KEY_MISSING_MESSAGE/);
+  assert.match(tbaErrorSource, /Admin V4 Settings/);
+  assert.match(tbaErrorSource, /TBA key controls on this page/);
+  assert.match(tbaErrorSource, /TBA_KEY_INVALID_MESSAGE/);
+  assert.equal(tbaConsumerSource.includes(legacyMissingMessage), false);
+  assert.equal(tbaConsumerSource.includes(legacySidebarLabel), false);
+  assert.match(tbaErrorSource, /Replace the saved TBA key with a valid key/);
+});

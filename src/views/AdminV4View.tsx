@@ -66,6 +66,7 @@ import {
   TBAEventSummary
 } from '../utils/matchPredictor';
 import { fetchEventStatboticsEpa, StatboticsNormalizedTeamEpa } from '../utils/statbotics';
+import { buildTbaHttpError, getTbaUserFacingError, isTbaAuthError, TBA_KEY_MISSING_MESSAGE } from '../utils/tbaErrors';
 import {
   getLatestAdminV4CachePayload,
   isCachedDefenseRows,
@@ -1398,7 +1399,7 @@ export default function AdminV4View() {
 
   const searchEvents = async () => {
     if (!effectiveTbaApiKey) {
-      setError('TBA API Key is missing.');
+      setError(TBA_KEY_MISSING_MESSAGE);
       return;
     }
 
@@ -1409,11 +1410,17 @@ export default function AdminV4View() {
       const response = await fetch(`https://www.thebluealliance.com/api/v3/events/${searchYear}`, {
         headers: { 'X-TBA-Auth-Key': effectiveTbaApiKey }
       });
-      if (!response.ok) throw new Error('Failed to fetch events');
+      if (!response.ok) {
+        throw buildTbaHttpError('TBA events', response.status, response.statusText, await response.text());
+      }
       setSearchResults((await response.json()) as TbaEventSearchResult[]);
     } catch (searchError) {
       console.error(searchError);
-      setError('Error searching events.');
+      setError(isTbaAuthError(searchError)
+        ? getTbaUserFacingError(searchError)
+        : searchError instanceof Error
+          ? `Error searching events: ${searchError.message}`
+          : 'Error searching events.');
     } finally {
       setIsSearchingEvents(false);
     }

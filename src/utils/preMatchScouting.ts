@@ -8,6 +8,7 @@ import {
   TeamAwardSummary,
   TeamSeasonEventSummary
 } from '../types';
+import { buildTbaHttpError, TBA_KEY_MISSING_MESSAGE } from './tbaErrors';
 
 interface TBATeamSimple {
   key: string;
@@ -319,7 +320,7 @@ const fetchTbaJson = async <T>(path: string, tbaApiKey: string): Promise<T | nul
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`TBA API Error: ${response.status} ${response.statusText} - ${errorText}`);
+    throw buildTbaHttpError('TBA public team data', response.status, response.statusText, errorText);
   }
 
   return (await response.json()) as T;
@@ -332,7 +333,7 @@ export interface EventTeamRosterRow {
 
 export async function fetchEventTeamNumbers(eventKey: string, tbaApiKey: string): Promise<string[]> {
   if (!tbaApiKey) {
-    throw new Error('ERROR: TBA API Key Missing');
+    throw new Error(TBA_KEY_MISSING_MESSAGE);
   }
 
   const normalizedEventKey = eventKey.trim().toLowerCase();
@@ -348,7 +349,7 @@ export async function fetchEventTeamNumbers(eventKey: string, tbaApiKey: string)
 
 export async function fetchEventTeamsSimple(eventKey: string, tbaApiKey: string): Promise<EventTeamRosterRow[]> {
   if (!tbaApiKey) {
-    throw new Error('ERROR: TBA API Key Missing');
+    throw new Error(TBA_KEY_MISSING_MESSAGE);
   }
 
   const normalizedEventKey = eventKey.trim().toLowerCase();
@@ -371,7 +372,7 @@ export async function fetchPreMatchTeamProfile(
   tbaApiKey: string
 ): Promise<PreMatchTeamProfile> {
   if (!tbaApiKey) {
-    throw new Error('ERROR: TBA API Key Missing');
+    throw new Error(TBA_KEY_MISSING_MESSAGE);
   }
 
   const sanitizedTeamNumber = teamNumber.trim();

@@ -1,5 +1,6 @@
 import { Matrix, solve } from 'ml-matrix';
 import { MatchScoutingV2 } from '../types';
+import { buildTbaHttpError, TBA_KEY_MISSING_MESSAGE } from './tbaErrors';
 
 export interface TBAMatch {
   key: string;
@@ -526,7 +527,7 @@ export class MathEngine {
     const includeUnplayed = options?.includeUnplayed ?? false;
     if (!this.tbaApiKey) {
       console.warn('No TBA API Key provided. Math Engine cannot fetch matches.');
-      throw new Error('ERROR: TBA API Key Missing');
+      throw new Error(TBA_KEY_MISSING_MESSAGE);
     }
 
     if (eventKey === 'TEST') {
@@ -543,7 +544,7 @@ export class MathEngine {
       });
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`TBA API Error: ${response.status} ${response.statusText} - ${errorText}`);
+        throw buildTbaHttpError('TBA matches', response.status, response.statusText, errorText);
       }
       const matches: TBAMatch[] = await response.json();
 
