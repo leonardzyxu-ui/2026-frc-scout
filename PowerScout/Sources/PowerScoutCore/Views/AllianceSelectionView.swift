@@ -32,12 +32,22 @@ struct AllianceSelectionView: View {
 
             PSCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick-list logic")
+                    Text("Dynamic strategy logic")
                         .font(.title3.weight(.bold))
-                    labeled("Primary choice", "Best fit for our missing role with enough reliability and low enough uncertainty.")
-                    labeled("Backup choice", "Next best option if the primary is taken or declines.")
-                    labeled("Swing choice", "High-upside option when the alliance needs ceiling more than certainty.")
+                    labeled("Primary choice", "Best current role-combination gain after contribution, defense, deviation, and RP paths are considered.")
+                    labeled("Backup choice", "Next best option if the primary is taken or declines, recalculated from the remaining team pool.")
+                    labeled("Swing choice", "Higher-deviation plan when we are behind and need a smart gamble.")
                     labeled("Blocker choice", "A denial pick only when the opponent’s gain is worse than our fit sacrifice.")
+                }
+            }
+
+            PSCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Strategy safeties")
+                        .font(.title3.weight(.bold))
+                    ForEach(PowerScoutKnowledgeBase.strategySafeties) { safety in
+                        labeled(safety.title, safety.detail)
+                    }
                 }
             }
         }

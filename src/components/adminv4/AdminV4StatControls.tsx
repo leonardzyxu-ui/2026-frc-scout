@@ -4,22 +4,22 @@ import { AdminV4SelectedMetric } from '../../utils/adminV4Settings';
 import { AdminV4StatInfoKey } from './AdminV4StatDefinitions';
 
 export const ADMIN_V4_MODEL_LABELS: Record<AdminV4SelectedMetric, string> = {
-  ppc: 'Local Avg',
+  ppc: 'Contribution',
   opr: 'Official Avg',
   epa: 'Public Rating',
-  ppa: 'Expected'
+  ppa: 'Range'
 };
 
 export const ADMIN_V4_MODEL_OPTIONS: AdminV4SelectedMetric[] = ['ppa', 'ppc', 'opr', 'epa'];
 
 export const ADMIN_V4_MODEL_HELP: Record<AdminV4SelectedMetric, { meaning: string; use: string; watch: string }> = {
   ppa: {
-    meaning: 'Admin V4 expected range from local scouting, public context, role fit, and risk.',
+    meaning: 'Admin V4 contribution range from local scouting, public context, uncertainty, and risk.',
     use: 'Match plans, pick list, simulator, and charts.',
     watch: 'Confidence, tail risk, and evidence gaps before trusting one number.'
   },
   ppc: {
-    meaning: 'Average contribution directly credited by your scouts at this event.',
+    meaning: 'Contribution directly credited by your scouts at this event.',
     use: 'Checking what scouts actually saw.',
     watch: 'Missed rows, scout consistency, and role changes.'
   },
@@ -53,7 +53,7 @@ const ADMIN_V4_PLAIN_STAT_HELP: Record<AdminV4PlainStatKey, {
   infoKey: AdminV4StatInfoKey;
 }> = {
   expected: {
-    label: 'Expected',
+    label: 'Contribution',
     plain: 'Best current guess, not a promise.',
     infoKey: 'ppa'
   },
@@ -83,7 +83,7 @@ const ADMIN_V4_PLAIN_STAT_HELP: Record<AdminV4PlainStatKey, {
     infoKey: 'defenseMetric'
   },
   localAvg: {
-    label: 'Local Avg',
+    label: 'Contribution',
     plain: 'What our scouts directly credited.',
     infoKey: 'ppc'
   },

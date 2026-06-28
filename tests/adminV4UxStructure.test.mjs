@@ -771,6 +771,9 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
     'dpr',
     'defenseMetric',
     'defenseImpact',
+    'floorNonZero',
+    'contributionDeviation',
+    'defenseDeviation',
     'tbaRank',
     'matches',
     'volatility',
@@ -782,14 +785,14 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
     assert.match(entryMatch[0], /whereAppears:/, `${statKey} declares where it appears`);
   });
   assert.match(statControlSource, /function ModelToggleGroup/);
-  assert.match(statControlSource, /ppa: 'Expected'/);
-  assert.match(statControlSource, /ppc: 'Local Avg'/);
+  assert.match(statControlSource, /ppa: 'Range'/);
+  assert.match(statControlSource, /ppc: 'Contribution'/);
   assert.match(statControlSource, /opr: 'Official Avg'/);
   assert.match(statControlSource, /epa: 'Public Rating'/);
   assert.match(statControlSource, /Explain selected model/);
   assert.match(statControlSource, /ADMIN_V4_MODEL_HELP/);
   assert.match(statControlSource, /Selected model explanation/);
-  assert.match(statControlSource, /Admin V4 expected range from local scouting/);
+  assert.match(statControlSource, /Admin V4 contribution range from local scouting/);
   assert.match(statControlSource, /Use: \{selectedHelp\.use\} Watch: \{selectedHelp\.watch\}/);
   assert.match(statControlSource, /onContextMenu=\{event => onInfoContext\?\.\(event, selectedMetric\)\}/);
   assert.doesNotMatch(statControlSource, /Explain \$\{labelText\} model/);
@@ -814,7 +817,7 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
   assert.match(ppaSource, /Treat Team \$\{teamNumber\} as/);
   assert.doesNotMatch(ppaSource, /sourceModelName\} says Team/);
   assert.match(pickListSource, /Pick Score/);
-  assert.match(teamEvidenceSource, /Expected Range Shape/);
+  assert.match(teamEvidenceSource, /Contribution Range Shape/);
   assert.doesNotMatch(
     [chartSource, ppaPanelSource, pickListSource, teamEvidenceSource, visualizeSource, adminSource].join('\n'),
     /PPA Decision Shape|PPA Matchup Read|PPA Pick Score|No high-risk PPA|PPA evidence chain|PPA Question Closed|No PPA shape yet|Manual PPA/

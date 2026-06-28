@@ -57,11 +57,11 @@
 - [ ] Decode Leo's scouting redesign prompt into an implementation spec and morning assumptions list.
 - [ ] Read Leo's attached statistical analysis report and translate its standard-deviation math into the scouting model design.
 - [ ] Research DPR math and latest REBUILT ranking-point rules from reliable sources.
-- [ ] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
-- [ ] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
-- [ ] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
-- [ ] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
-- [ ] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
+- [x] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
+- [x] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
+- [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
+- [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
+- [x] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
 - [ ] Add browser-cache export support for detailed JSON with export time and scout metadata.
 - [ ] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
 - [x] Deliver `shift-architecture-review-001`: inspect web/Admin V4, modeling, SyntheticFullSystemTest, and PowerScout and produce a concise phased architecture report with exact file paths, migration plan, and MVP-vs-later slices.

@@ -173,6 +173,11 @@ const random = seededRandom(seed);
 const randomFor = value => seededRandom(stableHash(`${seed}:${value}`));
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const mean = values => (values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length);
+const stddev = values => {
+  if (values.length <= 1) return 0;
+  const avg = mean(values);
+  return Math.sqrt(values.reduce((sum, value) => sum + (value - avg) ** 2, 0) / values.length);
+};
 const round = (value, digits = 3) => Number(value.toFixed(digits));
 const scoreMean = mean(matches.flatMap(match => [match.red.score, match.blue.score]));
 
@@ -312,16 +317,72 @@ const metricDefinitions = {
     meaning:
       'The current online expected contribution rating used by the replay model. It starts from the public pre-scout prior and is updated only after each completed match is ingested.'
   },
+  contribution: {
+    label: 'Contribution',
+    fullName: 'Scout-credited contribution',
+    direction: 'backward-looking local scouting average',
+    storedAs: 'teamMetricTimeline[].teams[].contribution',
+    meaning:
+      'The average points your scouts directly credited to this team from completed local match scout rows. This is the new name for the old PPC concept.'
+  },
+  floor: {
+    label: 'Floor',
+    fullName: 'Lowest scouted contribution',
+    direction: 'risk floor',
+    storedAs: 'teamMetricTimeline[].teams[].floor',
+    meaning:
+      'The lowest point count this team has produced in local scouting rows, including zeros and breakdowns.'
+  },
+  floorNonZero: {
+    label: 'Floor Non Zero',
+    fullName: 'Lowest non-zero scouted contribution',
+    direction: 'functioning-robot floor',
+    storedAs: 'teamMetricTimeline[].teams[].floorNonZero',
+    meaning:
+      'The lowest non-zero point count this team has produced, useful when the robot is not dead or disconnected.'
+  },
+  ceiling: {
+    label: 'Ceiling',
+    fullName: 'Highest scouted contribution',
+    direction: 'upside ceiling',
+    storedAs: 'teamMetricTimeline[].teams[].ceiling',
+    meaning:
+      'The highest local scout-credited contribution seen so far.'
+  },
+  defense: {
+    label: 'Defense',
+    fullName: 'Observed points denied',
+    direction: 'defensive value',
+    storedAs: 'teamMetricTimeline[].teams[].defense',
+    meaning:
+      'The model estimate of points this team can deny, based on local scout defense pressure in the replay.'
+  },
+  contributionDeviation: {
+    label: 'Contribution Deviation',
+    fullName: 'Contribution standard deviation',
+    direction: 'uncertainty',
+    storedAs: 'teamMetricTimeline[].teams[].contributionDeviation',
+    meaning:
+      'The standard deviation of local scout-credited contribution rows.'
+  },
+  defenseDeviation: {
+    label: 'Defense Deviation',
+    fullName: 'Defense standard deviation',
+    direction: 'uncertainty',
+    storedAs: 'teamMetricTimeline[].teams[].defenseDeviation',
+    meaning:
+      'The standard deviation of local defense-pressure rows.'
+  },
   ppc: {
-    label: 'PPC',
+    label: 'PPC (legacy alias)',
     fullName: 'Local scout-credited average contribution',
     direction: 'backward-looking local scouting average',
     storedAs: 'teamMetricTimeline[].teams[].ppc',
     meaning:
-      'The average points your scouts directly credited to this team from completed local match scout rows. It is evidence from what our scouts actually observed at this event.'
+      'Legacy alias for Contribution, kept for one transition cycle so old reports can still read replay artifacts.'
   },
   ppa: {
-    label: 'PPA',
+    label: 'PPA (legacy range alias)',
     fullName: 'Admin V4 expected range decision object',
     direction: 'forward-looking expected range',
     storedAs: 'teamMetricTimeline[].teams[].ppa',
@@ -368,9 +429,16 @@ const buildTeamMetricSnapshot = ({ checkpoint, afterMatchIndex }) => ({
     const stats = standings.get(teamKey);
     const scoutRows = matchScoutRows.filter(row => row.teamKey === teamKey);
     const localContributions = scoutRows.map(row => row.fields.observedContribution);
-    const ppc = scoutRows.length > 0 ? mean(localContributions) : null;
-    const observedDefense = scoutRows.length > 0 ? mean(scoutRows.map(row => row.fields.defensePressureApplied)) : profile.defense;
-    const expected = onlineRatings.get(teamKey) * 0.56 + (ppc ?? profile.publicPriorPower) * 0.34 + observedDefense * 0.1;
+    const defenseSamples = scoutRows.map(row => row.fields.defensePressureApplied);
+    const contribution = scoutRows.length > 0 ? mean(localContributions) : null;
+    const floor = scoutRows.length > 0 ? Math.min(...localContributions) : null;
+    const nonZeroContributionSamples = localContributions.filter(value => value > 0).sort((left, right) => left - right);
+    const floorNonZero = nonZeroContributionSamples[0] ?? null;
+    const ceiling = scoutRows.length > 0 ? Math.max(...localContributions) : null;
+    const contributionDeviation = scoutRows.length > 0 ? stddev(localContributions) : null;
+    const observedDefense = scoutRows.length > 0 ? mean(defenseSamples) : profile.defense;
+    const defenseDeviation = scoutRows.length > 0 ? stddev(defenseSamples) : null;
+    const expected = onlineRatings.get(teamKey) * 0.56 + (contribution ?? profile.publicPriorPower) * 0.34 + observedDefense * 0.1;
     const uncertainty = scoutRows.length < 3 ? 0.28 : scoutRows.length < 5 ? 0.18 : 0.12;
 
     return {
@@ -382,7 +450,14 @@ const buildTeamMetricSnapshot = ({ checkpoint, afterMatchIndex }) => ({
       ties: stats.ties,
       opr: stats.matches > 0 ? round(stats.scoreFor / stats.matches / 3, 2) : null,
       epa: round(onlineRatings.get(teamKey), 2),
-      ppc: ppc === null ? null : round(ppc, 2),
+      contribution: contribution === null ? null : round(contribution, 2),
+      floor: floor === null ? null : round(floor, 2),
+      floorNonZero: floorNonZero === null ? null : round(floorNonZero, 2),
+      ceiling: ceiling === null ? null : round(ceiling, 2),
+      defense: round(observedDefense, 2),
+      contributionDeviation: contributionDeviation === null ? null : round(contributionDeviation, 2),
+      defenseDeviation: defenseDeviation === null ? null : round(defenseDeviation, 2),
+      ppc: contribution === null ? null : round(contribution, 2),
       ppa: {
         expected: round(expected, 2),
         floor: round(clamp(expected * (1 - uncertainty), 0, 260), 2),

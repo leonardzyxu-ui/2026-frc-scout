@@ -342,18 +342,20 @@ export function TeamPerformanceProfilePanel({
 
       <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
         <div className="admin-g2-sm col-span-2 border border-violet-400/25 bg-violet-500/10 px-3 py-3">
-          <div className="text-xs font-black uppercase tracking-wider text-violet-200">Expected Range Shape</div>
+          <div className="text-xs font-black uppercase tracking-wider text-violet-200">Contribution Range Shape</div>
           <div className="mt-2">
             <PpaMiniShape insight={ppaInsight} fallbackRating={profile.ppa} />
           </div>
         </div>
-        <MetricField label="Avg" value={formatMetricValue(profile.averageScore)} />
+        <MetricField label="Contribution" value={formatMetricValue(profile.contribution)} />
         <MetricField label="Peak" value={formatMetricValue(profile.peakScore)} />
         <MetricField label="Floor" value={formatMetricValue(profile.floorScore)} />
+        <MetricField label="Floor Non Zero" value={formatMetricValue(profile.floorNonZeroScore)} />
         <MetricField label="Ceiling" value={formatMetricValue(profile.ceilingScore)} />
-        <MetricField label="Std Dev" value={formatMetricValue(profile.standardDeviation)} />
+        <MetricField label="Contribution Deviation" value={formatMetricValue(profile.contributionDeviation)} />
         <MetricField label="Projected" value={formatMetricValue(profile.projectedNextScore)} />
-        <MetricField label="Defense Impact" value={formatMetricValue(profile.defenseImpact)} />
+        <MetricField label="Defense" value={formatMetricValue(profile.defense)} />
+        <MetricField label="Defense Deviation" value={formatMetricValue(profile.defenseDeviation)} />
       </div>
     </div>
   );

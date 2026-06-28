@@ -23,3 +23,21 @@ func commandSpecsUseProxyForNetworkReadinessChecks() {
     let networkCommands = PowerScoutKnowledgeBase.commands.filter { $0.title != "PPT Background Capture" }
     #expect(networkCommands.allSatisfy { $0.usesProxy })
 }
+
+@Test
+func strategyMetricContractUsesNewScoutingLanguage() {
+    let metricNames = Set(PowerScoutKnowledgeBase.strategyMetrics.map(\.name))
+    #expect(metricNames.contains("Contribution"))
+    #expect(metricNames.contains("Floor Non Zero"))
+    #expect(metricNames.contains("Contribution Deviation"))
+    #expect(metricNames.contains("Defense Deviation"))
+    #expect(PowerScoutKnowledgeBase.strategyMetrics.first { $0.name == "DPR" }?.meaning.localizedCaseInsensitiveContains("not causal") == true)
+}
+
+@Test
+func strategySafetiesPreventStaticRoleAndOverDefenseLogic() {
+    let safetyText = PowerScoutKnowledgeBase.strategySafeties.map { "\($0.title) \($0.detail)" }.joined(separator: " ")
+    #expect(safetyText.localizedCaseInsensitiveContains("role combinations"))
+    #expect(safetyText.localizedCaseInsensitiveContains("more points than the opponent has available"))
+    #expect(safetyText.localizedCaseInsensitiveContains("normalize defender share"))
+}

@@ -115,6 +115,32 @@ public struct MatchScoutEdge: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct StrategyMetricDefinition: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let meaning: String
+    public let scoutSource: String
+
+    public init(_ name: String, _ meaning: String, scoutSource: String) {
+        self.id = name
+        self.name = name
+        self.meaning = meaning
+        self.scoutSource = scoutSource
+    }
+}
+
+public struct StrategySafetyRule: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let detail: String
+
+    public init(_ title: String, _ detail: String) {
+        self.id = title
+        self.title = title
+        self.detail = detail
+    }
+}
+
 public struct CommandSpec: Identifiable, Hashable, Sendable {
     public let id: String
     public let title: String
@@ -242,6 +268,25 @@ public enum PowerScoutKnowledgeBase {
         MatchScoutEdge("Failure modes", "The exact way a robot fails matters for pick risk and is rarely visible in clean stat tables."),
         MatchScoutEdge("Partner compatibility", "A robot can be good alone and still conflict with our preferred routes or roles."),
         MatchScoutEdge("Pit-claim contradictions", "Inflated claims become useful only when we can prove whether they hold up in matches.")
+    ]
+
+    public static let strategyMetrics: [StrategyMetricDefinition] = [
+        StrategyMetricDefinition("Contribution", "How much the robot can add when deployed to score.", scoutSource: "Match scout scoring, reconciled to official alliance totals."),
+        StrategyMetricDefinition("Floor", "The lowest scouted point count, including dead or broken matches.", scoutSource: "Match scout rows plus failure context."),
+        StrategyMetricDefinition("Floor Non Zero", "The lowest non-zero contribution, used when the robot is functioning.", scoutSource: "Match scout rows with zero failures separated."),
+        StrategyMetricDefinition("Ceiling", "The highest scouted contribution, useful for upside plans.", scoutSource: "Match scout rows and range shape."),
+        StrategyMetricDefinition("Defense", "How many points the robot can deny from opponents.", scoutSource: "Shift defense assignments, target rows, and official-score reconciliation."),
+        StrategyMetricDefinition("Contribution Deviation", "How volatile the robot's scoring contribution is.", scoutSource: "Standard deviation of contribution samples."),
+        StrategyMetricDefinition("Defense Deviation", "How volatile the robot's defensive value is.", scoutSource: "Standard deviation of defense-denial samples."),
+        StrategyMetricDefinition("DPR", "Official-score opponent scoring context, useful but not causal defense truth.", scoutSource: "TBA OPR/DPR-style official-score regression.")
+    ]
+
+    public static let strategySafeties: [StrategySafetyRule] = [
+        StrategySafetyRule("Search role combinations", "Plan offense, defense, and stockpile combinations dynamically for each alliance instead of pre-labeling a team forever."),
+        StrategySafetyRule("Cap defense", "Never let defense deny more points than the opponent has available to lose."),
+        StrategySafetyRule("Use variance deliberately", "If behind, consider higher-deviation plans as smart gambles; if ahead, prefer stable plans that protect RP paths."),
+        StrategySafetyRule("Normalize evidence", "Scale scout scoring to official totals and normalize defender share sliders when scouts do not sum to 100%."),
+        StrategySafetyRule("Keep DPR separate", "Use DPR as context only; live scout-observed Defense remains the decision metric.")
     ]
 
     public static let commands: [CommandSpec] = [

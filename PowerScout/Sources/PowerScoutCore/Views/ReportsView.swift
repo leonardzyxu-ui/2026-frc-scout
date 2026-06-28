@@ -14,6 +14,32 @@ struct ReportsView: View {
 
             PredictionEvidenceGraphView()
 
+            PSCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Strategy metric contract")
+                        .font(.title3.weight(.bold))
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 10)], spacing: 10) {
+                        ForEach(PowerScoutKnowledgeBase.strategyMetrics) { metric in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(metric.name)
+                                    .font(.headline)
+                                Text(metric.meaning)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text(metric.scoutSource)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+            }
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 14)], spacing: 14) {
                 reportCard(
                     title: "HTML Morning Report",

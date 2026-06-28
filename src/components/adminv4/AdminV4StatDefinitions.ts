@@ -30,6 +30,9 @@ export type AdminV4StatInfoKey =
   | AdminV4SelectedMetric
   | AdminV4PpaSubStatInfoKey
   | 'defenseImpact'
+  | 'floorNonZero'
+  | 'contributionDeviation'
+  | 'defenseDeviation'
   | 'volatility'
   | 'rankings'
   | 'projectedRank'
@@ -98,9 +101,9 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Data', 'Reports']
   },
   ppc: {
-    title: 'PPC',
+    title: 'Contribution',
     category: 'Firsthand',
-    definition: 'The average points your scouts directly credited to this team in logged matches.',
+    definition: 'The average points your scouts directly credited to this team in logged matches. This replaces the old PPC name.',
     formula: 'Average scouted total match points per team across logged matches.',
     source: 'V3/V4 scouting data collected by your scouts.',
     interpretation: 'Best for what your scouts directly observed at this event.',
@@ -108,7 +111,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Reports']
   },
   autoPpc: {
-    title: 'Auto PPC',
+    title: 'Auto Contribution',
     category: 'Firsthand',
     definition: 'The average autonomous contribution your scouts recorded for the team.',
     formula: 'Average scouted autonomous points per team.',
@@ -118,7 +121,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Reports']
   },
   teleopPpc: {
-    title: 'Teleop PPC',
+    title: 'Teleop Contribution',
     category: 'Firsthand',
     definition: 'The average teleoperated contribution your scouts recorded for the team.',
     formula: 'Average scouted teleop points per team.',
@@ -128,9 +131,9 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Reports']
   },
   defenseMetric: {
-    title: 'Defense Metric',
+    title: 'Defense',
     category: 'Firsthand',
-    definition: 'A scout-observed read of how much useful defense the robot played.',
+    definition: 'A scout-observed read of how many points the robot can deny from opponents.',
     formula: 'Average defense score from submitted defense scouting forms.',
     source: 'Defense scouting rows collected by scouts.',
     interpretation: 'Higher means scouts observed more useful defensive value.',
@@ -138,7 +141,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Data', 'Reports']
   },
   defenseImpact: {
-    title: 'Defense Impact',
+    title: 'Defense Denial',
     category: 'Derived',
     definition: 'A model-assisted estimate of how much scoring the robot may have denied opponents.',
     formula: 'Estimated opponent scoring suppression attributed from match outcomes and model ratings.',
@@ -178,27 +181,27 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Visualize', 'Reports']
   },
   ppa: {
-    title: 'PPA',
+    title: 'Contribution Range',
     category: 'Derived',
-    definition: 'The full Admin V4 decision object for a team: expected value, floor, ceiling, role, risk, confidence, and supporting evidence.',
-    formula: 'A PPA insight object: expected points plus floor/ceiling band, role fit, local scout confidence, uncertainty, tail risk, defense impact, and source-model context.',
+    definition: 'The old PPA structure, renamed around the useful pieces: contribution, floor, ceiling, uncertainty, and evidence.',
+    formula: 'Contribution estimate plus floor/ceiling band, local scout confidence, uncertainty, tail risk, defense denial, and source-model context.',
     source: 'Admin V4 validated forecast layer, local scouting profiles, public rating context, defense attribution, and the promoted role/risk model path.',
-    interpretation: 'Use the expected value for forecasts, the role label for match strategy, the confidence and tail-risk fields for how aggressively to trust the number, and the component values to explain why it moved.',
-    limitations: 'It is not one magic score. Thin local scouting, high volatility, low reliability, or missing public context should make you treat PPA as a range and read the warnings.',
+    interpretation: 'Use the contribution value for forecasts, floor/ceiling for risk, and confidence/tail-risk fields for how aggressively to trust the number.',
+    limitations: 'It is not one magic score. Thin local scouting, high volatility, high deviation, or missing public context should make you treat it as a range and read the warnings.',
     whereAppears: ['Teams', 'Matches', 'Manual Simulator', 'Visualize', 'Reports']
   },
   ppaExpected: {
-    title: 'PPA Expected',
+    title: 'Contribution',
     category: 'Derived',
     definition: 'The central contribution estimate used when the system needs one headline value.',
-    formula: 'The central PPA contribution estimate after blending validated model rating, local scouting profile, public rating context, and role/defense context.',
+    formula: 'The central contribution estimate after blending validated model rating, local scouting profile, public rating context, and role/defense context.',
     source: 'PPA insight builder from Admin V4 model ratings, team performance profiles, and event scouting rows.',
     interpretation: 'Use expected value for headline forecasts, leaderboard ordering, and simulator totals.',
     limitations: 'Expected value should never be read without floor, ceiling, role, confidence, and tail risk.',
     whereAppears: ['Teams', 'Matches', 'Pick List', 'Manual Simulator', 'Visualize', 'Reports']
   },
   ppaFloor: {
-    title: 'PPA Floor',
+    title: 'Floor',
     category: 'Derived',
     definition: 'The conservative lower band to use when a bad match would be costly.',
     formula: 'Lower-band contribution estimate from low-percentile local performance, reliability, zeros, failures, volatility, and thin-coverage penalties.',
@@ -208,7 +211,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Matches', 'Pick List', 'Manual Simulator', 'Visualize', 'Reports']
   },
   ppaCeiling: {
-    title: 'PPA Ceiling',
+    title: 'Ceiling',
     category: 'Derived',
     definition: 'The upside band to use when strategy or pick-list planning needs peak potential.',
     formula: 'Upper-band contribution estimate from high-percentile local performance, peak score, trend, role upside, and model rating.',
@@ -218,7 +221,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Matches', 'Pick List', 'Manual Simulator', 'Visualize', 'Reports']
   },
   ppaNormalBand: {
-    title: 'PPA Normal Band',
+    title: 'Normal Contribution Band',
     category: 'Derived',
     definition: 'The ordinary-match range, narrower than the full floor-to-ceiling risk band.',
     formula: 'The expected ordinary range around PPA, usually narrower than full floor-to-ceiling risk.',
@@ -228,7 +231,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Reports', 'Admin-task handoff']
   },
   ppaRole: {
-    title: 'PPA Role',
+    title: 'Legacy Role Hint',
     category: 'Derived',
     definition: 'The job the model thinks the robot should probably play: scorer, defender, flex, or needs more role evidence.',
     formula: 'Role label selected from offensive value, defensive value, role evidence, and the team profile: primary scorer, defender, flex, or needs role evidence.',
@@ -238,7 +241,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Matches', 'Pick List', 'Manual Simulator', 'Reports']
   },
   ppaUncertainty: {
-    title: 'PPA Uncertainty',
+    title: 'Contribution Uncertainty',
     category: 'Derived',
     definition: 'A trust warning that says how settled or shaky the current PPA read is.',
     formula: 'Risk level from missing PPA rating, sparse local rows, volatility, low scout confidence, and unstable reliability.',
@@ -248,7 +251,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Now', 'Teams', 'Matches', 'Pick List', 'Manual Simulator', 'Reports']
   },
   ppaTailRisk: {
-    title: 'PPA Tail Risk',
+    title: 'Tail Risk',
     category: 'Derived',
     definition: 'A warning about downside failure modes that the expected value alone would hide.',
     formula: 'Failure-side risk from low floor, wide floor-ceiling band, zeros, weak reliability, and risky profile shape.',
@@ -258,7 +261,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Teams', 'Pick List', 'Manual Simulator', 'Visualize', 'Reports']
   },
   ppaScoutConfidence: {
-    title: 'PPA Scout Confidence',
+    title: 'Scout Confidence',
     category: 'Derived',
     definition: 'How much local scouting evidence supports the current PPA shape.',
     formula: 'Confidence score from local scouting coverage volume and quality signals.',
@@ -268,7 +271,7 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     whereAppears: ['Now', 'Teams', 'Data', 'Reports', 'Scout handoff']
   },
   ppaCoverage: {
-    title: 'PPA Coverage',
+    title: 'Contribution Coverage',
     category: 'Operational',
     definition: 'A readable coverage label that tells the head scout whether the PPA shape is locally supported.',
     formula: 'Human-readable label for how much local evidence supports this PPA shape.',
@@ -286,6 +289,36 @@ export const ADMIN_V4_STAT_INFO: Record<AdminV4StatInfoKey, AdminV4StatInfoDefin
     interpretation: 'Higher volatility means higher upset potential and lower reliability.',
     limitations: 'A volatile team may be improving quickly, breaking down, or simply changing roles.',
     whereAppears: ['Teams', 'Visualize', 'Reports']
+  },
+  floorNonZero: {
+    title: 'Floor Non Zero',
+    category: 'Firsthand',
+    definition: 'The lowest non-zero point count scouts have credited to this team.',
+    formula: 'Minimum scouted contribution greater than zero.',
+    source: 'V3/V4 local scouting rows.',
+    interpretation: 'Use this as the realistic floor when the robot is not dead or disconnected.',
+    limitations: 'A team can still fail below this if the robot breaks or receives a very different role.',
+    whereAppears: ['Teams', 'Reports']
+  },
+  contributionDeviation: {
+    title: 'Contribution Deviation',
+    category: 'Derived',
+    definition: 'The standard deviation of a team’s scouted Contribution samples.',
+    formula: 'Standard deviation of scouted contribution values.',
+    source: 'Local scouting rows after compatibility aggregation.',
+    interpretation: 'Higher means the team is less predictable on offense and may need a safer or higher-variance match plan.',
+    limitations: 'Deviation needs enough matches to be meaningful and can mix robot variance with scout error.',
+    whereAppears: ['Teams', 'Reports']
+  },
+  defenseDeviation: {
+    title: 'Defense Deviation',
+    category: 'Derived',
+    definition: 'The standard deviation of a team’s calculated Defense samples.',
+    formula: 'Standard deviation of points-denied estimates from defense attribution rows.',
+    source: 'Defense scouting, shift attribution, and reconciliation logic.',
+    interpretation: 'Higher means defensive value is volatile; use it when choosing safe vs gamble strategies.',
+    limitations: 'Early-event defense estimates remain fragile, especially when target rows or defender share sliders are missing.',
+    whereAppears: ['Teams', 'Reports']
   }
 };
 
