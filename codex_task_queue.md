@@ -33,3 +33,8 @@
 - [x] Run and verify the real-event synthetic replay artifacts.
 - [x] Re-run the real-event synthetic replay for 2026 Silicon Valley as team 254, The Cheesy Poofs.
 - [x] Add explicit event-history artifacts for team metric timelines and future-match predictions at every checkpoint.
+- [deferred] Keep running full complete public past-event synthetic replays until Leo interrupts. Deferred because Leo clarified the replay must use agentic scout fabrication, not plain public-page deterministic rows.
+- [deferred] Record each replay in a durable local catalog with artifact paths, metrics, audits, and event source. Deferred until the catalog records agentic scout-simulation runs instead of plain public-page replays.
+- [x] Redo 2026 Silicon Valley as an agentic scout simulation using fabricated but official-score-consistent scouting observations.
+- [x] Use bounded subagents for scout-form cartography and consistency audit, with exact lifecycle specs recorded.
+- [x] Produce and verify complete Silicon Valley agentic replay artifacts, including score reconciliation, scout-agent ledger, prediction ledger, future snapshots, and team metric timeline.

@@ -12,6 +12,7 @@ npm run sft:dry-run
 npm run sft:full-replay
 npm run sft:real-replay
 npm run sft:real-replay:silicon-valley
+npm run sft:agentic-replay:silicon-valley
 node --test tests/syntheticFullSystemFramework.test.mjs
 ```
 
@@ -39,6 +40,7 @@ No future leakage. A prediction checkpoint may only use public data, pit data, s
 - `manifests/full-local-event.json` is the local full-event replay manifest.
 - `manifests/orlando-2026-public.json` replays real Orlando Regional 2026 teams, schedule, and scores from The Blue Alliance's public event page.
 - `manifests/silicon-valley-2026-public-254.json` replays the CA District Silicon Valley Event presented by Apple 2026, with Powerhouse role-played as `frc254`, The Cheesy Poofs.
+- `manifests/silicon-valley-2026-agentic-254.json` replays the same event with six deterministic scout-persona agents that fabricate V4-style observations reconciled to official match scores.
 - `scripts/validate-framework.mjs` checks the framework contract.
 - `scripts/dry-run.mjs` produces a deterministic no-network smoke replay summary.
 - `scripts/full-event-replay.mjs` produces full-event replay artifacts under `SyntheticFullSystemTest/artifacts/`.
@@ -56,3 +58,17 @@ Key replay-history files:
 - `metric-definitions.json` stores the meanings of OPR, EPA, PPC, and PPA with the run.
 - `scout-observations.json` stores synthetic pre-scout, pit-scout, and six match-scout rows per match.
 - `event-history-index.json` ties the run ID, event, pretend own team, storage root, and generated artifacts together.
+
+Agentic scout replay files:
+
+- `scout-agent-ledger.json` stores the six scout personas, their assigned stations, and their deterministic bias profiles.
+- `match-scout-v4-records.json` stores V4-style fabricated scout rows that match the current app's Match Scout schema.
+- `score-reconciliation-ledger.json` proves the three fabricated robot point totals reconcile to each alliance official score.
+- `alliance-score-residual-buckets.json` makes the residual story explicit for every alliance in every match.
+- `score-consistency-audit.json` fails the replay if score-consistent mode does not reconcile both alliances in every match.
+
+Example agentic command:
+
+```sh
+npm run sft:agentic-replay:silicon-valley
+```

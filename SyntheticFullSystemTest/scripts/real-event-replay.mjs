@@ -69,6 +69,8 @@ const loadHtml = async () => {
 };
 
 const html = await loadHtml();
+const scoutSimulationMode = manifest.simulation.scoutMode ?? 'deterministic-synthetic';
+const agenticScoutMode = scoutSimulationMode === 'agentic-score-consistent';
 
 const decodeHtml = value =>
   value
@@ -227,9 +229,34 @@ const standings = new Map(teams.map(teamKey => [teamKey, { wins: 0, losses: 0, t
 const checkpoints = [];
 const predictionEntries = [];
 const matchScoutRows = [];
+const matchScoutV4Records = [];
 const officialResults = [];
 const noFutureChecks = [];
 const stationNames = ['red1', 'red2', 'red3', 'blue1', 'blue2', 'blue3'];
+const scoutAgents = stationNames.map((station, index) => {
+  const isRed = station.startsWith('red');
+  const slotNumber = (index % 3) + 1;
+  const profileNames = ['Cycle Hawk', 'Role Splitter', 'Pressure Reader', 'Reliability Watch', 'Defense Lens', 'Notes Closer'];
+  return {
+    id: `scout-agent-${station}`,
+    station,
+    displayName: `${isRed ? 'Red' : 'Blue'} ${slotNumber} ${profileNames[index]}`,
+    assignedAlliance: isRed ? 'red' : 'blue',
+    assignedSlot: station,
+    model: 'deterministic-agentic-scout-persona-v1',
+    reasoningEffort: 'simulated-medium',
+    biasProfile: {
+      pointsBias: round((randomFor(`agent:${station}:points`)() - 0.5) * 5, 2),
+      defenseSensitivity: round(0.75 + randomFor(`agent:${station}:defense`)() * 0.45, 2),
+      failureSensitivity: round(0.7 + randomFor(`agent:${station}:failure`)() * 0.5, 2),
+      noteStyle: profileNames[index]
+    },
+    instruction:
+      'Act as one match scout for the assigned robot. Fabricate plausible live observations, but keep credited robot points reconciled to the official alliance score.'
+  };
+});
+const scoreReconciliationLedger = [];
+const allianceScoreResidualBuckets = [];
 const teamMetricTimeline = [];
 const futurePredictionSnapshots = [];
 const lastQualificationIndex = matches.reduce((last, match, index) => (match.compLevel === 'qm' ? index : last), -1);
@@ -386,6 +413,15 @@ const updateStandings = match => {
 };
 
 const updateRatings = match => {
+  if (agenticScoutMode) {
+    const currentRows = matchScoutRows.filter(row => row.tbaMatchKey === match.matchKey);
+    for (const row of currentRows) {
+      const oldRating = onlineRatings.get(row.teamKey);
+      const observed = row.fields.observedContribution + row.fields.defensePressureApplied * 0.08 - (row.fields.foulConcern ? 2 : 0);
+      onlineRatings.set(row.teamKey, clamp(oldRating * 0.68 + observed * 0.32, 20, 230));
+    }
+    return;
+  }
   const updateAlliance = (allianceTeams, allianceScore, opponentScore, won) => {
     for (const teamKey of allianceTeams) {
       const profile = teamProfiles.get(teamKey);
@@ -398,7 +434,198 @@ const updateRatings = match => {
   updateAlliance(match.blue.teamKeys, match.blue.score, match.red.score, match.winningAlliance === 'blue');
 };
 
+const allocateIntegerTotal = (total, weights) => {
+  const safeTotal = Math.max(0, Math.round(total));
+  const safeWeights = weights.map(weight => Math.max(0.001, Number.isFinite(weight) ? weight : 0.001));
+  const weightTotal = safeWeights.reduce((sum, weight) => sum + weight, 0);
+  const raw = safeWeights.map(weight => (weight / weightTotal) * safeTotal);
+  const floors = raw.map(Math.floor);
+  let remaining = safeTotal - floors.reduce((sum, value) => sum + value, 0);
+  const order = raw
+    .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+    .sort((left, right) => right.fraction - left.fraction);
+  for (let index = 0; index < remaining; index += 1) {
+    floors[order[index % order.length].index] += 1;
+  }
+  return floors;
+};
+
+const splitRobotScore = (total, rowRandom, profile, rolePlayed) => {
+  if (rolePlayed === 'Disabled') {
+    return { autoPoints: 0, teleopPoints: 0, endgamePoints: 0, autoCycles: 0, teleopCycles: 0 };
+  }
+  const endgameShare = rolePlayed === 'Defense' ? 0.03 + rowRandom() * 0.05 : 0.05 + rowRandom() * 0.12;
+  const autoShare = rolePlayed === 'Support' ? 0.12 + rowRandom() * 0.1 : 0.18 + rowRandom() * 0.13;
+  const [autoPoints, endgamePoints] = allocateIntegerTotal(total, [autoShare, endgameShare, Math.max(0.01, 1 - autoShare - endgameShare)]).slice(0, 2);
+  const teleopPoints = Math.max(0, total - autoPoints - endgamePoints);
+  const cycleScale = profile.reliability * (rolePlayed === 'Defense' ? 0.65 : rolePlayed === 'Support' ? 0.8 : 1);
+  return {
+    autoPoints,
+    teleopPoints,
+    endgamePoints,
+    autoCycles: Math.max(0, Math.round(autoPoints / Math.max(6, 10 + rowRandom() * 10) * cycleScale)),
+    teleopCycles: Math.max(0, Math.round(teleopPoints / Math.max(8, 12 + rowRandom() * 13) * cycleScale))
+  };
+};
+
+const buildAllianceAgentPlan = (match, alliance) => {
+  const allianceData = alliance === 'red' ? match.red : match.blue;
+  const opponentData = alliance === 'red' ? match.blue : match.red;
+  const teamWeights = allianceData.teamKeys.map(teamKey => {
+    const profile = teamProfiles.get(teamKey);
+    const rowRandom = randomFor(`${match.matchKey}:${teamKey}:agent-weight`);
+    const rolePenalty = profile.defense > 38 && rowRandom() > 0.55 ? 0.78 : 1;
+    return Math.max(1, onlineRatings.get(teamKey) * (0.82 + rowRandom() * 0.38) * profile.reliability * rolePenalty);
+  });
+  const contributions = allocateIntegerTotal(allianceData.score, teamWeights);
+  const rows = allianceData.teamKeys.map((teamKey, slotIndex) => {
+    const stationIndex = alliance === 'red' ? slotIndex : slotIndex + 3;
+    const station = stationNames[stationIndex];
+    const scoutAgent = scoutAgents[stationIndex];
+    const profile = teamProfiles.get(teamKey);
+    const rowRandom = randomFor(`${match.matchKey}:${teamKey}:agent-row`);
+    const total = contributions[slotIndex];
+    const failureRoll = rowRandom();
+    const robotDied = total === 0 && failureRoll > 0.4;
+    const mechanismBroke = !robotDied && failureRoll > profile.reliability + 0.05;
+    const commsLost = !robotDied && !mechanismBroke && failureRoll > profile.reliability + 0.12;
+    const tippedOver = !robotDied && rowRandom() < 0.012;
+    const defendedOpponent = opponentData.teamKeys[Math.floor(rowRandom() * opponentData.teamKeys.length)] || '';
+    const rolePlayed = robotDied
+      ? 'Disabled'
+      : profile.defense > 40 && total < allianceData.score / 3.2
+        ? 'Defense'
+        : profile.defense > 32 && rowRandom() > 0.58
+          ? 'Mixed'
+          : total < allianceData.score / 5
+            ? 'Support'
+            : 'Offense';
+    const defenseIntensity = rolePlayed === 'Defense'
+      ? Math.min(1, 0.55 + rowRandom() * 0.42)
+      : rolePlayed === 'Mixed'
+        ? Math.min(1, 0.25 + rowRandom() * 0.35)
+        : Math.min(1, rowRandom() * 0.18);
+    const defenseDurationSeconds = rolePlayed === 'Defense'
+      ? Math.round(45 + rowRandom() * 80)
+      : rolePlayed === 'Mixed'
+        ? Math.round(18 + rowRandom() * 55)
+        : Math.round(rowRandom() * 18);
+    const scoreSplit = splitRobotScore(total, rowRandom, profile, rolePlayed);
+    const foulRisk = profile.foulRisk / 100 + (rolePlayed === 'Defense' ? 0.04 : 0);
+    const fouls = rowRandom() < foulRisk ? 1 + Math.floor(rowRandom() * 2) : 0;
+    const techFouls = rowRandom() < foulRisk / 4 ? 1 : 0;
+    const reliabilityScore = Math.max(
+      0,
+      Math.min(
+        1,
+        profile.reliability -
+          (robotDied ? 0.58 : 0) -
+          (mechanismBroke ? 0.24 : 0) -
+          (commsLost ? 0.2 : 0) -
+          (tippedOver ? 0.3 : 0) -
+          fouls * 0.025 -
+          techFouls * 0.05
+      )
+    );
+    const failureReason = robotDied
+      ? 'Robot died before contributing meaningful points.'
+      : mechanismBroke
+        ? 'Mechanism issue reduced scoring tempo.'
+        : commsLost
+          ? 'Brief communication loss interrupted cycles.'
+          : tippedOver
+            ? 'Tipped over and needed field recovery.'
+            : '';
+    const notePrefix = `${scoutAgent.displayName}:`;
+    const notes = [
+      `${notePrefix} credited ${total} score-consistent points.`,
+      rolePlayed === 'Defense' ? `Spent ${defenseDurationSeconds}s disrupting ${defendedOpponent.replace('frc', '')}.` : '',
+      mechanismBroke || commsLost || robotDied || tippedOver ? failureReason : 'Tempo looked plausible for the assigned role.'
+    ].filter(Boolean).join(' ');
+    const strategyNotes = rolePlayed === 'Defense'
+      ? 'Verify whether defense denied more than the scoring tradeoff.'
+      : rolePlayed === 'Support'
+        ? 'Support value depends on partner compatibility and traffic control.'
+        : reliabilityScore < 0.72
+          ? 'Good ceiling, but flag reliability before pick-list promotion.'
+          : 'Use as normal scoring evidence for model and pick-list.';
+
+    return {
+      teamKey,
+      station,
+      scoutAgent,
+      rolePlayed,
+      total,
+      scoreSplit,
+      defenseIntensity,
+      defenseDurationSeconds,
+      defendedOpponent,
+      fouls,
+      techFouls,
+      robotDied,
+      commsLost,
+      mechanismBroke,
+      tippedOver,
+      failureReason,
+      reliabilityScore: round(reliabilityScore, 4),
+      notes,
+      strategyNotes
+    };
+  });
+
+  const robotPointTotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const foulPenaltyEstimate = rows.reduce((sum, row) => sum + row.fouls * 2 + row.techFouls * 5, 0);
+  const residualPoints = allianceData.score - robotPointTotal;
+  const residualBuckets = {
+    robotCreditedPoints: robotPointTotal,
+    foulPenaltyEstimate,
+    unmodeledBonusOrAdjustment: 0,
+    officialScoreResidual: residualPoints,
+    officialScore: allianceData.score,
+    reconciledTotal: robotPointTotal + residualPoints
+  };
+  allianceScoreResidualBuckets.push({
+    matchKey: match.shortKey,
+    tbaMatchKey: match.matchKey,
+    alliance,
+    buckets: residualBuckets,
+    passed: residualBuckets.reconciledTotal === allianceData.score && residualPoints === 0,
+    note:
+      residualPoints === 0
+        ? 'Robot credited point totals reconcile exactly to the official alliance score.'
+        : 'Residual points are isolated here instead of being silently hidden in robot observations.'
+  });
+
+  scoreReconciliationLedger.push({
+    matchKey: match.shortKey,
+    tbaMatchKey: match.matchKey,
+    alliance,
+    officialScore: allianceData.score,
+    fabricatedRobotPointTotal: robotPointTotal,
+    residualPoints,
+    residualBuckets,
+    passed: robotPointTotal === allianceData.score && residualPoints === 0,
+    rows: rows.map(row => ({
+      teamKey: row.teamKey,
+      station: row.station,
+      scoutAgentId: row.scoutAgent.id,
+      totalMatchPoints: row.total,
+      autoPoints: row.scoreSplit.autoPoints,
+      teleopPoints: row.scoreSplit.teleopPoints,
+      endgamePoints: row.scoreSplit.endgamePoints,
+      rolePlayed: row.rolePlayed
+    }))
+  });
+
+  return rows;
+};
+
 const createMatchScoutRows = (match, replayIndex) => {
+  const agenticRowsByTeam = agenticScoutMode
+    ? new Map(
+        [...buildAllianceAgentPlan(match, 'red'), ...buildAllianceAgentPlan(match, 'blue')].map(row => [row.teamKey, row])
+      )
+    : new Map();
   const teamList = [...match.red.teamKeys, ...match.blue.teamKeys];
   teamList.forEach((teamKey, stationIndex) => {
     const alliance = stationIndex < 3 ? 'red' : 'blue';
@@ -406,6 +633,56 @@ const createMatchScoutRows = (match, replayIndex) => {
     const allianceScore = alliance === 'red' ? match.red.score : match.blue.score;
     const opponentScore = alliance === 'red' ? match.blue.score : match.red.score;
     const opponentTeams = alliance === 'red' ? match.blue.teamKeys : match.red.teamKeys;
+    const agenticRow = agenticRowsByTeam.get(teamKey);
+    const observedContribution = agenticRow?.total ??
+      round(clamp(allianceScore / 3 + (randomFor(`${match.matchKey}:${teamKey}:contrib`)() - 0.5) * 32, 0, 220));
+    const defensePressureApplied = agenticRow
+      ? round(agenticRow.defenseIntensity * 78, 2)
+      : round(clamp(profile.defense + (randomFor(`${match.matchKey}:${teamKey}:def`)() - 0.5) * 14, 0, 78));
+    const rolePlayed = agenticRow?.rolePlayed ??
+      (profile.defense > 34 && randomFor(`${match.matchKey}:${teamKey}:role`)() > 0.45 ? 'defense' : 'scoring');
+    const simulatedBy = agenticRow?.scoutAgent.id ?? `deterministic-scout-persona-${stationIndex + 1}`;
+
+    if (agenticRow) {
+      matchScoutV4Records.push({
+        schemaVersion: 'v4',
+        eventKey,
+        matchType: match.compLevel === 'qm' ? 'Qualification' : 'Practice',
+        matchNumber: match.matchNumber,
+        matchKey: match.shortKey,
+        teamNumber: teamKey.slice(3),
+        scoutName: agenticRow.scoutAgent.displayName,
+        assignedScoutName: agenticRow.scoutAgent.displayName,
+        assignedSlot: agenticRow.station,
+        substituteScoutName: '',
+        alliance: alliance === 'red' ? 'Red' : 'Blue',
+        deviceId: `sft-${agenticRow.scoutAgent.id}`,
+        timestamp: Date.parse(`2026-01-01T00:00:00.000Z`) + replayIndex * 60_000 + stationIndex * 1_000,
+        editHistory: [],
+        autoPoints: agenticRow.scoreSplit.autoPoints,
+        autoCycles: agenticRow.scoreSplit.autoCycles,
+        teleopPoints: agenticRow.scoreSplit.teleopPoints,
+        teleopCycles: agenticRow.scoreSplit.teleopCycles,
+        endgamePoints: agenticRow.scoreSplit.endgamePoints,
+        totalMatchPoints: agenticRow.total,
+        rolePlayed: agenticRow.rolePlayed,
+        defendedTeamNumber: agenticRow.defendedOpponent.replace('frc', ''),
+        defenderFacedTeamNumber: '',
+        defenseIntensity: agenticRow.defenseIntensity,
+        defenseDurationSeconds: agenticRow.defenseDurationSeconds,
+        fouls: agenticRow.fouls,
+        techFouls: agenticRow.techFouls,
+        robotDied: agenticRow.robotDied,
+        commsLost: agenticRow.commsLost,
+        mechanismBroke: agenticRow.mechanismBroke,
+        tippedOver: agenticRow.tippedOver,
+        failureReason: agenticRow.failureReason,
+        reliabilityScore: agenticRow.reliabilityScore,
+        notes: agenticRow.notes,
+        strategyNotes: agenticRow.strategyNotes
+      });
+    }
+
     matchScoutRows.push({
       id: `match:${eventKey}:${match.shortKey}:${teamKey}`,
       lane: 'matchScout',
@@ -418,16 +695,39 @@ const createMatchScoutRows = (match, replayIndex) => {
       availableAt: `${match.shortKey.toUpperCase()}_SCOUT_SYNCED`,
       trustClass: 'live-observed',
       confidence: round(clamp(0.74 + randomFor(`${match.matchKey}:${teamKey}:confidence`)() * 0.22, 0, 1)),
-      simulatedBy: `deterministic-scout-persona-${stationIndex + 1}`,
+      simulatedBy,
       noFutureAfterMatchIndex: replayIndex,
       fields: {
-        rolePlayed: profile.defense > 34 && randomFor(`${match.matchKey}:${teamKey}:role`)() > 0.45 ? 'defense' : 'scoring',
-        observedContribution: round(clamp(allianceScore / 3 + (randomFor(`${match.matchKey}:${teamKey}:contrib`)() - 0.5) * 32, 0, 220)),
-        defensePressureApplied: round(clamp(profile.defense + (randomFor(`${match.matchKey}:${teamKey}:def`)() - 0.5) * 14, 0, 78)),
+        rolePlayed,
+        observedContribution,
+        defensePressureApplied,
         defensePressureReceived: round(clamp(mean(opponentTeams.map(team => teamProfiles.get(team).defense)), 0, 78)),
-        reliabilityIssue: randomFor(`${match.matchKey}:${teamKey}:reliability`)() > profile.reliability,
-        foulConcern: randomFor(`${match.matchKey}:${teamKey}:foul`)() < profile.foulRisk / 100,
-        scoreMarginContext: allianceScore - opponentScore
+        reliabilityIssue: agenticRow
+          ? agenticRow.reliabilityScore < 0.72
+          : randomFor(`${match.matchKey}:${teamKey}:reliability`)() > profile.reliability,
+        foulConcern: agenticRow
+          ? agenticRow.fouls > 0 || agenticRow.techFouls > 0
+          : randomFor(`${match.matchKey}:${teamKey}:foul`)() < profile.foulRisk / 100,
+        scoreMarginContext: allianceScore - opponentScore,
+        scoutAgentMode: agenticScoutMode ? 'agentic-score-consistent' : 'deterministic-synthetic',
+        v4: agenticRow
+          ? {
+              autoPoints: agenticRow.scoreSplit.autoPoints,
+              autoCycles: agenticRow.scoreSplit.autoCycles,
+              teleopPoints: agenticRow.scoreSplit.teleopPoints,
+              teleopCycles: agenticRow.scoreSplit.teleopCycles,
+              endgamePoints: agenticRow.scoreSplit.endgamePoints,
+              totalMatchPoints: agenticRow.total,
+              rolePlayed: agenticRow.rolePlayed,
+              defenseIntensity: agenticRow.defenseIntensity,
+              defenseDurationSeconds: agenticRow.defenseDurationSeconds,
+              fouls: agenticRow.fouls,
+              techFouls: agenticRow.techFouls,
+              reliabilityScore: agenticRow.reliabilityScore,
+              notes: agenticRow.notes,
+              strategyNotes: agenticRow.strategyNotes
+            }
+          : null
       }
     });
   });
@@ -558,6 +858,21 @@ const scoutCoverageAudit = {
   }
 };
 
+const scoreConsistencyAudit = {
+  status:
+    !agenticScoutMode ||
+    (scoreReconciliationLedger.every(row => row.passed) && allianceScoreResidualBuckets.every(row => row.passed))
+      ? 'passed'
+      : 'failed',
+  mode: scoutSimulationMode,
+  checkedAlliances: scoreReconciliationLedger.length,
+  checkedMatches: new Set(scoreReconciliationLedger.map(row => row.tbaMatchKey)).size,
+  failedChecks: scoreReconciliationLedger.filter(row => !row.passed),
+  failedResidualBuckets: allianceScoreResidualBuckets.filter(row => !row.passed),
+  rule:
+    'In agentic-score-consistent mode, the three fabricated robot point totals for each alliance must sum exactly to that alliance official score.'
+};
+
 const picklist = teams
   .map(teamKey => {
     const stats = standings.get(teamKey);
@@ -618,6 +933,23 @@ const predictionLedger = {
   metrics: modelMetrics
 };
 
+const scoutAgentLedger = {
+  runId,
+  eventKey,
+  eventName,
+  scoutSimulationMode,
+  agents: scoutAgents,
+  assignmentRule:
+    'One scout persona owns each field station for the entire replay. Every match produces one fabricated V4-style observation for each station.',
+  scoreConsistencyRule: scoreConsistencyAudit.rule,
+  generatedRows: {
+    matchScoutRows: matchScoutRows.length,
+    matchScoutV4Records: matchScoutV4Records.length,
+    scoreReconciliationRows: scoreReconciliationLedger.length,
+    residualBucketRows: allianceScoreResidualBuckets.length
+  }
+};
+
 const eventHistoryIndex = {
   runId,
   eventKey,
@@ -647,6 +979,11 @@ const eventHistoryIndex = {
     metricDefinitions: 'metric-definitions.json',
     teamMetricTimeline: 'team-metric-timeline.json',
     futurePredictionSnapshots: 'future-prediction-snapshots.json',
+    scoutAgentLedger: 'scout-agent-ledger.json',
+    matchScoutV4Records: 'match-scout-v4-records.json',
+    scoreReconciliationLedger: 'score-reconciliation-ledger.json',
+    allianceScoreResidualBuckets: 'alliance-score-residual-buckets.json',
+    scoreConsistencyAudit: 'score-consistency-audit.json',
     noFutureLeakageAudit: 'no-future-leakage-audit.json',
     scoutCoverageAudit: 'scout-coverage-audit.json',
     allianceSelectionReplay: 'alliance-selection-replay.json',
@@ -665,12 +1002,25 @@ const appBridgeSummary = {
       'metric-definitions.json',
       'team-metric-timeline.json',
       'future-prediction-snapshots.json',
+      'scout-agent-ledger.json',
+      'match-scout-v4-records.json',
+      'score-reconciliation-ledger.json',
+      'alliance-score-residual-buckets.json',
+      'score-consistency-audit.json',
       'no-future-leakage-audit.json'
     ]
   },
   webApp: {
     status: 'artifact-ready',
-    evidence: ['morning-report.html', 'prediction-ledger.json', 'team-metric-timeline.json', 'future-prediction-snapshots.json'],
+    evidence: [
+      'morning-report.html',
+      'prediction-ledger.json',
+      'team-metric-timeline.json',
+      'future-prediction-snapshots.json',
+      'scout-agent-ledger.json',
+      'score-reconciliation-ledger.json',
+      'alliance-score-residual-buckets.json'
+    ],
     note: 'Run npm run build or browser checks after this replay to validate UI rendering.'
   },
   firebase: {
@@ -721,8 +1071,9 @@ const morningReportHtml = `<!doctype html>
     </section>
     <section class="card">
       <h2>Readiness Verdict</h2>
-      <p>No-future audit: <strong>${htmlEscape(noFutureLeakageAudit.status)}</strong>. Scout coverage audit: <strong>${htmlEscape(scoutCoverageAudit.status)}</strong>.</p>
+      <p>No-future audit: <strong>${htmlEscape(noFutureLeakageAudit.status)}</strong>. Scout coverage audit: <strong>${htmlEscape(scoutCoverageAudit.status)}</strong>. Score consistency audit: <strong>${htmlEscape(scoreConsistencyAudit.status)}</strong>.</p>
       <p>This replay used real teams, real schedule, and real final scores, while generating synthetic pre-scout, pit-scout, match-scout, prediction, metric-timeline, future-prediction, and alliance-selection artifacts.</p>
+      <p>Scout simulation mode: <strong>${htmlEscape(scoutSimulationMode)}</strong>. Agentic mode produces V4-style scout rows whose robot point totals reconcile to the official alliance score.</p>
     </section>
     <section class="card">
       <h2>Alliance Selection Next Choices</h2>
@@ -762,6 +1113,7 @@ const runSummary = {
   season: manifest.fixture.season,
   pretendOwnTeam,
   ownTeamLabel,
+  scoutSimulationMode,
   counts: {
     teams: teams.length,
     qualificationMatches: matches.filter(match => match.compLevel === 'qm').length,
@@ -771,6 +1123,9 @@ const runSummary = {
     preScoutRecords: preScoutRecords.length,
     pitScoutRecords: pitScoutRecords.length,
     matchScoutRows: matchScoutRows.length,
+    matchScoutV4Records: matchScoutV4Records.length,
+    scoreReconciliationRows: scoreReconciliationLedger.length,
+    residualBucketRows: allianceScoreResidualBuckets.length,
     predictionEntries: predictionEntries.length,
     teamMetricSnapshots: teamMetricTimeline.length,
     futurePredictionSnapshots: futurePredictionSnapshots.length
@@ -779,7 +1134,8 @@ const runSummary = {
     minMatches: manifest.gates.minMatches,
     minScoutRowsPerMatch: manifest.gates.minScoutRowsPerMatch,
     noFutureLeakage: noFutureLeakageAudit.status,
-    scoutCoverage: scoutCoverageAudit.status
+    scoutCoverage: scoutCoverageAudit.status,
+    scoreConsistency: scoreConsistencyAudit.status
   },
   metrics: modelMetrics,
   artifacts: artifactNames.map(name => path.join(outputDir, name))
@@ -796,6 +1152,11 @@ writeJson('model-metrics.json', modelMetrics);
 writeJson('metric-definitions.json', metricDefinitions);
 writeJson('team-metric-timeline.json', teamMetricTimeline);
 writeJson('future-prediction-snapshots.json', futurePredictionSnapshots);
+writeJson('scout-agent-ledger.json', scoutAgentLedger);
+writeJson('match-scout-v4-records.json', matchScoutV4Records);
+writeJson('score-reconciliation-ledger.json', scoreReconciliationLedger);
+writeJson('alliance-score-residual-buckets.json', allianceScoreResidualBuckets);
+writeJson('score-consistency-audit.json', scoreConsistencyAudit);
 writeJson('no-future-leakage-audit.json', noFutureLeakageAudit);
 writeJson('scout-coverage-audit.json', scoutCoverageAudit);
 writeJson('alliance-selection-replay.json', allianceSelectionReplay);
@@ -808,6 +1169,12 @@ for (const artifact of artifactNames) {
 }
 assert.equal(noFutureLeakageAudit.status, 'passed', 'No-future leakage audit failed.');
 assert.equal(scoutCoverageAudit.status, 'passed', 'Scout coverage audit failed.');
+assert.equal(scoreConsistencyAudit.status, 'passed', 'Score consistency audit failed.');
 assert.equal(matchScoutRows.length, matches.length * 6, 'Every match must produce six scout rows.');
+if (agenticScoutMode) {
+  assert.equal(matchScoutV4Records.length, matches.length * 6, 'Agentic mode must produce six V4 scout records per match.');
+  assert.equal(scoreReconciliationLedger.length, matches.length * 2, 'Agentic mode must reconcile both alliances for every match.');
+  assert.equal(allianceScoreResidualBuckets.length, matches.length * 2, 'Agentic mode must write residual buckets for both alliances every match.');
+}
 
 process.stdout.write(`${JSON.stringify(runSummary, null, 2)}\n`);

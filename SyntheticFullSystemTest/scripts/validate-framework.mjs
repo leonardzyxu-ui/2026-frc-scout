@@ -21,6 +21,7 @@ const requiredFiles = [
   'manifests/full-local-event.json',
   'manifests/orlando-2026-public.json',
   'manifests/silicon-valley-2026-public-254.json',
+  'manifests/silicon-valley-2026-agentic-254.json',
   'scripts/dry-run.mjs',
   'scripts/full-event-replay.mjs',
   'scripts/real-event-replay.mjs',
@@ -36,6 +37,7 @@ const manifest = readJson('manifests/example-local-smoke.json');
 const fullManifest = readJson('manifests/full-local-event.json');
 const realManifest = readJson('manifests/orlando-2026-public.json');
 const siliconValleyManifest = readJson('manifests/silicon-valley-2026-public-254.json');
+const agenticSiliconValleyManifest = readJson('manifests/silicon-valley-2026-agentic-254.json');
 assert.equal(manifest.schemaVersion, 1, 'manifest schemaVersion must be 1');
 assert.equal(manifest.simulation.mode, 'synthetic-smoke', 'smoke manifest must avoid network by default');
 assert.ok(Number.isInteger(manifest.simulation.seed), 'smoke manifest must have an integer seed');
@@ -52,6 +54,7 @@ for (const bridge of ['modelCore', 'webApp', 'powerScout']) {
   assert.ok(fullManifest.bridges[bridge], `full manifest missing ${bridge} bridge`);
   assert.ok(realManifest.bridges[bridge], `real manifest missing ${bridge} bridge`);
   assert.ok(siliconValleyManifest.bridges[bridge], `Silicon Valley manifest missing ${bridge} bridge`);
+  assert.ok(agenticSiliconValleyManifest.bridges[bridge], `agentic Silicon Valley manifest missing ${bridge} bridge`);
 }
 
 assert.equal(fullManifest.simulation.mode, 'synthetic-full-event', 'full manifest must use synthetic-full-event mode');
@@ -66,9 +69,17 @@ assert.equal(siliconValleyManifest.fixture.eventKey, '2026casnv', 'Silicon Valle
 assert.equal(siliconValleyManifest.fixture.pretendOwnTeamPolicy.teamKey, 'frc254', 'Silicon Valley replay must role-play as frc254');
 assert.equal(siliconValleyManifest.fixture.ownTeamLabel, 'The Cheesy Poofs', 'Silicon Valley replay must label frc254 as The Cheesy Poofs');
 assert.equal(siliconValleyManifest.bridges.firebase.productionWrites, false, 'Silicon Valley replay must not write production Firebase');
+assert.equal(agenticSiliconValleyManifest.simulation.scoutMode, 'agentic-score-consistent', 'agentic Silicon Valley replay must use score-consistent scout personas');
+assert.equal(agenticSiliconValleyManifest.fixture.eventKey, '2026casnv', 'agentic Silicon Valley manifest must target the 2026casnv event');
+assert.equal(agenticSiliconValleyManifest.fixture.pretendOwnTeamPolicy.teamKey, 'frc254', 'agentic Silicon Valley replay must role-play as frc254');
+assert.equal(agenticSiliconValleyManifest.bridges.firebase.productionWrites, false, 'agentic Silicon Valley replay must not write production Firebase');
 for (const artifact of ['metric-definitions.json', 'team-metric-timeline.json', 'future-prediction-snapshots.json', 'event-history-index.json']) {
   assert.ok(realManifest.gates.requiredArtifacts.includes(artifact), `real manifest missing history artifact ${artifact}`);
   assert.ok(siliconValleyManifest.gates.requiredArtifacts.includes(artifact), `Silicon Valley manifest missing history artifact ${artifact}`);
+  assert.ok(agenticSiliconValleyManifest.gates.requiredArtifacts.includes(artifact), `agentic Silicon Valley manifest missing history artifact ${artifact}`);
+}
+for (const artifact of ['scout-agent-ledger.json', 'match-scout-v4-records.json', 'score-reconciliation-ledger.json', 'alliance-score-residual-buckets.json', 'score-consistency-audit.json']) {
+  assert.ok(agenticSiliconValleyManifest.gates.requiredArtifacts.includes(artifact), `agentic Silicon Valley manifest missing agentic artifact ${artifact}`);
 }
 
 for (const schemaPath of [
@@ -88,5 +99,6 @@ assert.ok(packageJson.scripts['sft:dry-run'], 'root package.json must expose sft
 assert.ok(packageJson.scripts['sft:full-replay'], 'root package.json must expose sft:full-replay');
 assert.ok(packageJson.scripts['sft:real-replay'], 'root package.json must expose sft:real-replay');
 assert.ok(packageJson.scripts['sft:real-replay:silicon-valley'], 'root package.json must expose sft:real-replay:silicon-valley');
+assert.ok(packageJson.scripts['sft:agentic-replay:silicon-valley'], 'root package.json must expose sft:agentic-replay:silicon-valley');
 
-console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest.`);
+console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest, agentic Silicon Valley manifest.`);

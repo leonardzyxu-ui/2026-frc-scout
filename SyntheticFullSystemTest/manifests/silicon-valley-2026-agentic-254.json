@@ -1,0 +1,96 @@
+{
+  "$schema": "../schemas/simulation-manifest.schema.json",
+  "schemaVersion": 1,
+  "simulation": {
+    "name": "silicon-valley-2026-agentic-scout-replay-254",
+    "mode": "public-real-event",
+    "scoutMode": "agentic-score-consistent",
+    "seed": 2542026,
+    "description": "Agentic replay of the CA District Silicon Valley Event presented by Apple 2026. Six deterministic scout personas fabricate V4-style observations that reconcile to official match scores, with Powerhouse role-played as frc254."
+  },
+  "fixture": {
+    "eventKey": "2026casnv",
+    "season": 2026,
+    "eventName": "CA District Silicon Valley Event presented by Apple 2026",
+    "sourceUrl": "https://www.thebluealliance.com/event/2026casnv",
+    "excludedTeamKeys": [],
+    "ownTeamLabel": "The Cheesy Poofs",
+    "pretendOwnTeamPolicy": {
+      "strategy": "fixed-team",
+      "teamKey": "frc254",
+      "seed": 2542026
+    }
+  },
+  "dataSources": {
+    "tbaPublicPage": {
+      "mode": "public-html",
+      "required": true,
+      "url": "https://www.thebluealliance.com/event/2026casnv"
+    },
+    "tbaApi": { "mode": "disabled-no-key", "required": false },
+    "statbotics": { "mode": "disabled-public-page-replay", "required": false },
+    "firebase": { "mode": "disabled-local-replay", "required": false }
+  },
+  "phases": [
+    { "id": "pre_scout", "startsAt": "T_MINUS_7_DAYS" },
+    { "id": "pit_scout", "startsAt": "PIT_SCOUT_WINDOW" },
+    { "id": "qualification_replay", "startsAt": "MATCH_1_POSTED" },
+    { "id": "playoff_replay", "startsAt": "PLAYOFF_MATCH_1_POSTED" },
+    { "id": "alliance_selection", "startsAt": "ALLIANCE_SELECTION_PREP" }
+  ],
+  "agentPlan": {
+    "defaultPolicy": "agentic-score-consistent-scout-personas",
+    "spawnAgentsByDefault": false,
+    "requiredReportsWhenAgentsUsed": ["codex_swarm.md", "codex_agent_reports/<agent>.md"]
+  },
+  "bridges": {
+    "modelCore": {
+      "mode": "real-event-ledger-runner",
+      "commands": ["npm run sft:agentic-replay:silicon-valley", "npm run model:typecheck"]
+    },
+    "webApp": {
+      "mode": "build-and-artifact-ready",
+      "routes": ["/adminv2", "/adminv2/prediction-vs-actual", "/adminv4"]
+    },
+    "firebase": {
+      "mode": "disabled-local-replay",
+      "productionWrites": false
+    },
+    "powerScout": {
+      "mode": "swiftpm",
+      "commands": ["cd PowerScout && ./script/build_and_run.sh --verify"]
+    }
+  },
+  "gates": {
+    "noFutureLeakage": "required",
+    "minMatches": 60,
+    "minScoutRowsPerMatch": 6,
+    "maxUncoveredMatches": 0,
+    "requiredArtifacts": [
+      "run-summary.json",
+      "source-page-metadata.json",
+      "replay-event.json",
+      "scout-observations.json",
+      "prediction-ledger.json",
+      "model-metrics.json",
+      "metric-definitions.json",
+      "team-metric-timeline.json",
+      "future-prediction-snapshots.json",
+      "scout-agent-ledger.json",
+      "match-scout-v4-records.json",
+      "score-reconciliation-ledger.json",
+      "alliance-score-residual-buckets.json",
+      "score-consistency-audit.json",
+      "no-future-leakage-audit.json",
+      "scout-coverage-audit.json",
+      "alliance-selection-replay.json",
+      "app-bridge-summary.json",
+      "event-history-index.json",
+      "morning-report.html"
+    ]
+  },
+  "artifacts": {
+    "root": "SyntheticFullSystemTest/artifacts",
+    "keepGeneratedOutOfGit": true
+  }
+}

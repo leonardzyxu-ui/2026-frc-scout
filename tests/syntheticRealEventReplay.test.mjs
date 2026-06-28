@@ -94,3 +94,103 @@ test('real-event replay parser can run from a TBA public-page fixture', () => {
   assert.equal(historyIndex.artifacts.teamMetricTimeline, 'team-metric-timeline.json');
   assert.equal(historyIndex.artifacts.futurePredictionSnapshots, 'future-prediction-snapshots.json');
 });
+
+test('agentic real-event replay writes score-consistent V4 scout artifacts', () => {
+  const temp = mkdtempSync(path.join(tmpdir(), 'powerscout-agentic-replay-'));
+  const htmlPath = path.join(temp, 'event.html');
+  const manifestPath = path.join(temp, 'manifest.json');
+  const outputDir = path.join(temp, 'artifacts');
+  writeFileSync(
+    htmlPath,
+    `<h1 id="event-name">Agentic Fixture Regional 2026</h1>
+    ${row({ key: '2026agt_qm1', title: 'Quals 1', red: ['frc1', 'frc2', 'frc3'], blue: ['frc4', 'frc5', 'frc6'], redScore: 150, blueScore: 130 })}
+    ${row({ key: '2026agt_qm2', title: 'Quals 2', red: ['frc4', 'frc2', 'frc6'], blue: ['frc1', 'frc5', 'frc3'], redScore: 120, blueScore: 160 })}`
+  );
+  writeFileSync(
+    manifestPath,
+    JSON.stringify(
+      {
+        schemaVersion: 1,
+        simulation: { name: 'fixture-agentic-real-event', mode: 'public-real-event', scoutMode: 'agentic-score-consistent', seed: 254 },
+        fixture: {
+          eventKey: '2026agt',
+          season: 2026,
+          sourceUrl: 'file://fixture',
+          excludedTeamKeys: [],
+          pretendOwnTeamPolicy: { strategy: 'seeded-random-participant', seed: 254 }
+        },
+        phases: [{ id: 'qualification_replay', startsAt: 'MATCH_1_POSTED' }],
+        bridges: { modelCore: {}, webApp: {}, powerScout: {}, firebase: { productionWrites: false } },
+        gates: {
+          minMatches: 2,
+          minScoutRowsPerMatch: 6,
+          requiredArtifacts: [
+            'run-summary.json',
+            'source-page-metadata.json',
+            'replay-event.json',
+            'scout-observations.json',
+            'prediction-ledger.json',
+            'model-metrics.json',
+            'metric-definitions.json',
+            'team-metric-timeline.json',
+            'future-prediction-snapshots.json',
+            'scout-agent-ledger.json',
+            'match-scout-v4-records.json',
+            'score-reconciliation-ledger.json',
+            'alliance-score-residual-buckets.json',
+            'score-consistency-audit.json',
+            'no-future-leakage-audit.json',
+            'scout-coverage-audit.json',
+            'alliance-selection-replay.json',
+            'app-bridge-summary.json',
+            'event-history-index.json',
+            'morning-report.html'
+          ]
+        },
+        artifacts: { root: outputDir, keepGeneratedOutOfGit: true }
+      },
+      null,
+      2
+    )
+  );
+
+  const result = spawnSync(
+    process.execPath,
+    ['SyntheticFullSystemTest/scripts/real-event-replay.mjs', '--manifest', manifestPath, '--html-file', htmlPath, '--output', outputDir],
+    { encoding: 'utf8' }
+  );
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+
+  const summary = JSON.parse(result.stdout);
+  assert.equal(summary.scoutSimulationMode, 'agentic-score-consistent');
+  assert.equal(summary.counts.totalMatches, 2);
+  assert.equal(summary.counts.matchScoutRows, 12);
+  assert.equal(summary.counts.matchScoutV4Records, 12);
+  assert.equal(summary.counts.scoreReconciliationRows, 4);
+  assert.equal(summary.counts.residualBucketRows, 4);
+  assert.equal(summary.gates.scoreConsistency, 'passed');
+
+  const scoreAudit = JSON.parse(readFileSync(path.join(outputDir, 'score-consistency-audit.json'), 'utf8'));
+  assert.equal(scoreAudit.status, 'passed');
+  assert.equal(scoreAudit.checkedAlliances, 4);
+  assert.deepEqual(scoreAudit.failedChecks, []);
+
+  const reconciliation = JSON.parse(readFileSync(path.join(outputDir, 'score-reconciliation-ledger.json'), 'utf8'));
+  assert.equal(reconciliation.length, 4);
+  assert.ok(reconciliation.every(entry => entry.passed));
+  assert.ok(reconciliation.every(entry => entry.fabricatedRobotPointTotal === entry.officialScore));
+
+  const residualBuckets = JSON.parse(readFileSync(path.join(outputDir, 'alliance-score-residual-buckets.json'), 'utf8'));
+  assert.equal(residualBuckets.length, 4);
+  assert.ok(residualBuckets.every(entry => entry.passed));
+  assert.ok(residualBuckets.every(entry => entry.buckets.officialScoreResidual === 0));
+
+  const v4Rows = JSON.parse(readFileSync(path.join(outputDir, 'match-scout-v4-records.json'), 'utf8'));
+  assert.equal(v4Rows.length, 12);
+  assert.ok(v4Rows.every(row => row.schemaVersion === 'v4'));
+  assert.ok(v4Rows.every(row => row.totalMatchPoints === row.autoPoints + row.teleopPoints + row.endgamePoints));
+
+  const historyIndex = JSON.parse(readFileSync(path.join(outputDir, 'event-history-index.json'), 'utf8'));
+  assert.equal(historyIndex.artifacts.scoutAgentLedger, 'scout-agent-ledger.json');
+  assert.equal(historyIndex.artifacts.allianceScoreResidualBuckets, 'alliance-score-residual-buckets.json');
+});
