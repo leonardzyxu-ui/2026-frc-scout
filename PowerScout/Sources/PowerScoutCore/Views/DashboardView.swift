@@ -14,7 +14,7 @@ struct DashboardView: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
                 statusCard("Official Site", "Firebase live", "Admin V4 and legacy Admin V2 graph are the official surfaces.", .green)
-                statusCard("Relay Strategy", "DirectChat backup ready", "The Button remains the primary design path, but current hostname wiring needs repair.", .orange)
+                statusCard("Relay Strategy", "3-lane backup", "Use The Button, DirectChat for mainland backup, and Cloudflare for VPN/global fallback.", .orange)
                 statusCard("Prediction Evidence", "Forecast Ledger", "Snapshot exports preserve what the model knew before matches.", .blue)
                 statusCard("Scout System", "Needs rebalance", "Move quiet research earlier; keep match scout feasible.", .purple)
             }

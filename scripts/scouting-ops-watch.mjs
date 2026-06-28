@@ -95,15 +95,18 @@ const parseStatus = (stdout) => {
     ci: lineStarting(lines, 'Latest CI:'),
     ciUrl: lineStarting(lines, 'CI URL:'),
     theButton: cleanStatusLine(lineContaining(lines, 'The Button')),
-    directChat: cleanStatusLine(lineContaining(lines, 'DirectChat'))
+    directChat: cleanStatusLine(lineContaining(lines, 'DirectChat')),
+    cloudflare: cleanStatusLine(lineContaining(lines, 'Cloudflare DirectChat'))
   };
 };
 
-const getRelayDecision = ({ theButton, directChat }) => {
+const getRelayDecision = ({ theButton, directChat, cloudflare }) => {
   const primaryReady = /\bHTTP 2\d\d\b/.test(theButton) || /\bok\b/i.test(theButton);
-  const backupReady = /\bHTTP 2\d\d\b/.test(directChat) || /\bok\b/i.test(directChat);
-  if (primaryReady) return 'Use The Button primary; keep DirectChat ready as backup.';
-  if (backupReady) return 'Use DirectChat backup; The Button is not healthy.';
+  const mainlandBackupReady = /\bHTTP 2\d\d\b/.test(directChat) || /\bok\b/i.test(directChat);
+  const globalBackupReady = /\bHTTP 2\d\d\b/.test(cloudflare) || /\bok\b/i.test(cloudflare);
+  if (primaryReady) return 'Use The Button primary; keep DirectChat as Sanya backup and Cloudflare for VPN/global fallback.';
+  if (mainlandBackupReady) return 'Use DirectChat as the mainland/Sanya backup; The Button is not healthy.';
+  if (globalBackupReady) return 'Only Cloudflare is healthy; use it with VPN/US/global access, not as the Sanya-only path.';
   return 'No relay is healthy; stay on Firebase/local backup workflow.';
 };
 
@@ -188,13 +191,14 @@ const buildSnapshot = async () => {
     statusResult.ok &&
     parsed.officialSite.includes('READY') &&
     parsed.ci.includes('success') &&
-    parsed.directChat.includes('HTTP 200') &&
+    (parsed.theButton.includes('HTTP 200') || parsed.directChat.includes('HTTP 200')) &&
     tba.ok;
   const fingerprint = [
     parsed.officialSite,
     parsed.ci,
     parsed.theButton,
     parsed.directChat,
+    parsed.cloudflare,
     tba.detail,
     statusResult.ok ? 'status-ok' : 'status-failed'
   ].join('|');
@@ -224,6 +228,7 @@ const printSnapshot = (snapshot) => {
   console.log(snapshot.workingTree || 'Working tree: unavailable');
   if (snapshot.theButton) console.log(snapshot.theButton);
   if (snapshot.directChat) console.log(snapshot.directChat);
+  if (snapshot.cloudflare) console.log(snapshot.cloudflare);
   console.log(`Relay path: ${snapshot.relayDecision}`);
   console.log(snapshot.tba.detail);
   if (snapshot.adminV4) console.log(snapshot.adminV4);

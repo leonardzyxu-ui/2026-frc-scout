@@ -227,11 +227,30 @@ if (adminV2Asset) {
 }
 
 const buttonOk = await relayHealth('Primary relay health: The Button', 'https://the-button.onrender.com/health', 'the-button');
-const directChatOk = await relayHealth('Backup relay health: DirectChat', 'https://directchat-relay.onrender.com/health', 'directchat-relay');
+const directChatOk = await relayHealth('Mainland backup relay health: DirectChat', 'https://directchat-relay.onrender.com/health', 'directchat-relay');
+const cloudflareOk = await relayHealth('Global/VPN relay health: Cloudflare DirectChat', 'https://directchat-relay.leonard-zy-xu.workers.dev/health', 'directchat-relay');
 addCheck(
   'At least one relay is reachable',
+  buttonOk || directChatOk || cloudflareOk,
+  [
+    buttonOk ? 'The Button ready' : '',
+    directChatOk ? 'DirectChat ready' : '',
+    cloudflareOk ? 'Cloudflare ready' : ''
+  ].filter(Boolean).join(', ') || 'all relays failed'
+);
+addCheck(
+  'Mainland relay path is reachable',
   buttonOk || directChatOk,
-  buttonOk && directChatOk ? 'primary and backup reachable' : buttonOk ? 'primary reachable' : directChatOk ? 'backup reachable' : 'both relays failed'
+  buttonOk && directChatOk
+    ? 'The Button and DirectChat are ready for mainland/Sanya priority'
+    : buttonOk
+      ? 'The Button ready; keep DirectChat as pending backup'
+      : directChatOk
+        ? 'DirectChat ready; The Button is not healthy'
+        : cloudflareOk
+          ? 'Only Cloudflare is ready; use with VPN/US, not as the Sanya-only path'
+          : 'no mainland relay is healthy',
+  false
 );
 
 console.log('');

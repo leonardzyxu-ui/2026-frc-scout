@@ -49,6 +49,8 @@ Use this as the head-scout checklist when the room gets loud.
 ## Relay Posture
 
 - Firebase remains the official record.
+- For Sanya/mainland, use The Button first and DirectChat second.
 - If The Button still reports HTTP 404, use DirectChat backup relay drafts from Admin V4 Settings.
+- Cloudflare DirectChat is the fast global/VPN backup for US travel or VPN-backed operation; do not rely on it as the only Sanya path.
 - Do not put relay secrets in Firebase client code.
 - For passive monitoring, run `npm run watch:head-scout`; export `SCOUTING_TBA_AUTH_KEY` if you want live TBA polling too.

@@ -906,6 +906,7 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(settingsModalSource, /API keys and FIRST credentials remain local to this browser\/device/);
   assert.match(settingsModalSource, /Relay Outbox Drafts/);
   assert.match(settingsModalSource, /Copy-Only Head Scout Alerts/);
+  assert.match(settingsModalSource, /Cloudflare is the fast global\/VPN backup/);
   assert.match(settingsModalSource, /Prediction Checkpoint/);
   assert.match(settingsModalSource, /save a Forecast Snapshot in Model Trust/);
   assert.match(settingsModalSource, /does not send them automatically/);
@@ -1065,7 +1066,8 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(opsWatchSource, /TBA_AUTH_KEY/);
   assert.match(opsWatchSource, /scouting-head-scout-status\.mjs/);
   assert.match(opsWatchSource, /Relay path:/);
-  assert.match(opsWatchSource, /Use DirectChat backup/);
+  assert.match(opsWatchSource, /Use DirectChat as the mainland\/Sanya backup/);
+  assert.match(opsWatchSource, /Only Cloudflare is healthy/);
   assert.match(opsWatchSource, /display notification/);
   assert.doesNotMatch(opsWatchSource, /POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(morningReportSource, /Scouting Morning Business Report - June 28, 2026/);
@@ -1078,6 +1080,7 @@ test('Admin V4 keeps audit-required ownership and review documents in the repo',
   assert.match(morningReportSource, /hidden proof shortcut/);
   assert.match(morningReportSource, /copy-only relay drafts/);
   assert.match(morningReportSource, /watch:head-scout/);
+  assert.match(morningReportSource, /Cloudflare DirectChat/);
   assert.doesNotMatch(morningReportSource, /open Admin V4"|open Admin V2"|POST|THEBUTTON_RECEIVER_TOKEN|THEBUTTON_JOIN_PASSWORD|DirectChat account secrets/);
   assert.match(readinessSource, /SCOUTING_READINESS_FETCH_RETRIES/);
   assert.match(readinessSource, /after retry/);
@@ -1273,9 +1276,13 @@ test('scouting relay health checks require the expected service identity', () =>
 
   assert.match(relaySource, /expectedService: 'the-button'/);
   assert.match(relaySource, /expectedService: 'directchat-relay'/);
+  assert.match(relaySource, /cloudflare-directchat/);
+  assert.match(relaySource, /directchat-relay\.leonard-zy-xu\.workers\.dev/);
   assert.match(relaySource, /service === provider\.expectedService/);
   assert.match(relaySource, /Wrong service: \$\{service\}/);
   assert.match(readinessSource, /'https:\/\/the-button\.onrender\.com\/health', 'the-button'/);
   assert.match(readinessSource, /'https:\/\/directchat-relay\.onrender\.com\/health', 'directchat-relay'/);
+  assert.match(readinessSource, /'https:\/\/directchat-relay\.leonard-zy-xu\.workers\.dev\/health', 'directchat-relay'/);
+  assert.match(readinessSource, /Mainland relay path is reachable/);
   assert.match(readinessSource, /wrong service \$\{service \|\| 'missing'\}; expected \$\{expectedService\}/);
 });

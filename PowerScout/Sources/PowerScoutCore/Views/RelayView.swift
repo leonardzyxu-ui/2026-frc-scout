@@ -24,9 +24,18 @@ struct RelayView: View {
                 PSCard {
                     relayBlock(
                         title: "Backup: DirectChat",
-                        status: "Verified backup lane",
-                        detail: "Use when The Button is unavailable or too risky. It has more traffic, but the path is already known and useful for backup relay behavior.",
+                        status: "Mainland backup lane",
+                        detail: "Use in Sanya or mainland-China conditions when The Button is unavailable or too risky. It has more traffic, but the path is known and useful.",
                         color: .green
+                    )
+                }
+
+                PSCard {
+                    relayBlock(
+                        title: "Global: Cloudflare DirectChat",
+                        status: "VPN / US fallback",
+                        detail: "Very fast and reliable with VPN or outside mainland China. Do not treat it as the only Sanya relay because workers.dev can time out without VPN.",
+                        color: .blue
                     )
                 }
             }
@@ -42,6 +51,12 @@ struct RelayView: View {
                         openURL(URL(string: "https://directchat-relay.onrender.com/health")!)
                     } label: {
                         Label("Check DirectChat Health", systemImage: "heart.text.square")
+                    }
+                    .buttonStyle(.bordered)
+                    Button {
+                        openURL(URL(string: "https://directchat-relay.leonard-zy-xu.workers.dev/health")!)
+                    } label: {
+                        Label("Check Cloudflare Health", systemImage: "network")
                     }
                     .buttonStyle(.bordered)
                 }

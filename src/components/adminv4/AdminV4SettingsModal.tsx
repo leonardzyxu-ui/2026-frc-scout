@@ -203,7 +203,7 @@ export default function AdminV4SettingsModal({
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-fuchsia-300">Relay Readiness</div>
               <h3 className="mt-1 text-lg font-black text-white">Fast Out-Of-Band Contact Paths</h3>
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
-                Firebase remains the official data sync. These relays are prepared as faster head-scout contact lanes: The Button first, DirectChat second.
+                Firebase remains the official data sync. For Sanya/mainland, use The Button first and DirectChat second. Cloudflare is the fast global/VPN backup.
               </p>
             </div>
             <AdminButton tone="fuchsia" onClick={() => void refreshRelayHealth()} disabled={relayChecking}>
@@ -211,7 +211,7 @@ export default function AdminV4SettingsModal({
               {relayChecking ? 'Checking' : 'Recheck Relays'}
             </AdminButton>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="mt-4 grid gap-3 xl:grid-cols-3">
             {SCOUTING_RELAY_PROVIDERS.map(provider => {
               const health = relayHealth[provider.key];
               const stateLabel = !health
@@ -258,7 +258,7 @@ export default function AdminV4SettingsModal({
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Relay Outbox Drafts</div>
               <h3 className="mt-1 text-lg font-black text-white">Copy-Only Head Scout Alerts</h3>
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
-                These are ready-to-send operational drafts for The Button or DirectChat. Admin V4 does not send them automatically and does not store relay passwords, device tokens, or DirectChat account secrets.
+                These are ready-to-send operational drafts for The Button, DirectChat, or the Cloudflare backup. Admin V4 does not send them automatically and does not store relay passwords, device tokens, or DirectChat account secrets.
               </p>
             </div>
             <span className="admin-g2-sm border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">

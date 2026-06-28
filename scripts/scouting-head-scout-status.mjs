@@ -7,7 +7,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const commandTimeoutMs = Number(process.env.SCOUTING_STATUS_TIMEOUT_MS || 30000);
+const commandTimeoutMs = Number(process.env.SCOUTING_STATUS_TIMEOUT_MS || 70000);
 const siteBaseUrl = (process.env.SCOUTING_BASE_URL || 'https://scout-rebuilt-2026.web.app').replace(/\/$/, '');
 
 const runCommand = async (command, args, options = {}) => {
@@ -46,6 +46,7 @@ const parseReadiness = (stdout, ok) => {
   const adminV4 = okLines.find(line => line.includes('Admin V4 route')) || '';
   const directChat = lines.find(line => line.includes('DirectChat')) || '';
   const theButton = lines.find(line => line.includes('The Button')) || '';
+  const cloudflare = lines.find(line => line.includes('Cloudflare DirectChat')) || '';
 
   return {
     ready: ok && criticalReady && failLines.length === 0,
@@ -55,7 +56,8 @@ const parseReadiness = (stdout, ok) => {
     adminV2,
     adminV4,
     theButton,
-    directChat
+    directChat,
+    cloudflare
   };
 };
 
@@ -109,9 +111,10 @@ console.log('');
 console.log(`Official site: ${readiness.ready ? 'READY' : 'NEEDS ATTENTION'} (${readiness.okCount} live checks passed)`);
 if (readiness.adminV2) console.log(`- ${readiness.adminV2}`);
 if (readiness.adminV4) console.log(`- ${readiness.adminV4}`);
-const printedRelayLines = new Set([readiness.theButton, readiness.directChat].filter(Boolean));
+const printedRelayLines = new Set([readiness.theButton, readiness.directChat, readiness.cloudflare].filter(Boolean));
 if (readiness.theButton) console.log(`- ${readiness.theButton}`);
 if (readiness.directChat) console.log(`- ${readiness.directChat}`);
+if (readiness.cloudflare) console.log(`- ${readiness.cloudflare}`);
 readiness.warnLines
   .filter(line => !printedRelayLines.has(line))
   .forEach(line => console.log(`- ${line}`));
@@ -136,4 +139,4 @@ console.log('- Run npm run watch:head-scout for passive local monitoring; export
 console.log('- Before each match block, use Now -> Prediction checkpoint or Reports -> Prediction Ledger Closeout, then save a Forecast Snapshot and export the full evidence workbook.');
 console.log('- During alliance selection, use Pick List -> Live Pick Status Entry immediately after each public pick.');
 console.log('- For a fresh scouting deck background, run npm run capture:ppt-background and use output/playwright/scouting-ppt-background-analytics.png.');
-console.log('- Use DirectChat relay drafts if The Button still returns 404.');
+console.log('- For Sanya/mainland, use The Button first and DirectChat second. Use Cloudflare DirectChat only with VPN/global access.');

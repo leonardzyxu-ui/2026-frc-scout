@@ -1,4 +1,4 @@
-export type ScoutingRelayProviderKey = 'the-button' | 'directchat';
+export type ScoutingRelayProviderKey = 'the-button' | 'directchat' | 'cloudflare-directchat';
 
 export interface ScoutingRelayProvider {
   key: ScoutingRelayProviderKey;
@@ -33,11 +33,20 @@ export const SCOUTING_RELAY_PROVIDERS: ScoutingRelayProvider[] = [
   {
     key: 'directchat',
     label: 'DirectChat',
-    role: 'Backup encrypted chat relay',
+    role: 'Mainland backup encrypted relay',
     defaultBaseUrl: 'https://directchat-relay.onrender.com',
     healthPath: '/health',
     expectedService: 'directchat-relay',
     detail: 'Encrypted envelope relay with identity and WebSocket endpoints.'
+  },
+  {
+    key: 'cloudflare-directchat',
+    label: 'Cloudflare DirectChat',
+    role: 'Global/VPN backup relay',
+    defaultBaseUrl: 'https://directchat-relay.leonard-zy-xu.workers.dev',
+    healthPath: '/health',
+    expectedService: 'directchat-relay',
+    detail: 'Fast Cloudflare Workers relay for US/VPN use. Do not depend on it in mainland China without a VPN.'
   }
 ];
 

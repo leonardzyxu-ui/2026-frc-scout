@@ -12,5 +12,6 @@
 - [x] Verify PowerScout and web changes locally.
 - [x] Give `PowerScout.app` a temporary macOS app icon using the existing website logo.
 - [x] Replace the temporary website-logo icon with a real custom PowerScout logo.
-- [ ] Find Leo's older Cloudflare relay server in the Developer folder and integrate it as a VPN/US-use backup while keeping mainland-China relay priority for Sanya.
+- [x] Fix the stale TBA missing-key message in the scouting website so it points to the current key setup flow.
+- [x] Find Leo's older Cloudflare relay server in the Developer folder and integrate it as a VPN/US-use backup while keeping mainland-China relay priority for Sanya.
 - [ ] Push to GitHub after Leo provides the fresh secret code required for external sharing.

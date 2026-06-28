@@ -53,9 +53,11 @@ const ci = firstLineStarting(statusLines, 'Latest CI:');
 const ciUrl = firstLineStarting(statusLines, 'CI URL:');
 const buttonRelay = firstLineContaining(statusLines, 'The Button');
 const directChatRelay = firstLineContaining(statusLines, 'DirectChat');
+const cloudflareRelay = firstLineContaining(statusLines, 'Cloudflare DirectChat');
 const readinessFailed = !statusResult.ok || /NEEDS ATTENTION/.test(officialSite);
 const directChatReady = /\bHTTP 2\d\d\b/.test(directChatRelay) || /\bok\b/i.test(directChatRelay);
 const buttonReady = /\bHTTP 2\d\d\b/.test(buttonRelay) || /\bok\b/i.test(buttonRelay);
+const cloudflareReady = /\bHTTP 2\d\d\b/.test(cloudflareRelay) || /\bok\b/i.test(cloudflareRelay);
 
 console.log('Scouting Morning Business Report - June 28, 2026');
 console.log(generated);
@@ -82,6 +84,7 @@ console.log('- Run npm run capture:ppt-background for fresh 16:9 scouting websit
 console.log('- Use docs/scouting-matchday-operator-card.md as the one-page head-scout playbook for practice, qualifications, visitors, and alliance selection.');
 console.log('- Use copy-only relay drafts for head-scout alerts without putting relay secrets into Firebase client code.');
 console.log('- Run npm run watch:head-scout as a local Mac-side ops loop for passive official-site, CI, relay, and optional TBA monitoring.');
+console.log('- Treat Cloudflare DirectChat as a fast global/VPN relay for US travel or VPN-backed checks, not as the only Sanya path.');
 console.log('');
 console.log('Live evidence:');
 console.log(`- ${officialSite || 'Official site: status unavailable'}`);
@@ -93,6 +96,7 @@ console.log(`- ${workingTree || 'Working tree: unavailable'}`);
 console.log(`- ${ci || 'Latest CI: unavailable'}`);
 if (ciUrl) console.log(`- ${ciUrl}`);
 console.log(`- ${bulletValue(directChatRelay, 'Backup relay health: DirectChat unavailable')}`);
+console.log(`- ${bulletValue(cloudflareRelay, 'Global/VPN relay health: Cloudflare DirectChat unavailable')}`);
 console.log(`- ${bulletValue(buttonRelay, 'Primary relay health: The Button unavailable')}`);
 console.log('');
 console.log('Blocked or watch:');
@@ -106,6 +110,11 @@ if (!directChatReady) {
   console.log('- DirectChat backup relay is not healthy; stay on Firebase/local backup workflow until a relay endpoint is confirmed.');
 } else {
   console.log('- DirectChat backup is verified on the correct directchat-relay service identity and is the morning relay path.');
+}
+if (!cloudflareReady) {
+  console.log('- Cloudflare DirectChat is not available from this network; this is expected in mainland China without VPN.');
+} else {
+  console.log('- Cloudflare DirectChat is verified as a global/VPN backup, useful for US travel or VPN-backed operation.');
 }
 if (readinessFailed) {
   console.log('- The official site needs attention before field use; rerun npm run check:head-scout after fixing the failed readiness line.');

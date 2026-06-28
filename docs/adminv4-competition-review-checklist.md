@@ -51,10 +51,11 @@ Run this checklist before using Admin V4 at an event. It is a product review che
 
 - Open Settings and run Relay Readiness before the event, before lunch, and before alliance-selection prep.
 - Treat The Button as the primary head-scout alert relay when its `/health` endpoint responds quickly.
-- Treat DirectChat as the backup relay when The Button is slow or unreachable.
+- Treat DirectChat as the mainland/Sanya backup relay when The Button is slow or unreachable.
+- Treat Cloudflare DirectChat as the global/VPN backup for US travel or VPN-backed operation; do not rely on it as the only Sanya path.
 - Use `npm run watch:head-scout` as the local Mac-side status loop when you need passive monitoring; it performs health checks only and does not dispatch relay messages.
 - Do not put relay passwords, device tokens, or account secrets into Admin V4 settings. Admin V4 should only ping public health endpoints unless a separate authenticated relay plan is built.
-- If both relays are down, fall back to Firebase/local backup workflow and record that relay dispatch is unavailable in the morning or end-of-day report.
+- If both mainland relays are down, fall back to Firebase/local backup workflow and record that relay dispatch is unavailable in the morning or end-of-day report. Use Cloudflare only when VPN/global access is reliable.
 
 ## Alliance Selection Prep QA
 

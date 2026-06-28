@@ -27,7 +27,7 @@ struct ReportsView: View {
                 )
                 reportCard(
                     title: "Relay Engine Plan",
-                    detail: "Primary The Button path, DirectChat backup, and safety limits.",
+                    detail: "The Button primary, DirectChat mainland backup, Cloudflare global/VPN fallback, and safety limits.",
                     systemImage: "antenna.radiowaves.left.and.right",
                     url: PowerScoutPaths.relayPlanURL(repoRoot: store.repositoryRoot)
                 )
