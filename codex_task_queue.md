@@ -38,3 +38,5 @@
 - [x] Redo 2026 Silicon Valley as an agentic scout simulation using fabricated but official-score-consistent scouting observations.
 - [x] Use bounded subagents for scout-form cartography and consistency audit, with exact lifecycle specs recorded.
 - [x] Produce and verify complete Silicon Valley agentic replay artifacts, including score reconciliation, scout-agent ledger, prediction ledger, future snapshots, and team metric timeline.
+- [x] Add a reusable agentic replay batch runner for past events.
+- [x] Run additional past events through the agentic scout simulation and record a cross-event catalog.

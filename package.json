@@ -49,7 +49,8 @@
     "sft:full-replay": "node SyntheticFullSystemTest/scripts/full-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/full-local-event.json",
     "sft:real-replay": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/orlando-2026-public.json",
     "sft:real-replay:silicon-valley": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/silicon-valley-2026-public-254.json",
-    "sft:agentic-replay:silicon-valley": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/silicon-valley-2026-agentic-254.json"
+    "sft:agentic-replay:silicon-valley": "node SyntheticFullSystemTest/scripts/real-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/silicon-valley-2026-agentic-254.json",
+    "sft:agentic-replay:batch": "node SyntheticFullSystemTest/scripts/run-agentic-event-batch.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

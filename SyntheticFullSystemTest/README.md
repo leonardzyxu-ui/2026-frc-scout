@@ -13,6 +13,7 @@ npm run sft:full-replay
 npm run sft:real-replay
 npm run sft:real-replay:silicon-valley
 npm run sft:agentic-replay:silicon-valley
+npm run sft:agentic-replay:batch -- --event-keys 2026flor,2026mndu,2026tuis
 node --test tests/syntheticFullSystemFramework.test.mjs
 ```
 
@@ -45,6 +46,7 @@ No future leakage. A prediction checkpoint may only use public data, pit data, s
 - `scripts/dry-run.mjs` produces a deterministic no-network smoke replay summary.
 - `scripts/full-event-replay.mjs` produces full-event replay artifacts under `SyntheticFullSystemTest/artifacts/`.
 - `scripts/real-event-replay.mjs` fetches/parses a public TBA event page and replays every parsed match without using a TBA API key.
+- `scripts/run-agentic-event-batch.mjs` repeatedly runs agentic score-consistent scout replays and appends a cross-event catalog.
 
 ## History Storage
 
@@ -66,9 +68,17 @@ Agentic scout replay files:
 - `score-reconciliation-ledger.json` proves the three fabricated robot point totals reconcile to each alliance official score.
 - `alliance-score-residual-buckets.json` makes the residual story explicit for every alliance in every match.
 - `score-consistency-audit.json` fails the replay if score-consistent mode does not reconcile both alliances in every match.
+- `agentic-event-replay-catalog.jsonl` is the append-only cross-event history for agentic replay batches.
+- `agentic-event-replay-catalog-summary.json` is the latest cross-event rollup with run IDs, artifact folders, counts, gates, and model metrics.
 
 Example agentic command:
 
 ```sh
 npm run sft:agentic-replay:silicon-valley
+```
+
+Example agentic batch command:
+
+```sh
+npm run sft:agentic-replay:batch -- --event-keys 2026flor,2026mndu,2026tuis
 ```

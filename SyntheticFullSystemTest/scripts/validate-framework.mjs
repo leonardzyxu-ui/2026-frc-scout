@@ -25,6 +25,7 @@ const requiredFiles = [
   'scripts/dry-run.mjs',
   'scripts/full-event-replay.mjs',
   'scripts/real-event-replay.mjs',
+  'scripts/run-agentic-event-batch.mjs',
   'scripts/validate-framework.mjs'
 ];
 
@@ -100,5 +101,6 @@ assert.ok(packageJson.scripts['sft:full-replay'], 'root package.json must expose
 assert.ok(packageJson.scripts['sft:real-replay'], 'root package.json must expose sft:real-replay');
 assert.ok(packageJson.scripts['sft:real-replay:silicon-valley'], 'root package.json must expose sft:real-replay:silicon-valley');
 assert.ok(packageJson.scripts['sft:agentic-replay:silicon-valley'], 'root package.json must expose sft:agentic-replay:silicon-valley');
+assert.ok(packageJson.scripts['sft:agentic-replay:batch'], 'root package.json must expose sft:agentic-replay:batch');
 
 console.log(`SyntheticFullSystemTest framework validated: ${requiredFiles.length} required files, ${manifest.phases.length} smoke phases, ${fullManifest.phases.length} full phases, ${realManifest.phases.length} real-event phases, ${siliconValleyManifest.fixture.eventKey} 254 replay manifest, agentic Silicon Valley manifest.`);

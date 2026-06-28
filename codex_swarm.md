@@ -86,10 +86,28 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Model: current main Codex model
 - Reasoning effort: high
 - Scope: redo `2026casnv` as an agentic scout simulation where six scout-persona agents fabricate score-consistent match observations and the scouting model analyzes those observations through the existing replay artifacts.
-- Status: in progress
-- Evidence: pending.
+- Status: complete
+- Evidence: `npm run sft:agentic-replay:silicon-valley`, `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, `npm run build`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
+- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026casnv-20260628-090404-2542026`.
+- Catalog status: Silicon Valley is the baseline agentic replay for `2026casnv` as `frc254`, The Cheesy Poofs.
 - Blockers: none currently.
 - Safety: public TBA page only, no credentials, no production Firebase writes, no deploy.
 - Subagents:
   - `Kant` (`019f0d69-6942-7441-ab21-65fc7abe5c86`), ScoutFormCartographer, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: inspect current scout form/model fields so fabricated rows match our system. Stronger model not used because this is bounded codebase cartography. Status: closed complete. Files changed: none. Report: `codex_agent_reports/scout-form-cartographer.md`.
   - `Herschel` (`019f0d69-a352-7be1-947d-e1fb226e1651`), ConsistencyAuditor, explorer, `gpt-5.4-mini`, high reasoning, read-only. Purpose: audit score-consistency/no-future/artifact risks. Stronger model not used because the task is focused verification, not architecture ownership. Status: closed complete. Files changed: none. Report: `codex_agent_reports/consistency-auditor.md`.
+
+## Current Run: Agentic Event Batch Replay
+
+- Task id: `sft-agentic-batch-001`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: add a reusable agentic score-consistent replay batch runner and run additional completed past events through the scout-agent simulation.
+- Status: complete
+- Evidence: `node --check SyntheticFullSystemTest/scripts/run-agentic-event-batch.mjs`, `npm run sft:validate`, `npm run sft:agentic-replay:batch -- --event-keys 2026flor,2026mndu,2026tuis --min-matches 30`, and artifact inspection of all four agentic replay folders.
+- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` and `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json`.
+- Completed events in local agentic history: `2026casnv` as `frc254`, `2026flor`, `2026mndu`, and `2026tuis`.
+- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.
