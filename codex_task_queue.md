@@ -20,3 +20,5 @@
 - [x] Deploy the rebuilt Firebase hosting bundle now that Leo provided the fresh secret code.
 - [x] Verify the live Firebase site no longer serves the stale TBA Admin V2 sidebar message.
 - [x] Keep improving PowerScout/scouting polish instead of treating the current product as perfect.
+- [x] Make the invalid TBA key recovery path clearer so Leo can clear the bad browser-local key and replace it without guessing.
+- [blocked] Push and deploy the clearer invalid-key recovery copy after Leo provides a fresh direct secret-code reply.

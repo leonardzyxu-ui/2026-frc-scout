@@ -913,6 +913,8 @@ test('Admin V4 stages sensitive local operations with confirmations and a local 
   assert.match(settingsModalSource, /does not store relay passwords, device tokens, or DirectChat account secrets/);
   assert.match(settingsModalSource, /Clear FIRST/);
   assert.match(settingsModalSource, /Clear TBA/);
+  assert.match(settingsModalSource, /Saved locally, not yet revalidated by TBA/);
+  assert.match(settingsModalSource, /A saved local key only means this browser has a value/);
   assert.match(settingsModalSource, /Scout Identity Lock/);
   assert.match(settingsModalSource, /Copy Passphrase/);
   assert.match(settingsModalSource, /Scout-facing hash/);
@@ -1306,5 +1308,6 @@ test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
   assert.match(tbaErrorSource, /TBA_KEY_INVALID_MESSAGE/);
   assert.equal(tbaConsumerSource.includes(legacyMissingMessage), false);
   assert.equal(tbaConsumerSource.includes(legacySidebarLabel), false);
-  assert.match(tbaErrorSource, /Replace the saved TBA key with a valid key/);
+  assert.match(tbaErrorSource, /Open Admin V4 Settings > Team And Local Credentials > Clear TBA/);
+  assert.match(tbaErrorSource, /upload a fresh key JSON/);
 });

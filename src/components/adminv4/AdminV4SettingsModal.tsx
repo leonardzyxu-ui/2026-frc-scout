@@ -436,10 +436,15 @@ export default function AdminV4SettingsModal({
             </DangerZone>
           </div>
           <div className="mt-4 space-y-2 text-sm text-slate-400">
-            <div>TBA key: <span className="font-black text-slate-100">{hasLocalTbaApiKey ? 'Saved locally' : TBA_API_KEY ? 'Bundled config' : 'Missing'}</span></div>
+            <div>TBA key: <span className="font-black text-slate-100">{hasLocalTbaApiKey ? 'Saved locally, not yet revalidated by TBA' : TBA_API_KEY ? 'Bundled config' : 'Missing'}</span></div>
             <div>FIRST: <span className="font-black text-slate-100">{firstCredentials ? `Saved for ${firstCredentials.username}` : 'Not saved'}</span></div>
             <div>Source rows: <span className="font-black text-slate-100">{sourceRowCount}</span></div>
           </div>
+          {hasLocalTbaApiKey && (
+            <div className="admin-g2-sm mt-3 border border-amber-400/30 bg-amber-500/10 p-3 text-sm font-semibold leading-relaxed text-amber-100">
+              If TBA says this key is invalid, click Clear TBA here first, then upload a fresh key JSON. A saved local key only means this browser has a value; it does not prove TBA accepts it.
+            </div>
+          )}
           {(firstCredentialStatus || apiKeyStatus) && (
             <div className="admin-g2-sm mt-3 border border-emerald-400/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">
               {firstCredentialStatus || apiKeyStatus}

@@ -2,7 +2,7 @@ export const TBA_KEY_MISSING_MESSAGE =
   'TBA API Key is missing. Add a valid TBA key in Admin V4 Settings, or use the TBA key controls on this page, then reload matches.';
 
 export const TBA_KEY_INVALID_MESSAGE =
-  'TBA API Key is invalid. Replace the saved TBA key with a valid key from The Blue Alliance account page, or clear the saved key and continue with cached/manual data.';
+  'TBA API Key is invalid. This browser has a saved TBA key, but The Blue Alliance rejected it. Open Admin V4 Settings > Team And Local Credentials > Clear TBA, then upload a fresh key JSON from The Blue Alliance account page.';
 
 const TBA_AUTH_ERROR_PATTERNS = [
   /X-TBA-Auth-Key is invalid/i,
