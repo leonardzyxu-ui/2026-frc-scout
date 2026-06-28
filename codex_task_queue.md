@@ -42,3 +42,5 @@
 - [x] Run additional past events through the agentic scout simulation and record a cross-event catalog.
 - [x] Continue the active replay goal with another batch of completed 2026 agentic event replays.
 - [x] Verify the expanded replay catalog, artifact gates, and tests after the new batch.
+- [x] Prevent repeated already-replayed skips from bloating the durable agentic catalog.
+- [x] Run and verify another batch of completed 2026 agentic event replays.

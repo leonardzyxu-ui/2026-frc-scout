@@ -345,7 +345,6 @@ for (const event of discovered) {
       counts: { totalMatches: existing.totalMatches }
     };
     batchEntries.push(entry);
-    appendCatalog(entry);
     continue;
   }
 

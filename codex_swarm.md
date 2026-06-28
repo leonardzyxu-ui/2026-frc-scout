@@ -128,3 +128,20 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Agentic Event Batch Replay 3
+
+- Task id: `sft-agentic-batch-003`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: continue the active long-running replay goal with another discovered batch of completed 2026 events, while tightening the batch catalog so repeated already-replayed skips do not pollute the durable JSONL history.
+- Status: complete
+- Evidence: `node --test tests/syntheticAgenticBatchReplay.test.mjs`, `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 16 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
+- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 16 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 16 known agentic successes.
+- Newly completed events: `2026sccha`, `2026txbel`, `2026orsal`, `2026brba`, `2026cosp`, and `2026tuis2`.
+- All known agentic events after this run: `2026bcvi`, `2026brba`, `2026casnv`, `2026cosp`, `2026flor`, `2026gadal`, `2026milak`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026okok`, `2026orsal`, `2026sccha`, `2026tuis`, `2026tuis2`, and `2026txbel`.
+- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.
