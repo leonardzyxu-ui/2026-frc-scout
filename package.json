@@ -45,7 +45,8 @@
     "model:typecheck": "node ./node_modules/typescript/lib/tsc.js -p tsconfig.modeling.json --noEmit",
     "model:final-check": "node scripts/model-final-check.mjs",
     "sft:validate": "node SyntheticFullSystemTest/scripts/validate-framework.mjs",
-    "sft:dry-run": "node SyntheticFullSystemTest/scripts/dry-run.mjs --manifest SyntheticFullSystemTest/manifests/example-local-smoke.json"
+    "sft:dry-run": "node SyntheticFullSystemTest/scripts/dry-run.mjs --manifest SyntheticFullSystemTest/manifests/example-local-smoke.json",
+    "sft:full-replay": "node SyntheticFullSystemTest/scripts/full-event-replay.mjs --manifest SyntheticFullSystemTest/manifests/full-local-event.json"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

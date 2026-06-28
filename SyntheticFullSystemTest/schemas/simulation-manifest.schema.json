@@ -13,7 +13,7 @@
       "additionalProperties": true,
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "mode": { "enum": ["synthetic-smoke", "cached-real-event", "live-refresh"] },
+        "mode": { "enum": ["synthetic-smoke", "synthetic-full-event", "cached-real-event", "live-refresh"] },
         "seed": { "type": "integer" },
         "description": { "type": "string" }
       }
@@ -25,6 +25,9 @@
       "properties": {
         "eventKey": { "type": "string", "minLength": 1 },
         "season": { "type": "integer", "minimum": 1992 },
+        "teamCount": { "type": "integer", "minimum": 6 },
+        "qualificationMatches": { "type": "integer", "minimum": 1 },
+        "playoffMatches": { "type": "integer", "minimum": 0 },
         "excludedTeamKeys": { "type": "array", "items": { "type": "string" } },
         "pretendOwnTeamPolicy": {
           "type": "object",
@@ -69,4 +72,3 @@
     "artifacts": { "type": "object", "additionalProperties": true }
   }
 }
-

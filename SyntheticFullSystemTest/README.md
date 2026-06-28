@@ -9,6 +9,7 @@ The goal is to replay an event as if Powerhouse attended it, feed time-locked pr
 ```sh
 npm run sft:validate
 npm run sft:dry-run
+npm run sft:full-replay
 node --test tests/syntheticFullSystemFramework.test.mjs
 ```
 
@@ -33,6 +34,7 @@ No future leakage. A prediction checkpoint may only use public data, pit data, s
 - `docs/app-bridge-hooks.md` defines hooks into the model CLI, web app, Firebase/emulator, and PowerScout.
 - `schemas/` defines JSON contracts for manifests, event replay data, scout observations, and prediction ledgers.
 - `manifests/example-local-smoke.json` is a tiny deterministic smoke manifest.
+- `manifests/full-local-event.json` is the local full-event replay manifest.
 - `scripts/validate-framework.mjs` checks the framework contract.
 - `scripts/dry-run.mjs` produces a deterministic no-network smoke replay summary.
-
+- `scripts/full-event-replay.mjs` produces full-event replay artifacts under `SyntheticFullSystemTest/artifacts/`.

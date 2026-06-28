@@ -25,3 +25,7 @@
 - [x] Create a safe local TBA API key JSON file for Leo to upload in Admin V4 Settings.
 - [x] Add the Winners Graph visual to the native PowerScout Mac app.
 - [x] Create the `SyntheticFullSystemTest/` framework for repeatable full-event scouting simulations across model, web app, and Mac app surfaces.
+- [x] Run the current Synthetic Full System Test smoke suite and report the result.
+- [x] Implement a full-length Synthetic Full System Test event replay runner with prediction ledger and artifacts.
+- [x] Run the full event replay and verify its artifacts.
+- [x] Run web/model/PowerScout bridge readiness checks after the full replay.

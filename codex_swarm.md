@@ -32,3 +32,18 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local framework creation.
 - Safety: no credentials, no deploy, no production Firebase writes.
 - Subagents: none launched for this run.
+
+## Current Run: Full Event Replay
+
+- Task id: `sft-full-replay-001`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: implement and run a local full-length Synthetic Full System Test event replay.
+- Status: complete
+- Evidence: `npm run sft:full-replay`, `node --test tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `cd PowerScout && ./script/build_and_run.sh --verify`, and `npm test`.
+- Artifact run: `SyntheticFullSystemTest/artifacts/sft-full-2026fullsynthetic-20260628-050606-82491`.
+- Blockers: none for the local full replay. Live TBA/Statbotics refresh remains a separate secret-code-gated step.
+- Safety: no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.
