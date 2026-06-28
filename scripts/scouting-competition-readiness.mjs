@@ -220,7 +220,7 @@ if (adminV4ReportsAsset) {
 if (adminV2Asset) {
   const assetBody = await requireAssetText('Admin V2 asset fetched', adminV2Asset);
   if (assetBody) requireMarkers('Admin V2 legacy predictor markers', assetBody, [
-    'Admin V2',
+    'MAINFRAME',
     'Prediction vs Actual',
     'TBA API Key'
   ]);
