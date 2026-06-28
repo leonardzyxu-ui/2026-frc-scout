@@ -40,3 +40,5 @@
 - [x] Produce and verify complete Silicon Valley agentic replay artifacts, including score reconciliation, scout-agent ledger, prediction ledger, future snapshots, and team metric timeline.
 - [x] Add a reusable agentic replay batch runner for past events.
 - [x] Run additional past events through the agentic scout simulation and record a cross-event catalog.
+- [x] Continue the active replay goal with another batch of completed 2026 agentic event replays.
+- [x] Verify the expanded replay catalog, artifact gates, and tests after the new batch.

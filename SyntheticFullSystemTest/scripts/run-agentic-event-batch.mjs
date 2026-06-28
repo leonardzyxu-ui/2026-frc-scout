@@ -257,8 +257,29 @@ const writeSummary = (batchEntries, knownSuccesses) => {
         })
         .filter(Boolean)
     : [];
-  const successes = allEntries.filter(entry => entry.status === 'success');
   const knownAgenticSuccesses = [...knownSuccesses.values()].sort((a, b) => a.eventKey.localeCompare(b.eventKey));
+  const catalogSuccessEventKeys = new Set(allEntries.filter(entry => entry.status === 'success').map(entry => entry.eventKey));
+  for (const success of knownAgenticSuccesses) {
+    if (catalogSuccessEventKeys.has(success.eventKey)) continue;
+    const backfillEntry = {
+      status: 'success',
+      reason: 'backfilled-local-agentic-artifact',
+      eventKey: success.eventKey,
+      eventName: success.eventName,
+      sourceUrl: success.sourceUrl,
+      runId: success.runId,
+      outputDir: success.outputDir,
+      pretendOwnTeam: success.pretendOwnTeam,
+      ownTeamLabel: success.ownTeamLabel,
+      counts: success.counts,
+      gates: success.gates,
+      metrics: success.metrics
+    };
+    appendCatalog(backfillEntry);
+    allEntries.push(backfillEntry);
+    catalogSuccessEventKeys.add(success.eventKey);
+  }
+  const successes = allEntries.filter(entry => entry.status === 'success');
   writeFileSync(
     summaryPath,
     `${JSON.stringify(
@@ -354,7 +375,19 @@ for (const event of discovered) {
     };
     batchEntries.push(entry);
     appendCatalog(entry);
-    successes.set(summary.eventKey, { runId: summary.runId, outputDir: summary.outputDir, totalMatches: summary.counts.totalMatches });
+    successes.set(summary.eventKey, {
+      eventKey: summary.eventKey,
+      eventName: summary.eventName,
+      sourceUrl: summary.sourceUrl,
+      runId: summary.runId,
+      outputDir: summary.outputDir,
+      pretendOwnTeam: summary.pretendOwnTeam,
+      ownTeamLabel: summary.ownTeamLabel,
+      counts: summary.counts,
+      gates: summary.gates,
+      metrics: summary.metrics,
+      totalMatches: summary.counts.totalMatches
+    });
     console.log(
       `[ok] ${summary.eventKey}: ${summary.counts.totalMatches} matches, ${summary.counts.matchScoutV4Records} V4 rows, ${Math.round(summary.metrics.winnerAccuracy * 1000) / 10}% accuracy`
     );

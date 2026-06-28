@@ -111,3 +111,20 @@ Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadershi
 - Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
 - Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
 - Subagents: none launched for this run.
+
+## Current Run: Agentic Event Batch Replay 2
+
+- Task id: `sft-agentic-batch-002`
+- Owner: main Codex conductor
+- Role: conductor and implementer
+- Model: current main Codex model
+- Reasoning effort: high
+- Scope: continue the active long-running replay goal by discovering completed 2026 public TBA events and running six more through the agentic score-consistent scout simulation.
+- Status: complete
+- Evidence: `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, `npm run sft:agentic-replay:batch -- --limit 0 --min-matches 30`, `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and artifact-gate inspection across all 10 known agentic replay folders.
+- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 10 unique success records, and `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 10 known agentic successes.
+- Newly completed events: `2026mndu2`, `2026mnwi`, `2026okok`, `2026bcvi`, `2026gadal`, and `2026milak`.
+- All known agentic events after this run: `2026bcvi`, `2026casnv`, `2026flor`, `2026gadal`, `2026milak`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026okok`, and `2026tuis`.
+- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
+- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
+- Subagents: none launched for this run.
