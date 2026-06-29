@@ -32,7 +32,9 @@ Every Match Scout V4 record may contain `versionMetadata`.
 - `editedByScoutNumber`: Scout number when the edit came from a scout device.
 - `editedBySurface`: `scout` or `admin`.
 
-Both scout and head-scout sides should preserve every version. During sync, the side with the larger version wins; if versions match, submitted status and content hash decide conflict handling.
+Scout browser cache, Firebase/head-scout storage, and PowerScout Mac storage should all preserve every version. During sync, the newest safe version wins across all three surfaces; if two surfaces claim the same version with different content hashes, all automatic writes freeze and every copy is preserved for head-scout review.
+
+Detailed contract: `docs/local-first-sync-contract-2026-06-29.md`.
 
 ## Local File Export
 

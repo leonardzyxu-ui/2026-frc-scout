@@ -94,11 +94,12 @@
 - [x] Add RP-aware and variance-gamble-aware strategy plan selection beyond probability display.
 - [x] Finish the scout-facing rename sweep, especially remaining PPA/reliability wording in Match Scout V4 and Admin V4 panels.
 - [x] Connect `compareAllianceStrategies()` into a visible Admin V4 strategy surface.
-- [ ] Keep the Cue Steward loop active: forward new Leo requests into backlog audit and add missing queue chunks promptly.
+- [x] Keep the Cue Steward loop active: forward new Leo requests into backlog audit and add missing queue chunks promptly.
 - [x] Fetch and anchor the official FIRST Season Materials, REBUILT TU22 manual, and Team Update 22 sources for RP/rules logic.
 - [x] Add an event-tier RP threshold adapter for Regional/District, District Championship, and FIRST Championship thresholds.
 - [x] Add Traversal RP handling as a valid low-probability strategy metric instead of treating it as obsolete.
 - [x] Build the mirrored strategy preview page that shows predicted opponent shift behavior and our recommended shift response plan.
+- [x] Round the `/strategy-preview` UI so the visible panels, controls, shift cards, and nested rows no longer have hard square corners.
 - [x] Split browser-cache export work into explicit JSON schema documentation and direct local-file export UX.
 - [deferred] Add the conditional PowerScout marketing-site task only after the core scouting redesign is otherwise complete.
 - [x] Launch exactly two `gpt-5.4` high-reasoning agents to decipher the minimalist scout website + shift-form redesign prompt, both with the official REBUILT TU22 manual anchor.
@@ -131,7 +132,7 @@
 - [x] Add a native PowerScout History / Rewards read-only section that mirrors PowerCoin wallet semantics, recent bet state, evidence readouts, and web handoff buttons.
 - [x] Treat PowerScout Mac app as the first-priority command center for every major scouting feature; mirror website-only changes into PowerScout before considering a slice complete.
 - [x] Add a local-first sync contract utility, docs, tests, and scout-archive content hashes for version-preserving conflict decisions.
-- [ ] Design and implement a local-first scouting database sync contract across PowerScout local storage, Firebase, and scout browser caches, with conflict/version preservation.
+- [x] Design and implement a local-first scouting database sync contract across PowerScout local storage, Firebase, and scout browser caches, with conflict/version preservation.
 - [x] Add post-match real-time refresh orchestration: pull newest TBA, FIRST, Statbotics, Firebase/scout data after every match, rerun models, and surface driver-team-ready inferences immediately.
 - [x] Add PowerScout UI for the real-time refresh pipeline, data source freshness, model rerun status, and next-match inferences.
 - [x] Research practice-match data availability across TBA, FIRST Events API, and Statbotics; decide whether PowerScout needs a dedicated practice-scorekeeper role.

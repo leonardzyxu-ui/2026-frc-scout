@@ -97,9 +97,9 @@ func powerScoutCreatesAndLoadsLocalSyncLedger() throws {
     #expect(FileManager.default.fileExists(atPath: store.ledgerURL.path))
     #expect(loaded.ledgerURLPath == store.ledgerURL.path)
     #expect(loaded.entries.count == snapshot.entries.count)
-    #expect(loaded.entries.contains { $0.surface == "PowerScout Mac" && $0.status == "Ready" })
-    #expect(loaded.entries.contains { $0.surface == "Firebase" && $0.detail.localizedCaseInsensitiveContains("Match Scout V4") })
-    #expect(loaded.nextAction.localizedCaseInsensitiveContains("Firebase pull snapshots"))
+    #expect(loaded.entries.contains { $0.surface == "PowerScout Mac" && $0.status == "Contract ready" })
+    #expect(loaded.entries.contains { $0.surface == "Firebase" && $0.detail.localizedCaseInsensitiveContains("cross-surface planner") })
+    #expect(loaded.nextAction.localizedCaseInsensitiveContains("cross-surface planner"))
 }
 
 @Test

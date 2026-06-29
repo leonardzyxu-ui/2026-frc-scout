@@ -48,11 +48,15 @@ const getAllianceTone = (alliance: MatchScoutingV3Alliance) =>
 
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 const formatSigned = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
+const previewPanelClass = 'admin-g2 rounded-[2rem] border border-slate-800 bg-slate-900/70';
+const previewTileClass = 'admin-g2-sm rounded-2xl border border-slate-800 bg-slate-900/70';
+const previewButtonClass = 'rounded-full px-4 py-3 font-black transition-colors';
+const previewPillClass = 'admin-g2-sm rounded-2xl border border-white/10 bg-slate-950/45';
 
 function TeamRolePill({ role, teamNumber, mean }: { role: ShiftStrategyRole; teamNumber: string; mean: number }) {
   const Icon = roleIcons[role];
   return (
-    <div className="flex items-center justify-between gap-3 border border-white/10 bg-slate-950/45 px-3 py-2">
+    <div className={`flex items-center justify-between gap-3 px-3 py-2 ${previewPillClass}`}>
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="h-4 w-4 shrink-0 text-cyan-200" aria-hidden="true" />
         <span className="truncate font-black text-white">Team {teamNumber}</span>
@@ -67,7 +71,7 @@ function TeamRolePill({ role, teamNumber, mean }: { role: ShiftStrategyRole; tea
 
 function PlanSummary({ title, plan }: { title: string; plan: ShiftAllianceRolePlan }) {
   return (
-    <section className="border border-slate-800 bg-slate-900/70 p-4">
+    <section className={`${previewPanelClass} p-4`}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{title}</div>
@@ -86,7 +90,7 @@ function PlanSummary({ title, plan }: { title: string; plan: ShiftAllianceRolePl
         ))}
       </div>
       {plan.saturationWarning && (
-        <div className="mt-3 border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-50">
+        <div className="admin-g2-sm mt-3 border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-50">
           {plan.saturationWarning}
         </div>
       )}
@@ -124,15 +128,15 @@ export default function StrategyPreviewView() {
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <div className="border border-slate-800 bg-slate-900/70 px-3 py-2">
+            <div className={`${previewTileClass} px-3 py-2`}>
               <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Our Win</div>
               <div className="mt-1 font-mono text-xl font-black text-emerald-200">{formatPercent(ourWinProbability)}</div>
             </div>
-            <div className="border border-slate-800 bg-slate-900/70 px-3 py-2">
+            <div className={`${previewTileClass} px-3 py-2`}>
               <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Margin</div>
               <div className="mt-1 font-mono text-xl font-black text-cyan-100">{formatSigned(expectedMargin)}</div>
             </div>
-            <div className="border border-slate-800 bg-slate-900/70 px-3 py-2">
+            <div className={`${previewTileClass} px-3 py-2`}>
               <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Objective</div>
               <div className="mt-1 text-sm font-black text-white">{objective === 'qualification-rp' ? 'Quals + RP' : 'Point Diff'}</div>
             </div>
@@ -140,7 +144,7 @@ export default function StrategyPreviewView() {
         </header>
 
         <section className="mt-5 grid gap-3 lg:grid-cols-3">
-          <div className="border border-slate-800 bg-slate-900/70 p-4">
+          <div className={`${previewPanelClass} p-4`}>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Our Alliance</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {(['Red', 'Blue'] as const).map(alliance => (
@@ -148,7 +152,7 @@ export default function StrategyPreviewView() {
                   key={alliance}
                   type="button"
                   onClick={() => setOurAlliance(alliance)}
-                  className={`px-4 py-3 font-black ${ourAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  className={`${previewButtonClass} ${ourAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {alliance}
                 </button>
@@ -156,7 +160,7 @@ export default function StrategyPreviewView() {
             </div>
           </div>
 
-          <div className="border border-slate-800 bg-slate-900/70 p-4">
+          <div className={`${previewPanelClass} p-4`}>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">First Shift</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {(['Red', 'Blue'] as const).map(alliance => (
@@ -164,7 +168,7 @@ export default function StrategyPreviewView() {
                   key={alliance}
                   type="button"
                   onClick={() => setFirstShiftAlliance(alliance)}
-                  className={`px-4 py-3 font-black ${firstShiftAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  className={`${previewButtonClass} ${firstShiftAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {alliance} first
                 </button>
@@ -172,7 +176,7 @@ export default function StrategyPreviewView() {
             </div>
           </div>
 
-          <div className="border border-slate-800 bg-slate-900/70 p-4">
+          <div className={`${previewPanelClass} p-4`}>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Objective</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {([
@@ -183,7 +187,7 @@ export default function StrategyPreviewView() {
                   key={value}
                   type="button"
                   onClick={() => setObjective(value)}
-                  className={`px-4 py-3 font-black ${objective === value ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  className={`${previewButtonClass} ${objective === value ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
                 >
                   {label}
                 </button>
@@ -202,7 +206,7 @@ export default function StrategyPreviewView() {
             const plan = getPlanForShift(entry.shiftAlliance);
             const actions = normalizeMatchScoutShiftActions({ actions: plan.assignments.map(assignment => assignment.role), role: deriveMatchScoutShiftRole(plan.assignments.map(assignment => assignment.role)) });
             return (
-              <article key={entry.id} className={`border p-4 ${getAllianceTone(entry.shiftAlliance)}`}>
+              <article key={entry.id} className={`admin-g2 rounded-[2rem] border p-4 ${getAllianceTone(entry.shiftAlliance)}`}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.22em] opacity-70">

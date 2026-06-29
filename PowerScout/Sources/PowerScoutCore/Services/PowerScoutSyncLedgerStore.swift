@@ -46,36 +46,36 @@ public struct PowerScoutSyncLedgerStore: Sendable {
                 PowerScoutSyncLedgerEntry(
                     surface: "PowerScout Mac",
                     role: "Local command ledger",
-                    status: "Ready",
+                    status: "Contract ready",
                     currentVersion: 1,
                     preservedVersions: 1,
                     conflicts: 0,
                     lastCheckedAt: now,
-                    detail: "Durable local sync ledger stored on this Mac. This is the place native sync health can survive app restarts."
+                    detail: "Durable local sync ledger stored on this Mac. It is one of the three local-first surfaces in the scout-browser, Firebase, and PowerScout contract."
                 ),
                 PowerScoutSyncLedgerEntry(
                     surface: "Scout Browser Cache",
                     role: "Field capture cache",
-                    status: "Bridge planned",
+                    status: "Cross-surface planned",
                     currentVersion: 0,
                     preservedVersions: 0,
                     conflicts: 0,
                     lastCheckedAt: now,
-                    detail: "Browser IndexedDB already preserves Match V4 versions and content hashes; the native import bridge should consume those exports next."
+                    detail: "Browser IndexedDB preserves Match V4 versions, content hashes, submitted-state metadata, and ScoutArchiveBundle v8 version chains."
                 ),
                 PowerScoutSyncLedgerEntry(
                     surface: "Firebase",
                     role: "Shared head-scout sync",
-                    status: "V4 planner active",
+                    status: "Three-way planner active",
                     currentVersion: 0,
                     preservedVersions: 0,
                     conflicts: 0,
                     lastCheckedAt: now,
-                    detail: "Match Scout V4 archive sync now checks the remote row before replacing, pulling, or preserving a conflict."
+                    detail: "Match Scout V4 archive sync checks remote rows before replacing, pulling, or preserving conflicts, and the cross-surface planner now includes PowerScout."
                 )
             ],
-            summary: "PowerScout now owns a local sync ledger file and the web bridge has version-aware Match V4 conflict decisions.",
-            nextAction: "Promote this ledger from status tracking to real imported scout-cache rows and Firebase pull snapshots."
+            summary: "PowerScout now has an explicit local-first sync contract with scout browser cache and Firebase: preserve every version, write newest safe copies, and freeze same-version content conflicts.",
+            nextAction: "Connect real imported scout-cache rows and Firebase pull snapshots to the cross-surface planner."
         )
     }
 
@@ -92,4 +92,3 @@ public struct PowerScoutSyncLedgerStore: Sendable {
         return decoder
     }
 }
-

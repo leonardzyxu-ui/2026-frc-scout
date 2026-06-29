@@ -1,6 +1,7 @@
 import type { MatchScoutingV4 } from '../types';
 import type { ScoutArchiveRecord } from './scoutArchive';
 import {
+  compareLocalFirstSyncRecords,
   decideLocalFirstSync,
   mergeLocalFirstVersionLedger,
   normalizeLocalFirstSyncRecord,
@@ -32,6 +33,36 @@ export interface LocalFirstSyncPlanItem {
   remoteVersions: LocalFirstSyncRecord[];
 }
 
+export type CrossSurfaceSyncAction =
+  | 'up-to-date'
+  | 'write-current-to-surface'
+  | 'preserve-conflict'
+  | 'no-records';
+
+export interface CrossSurfaceLocalFirstSyncSurfaceState {
+  surface: LocalFirstSyncSurface;
+  action: CrossSurfaceSyncAction;
+  reason: string;
+  current: LocalFirstSyncRecord | null;
+  versions: LocalFirstSyncRecord[];
+}
+
+export interface CrossSurfaceLocalFirstSyncPlanItem {
+  key: string;
+  current: LocalFirstSyncRecord | null;
+  currentSourceSurface: LocalFirstSyncSurface | null;
+  versions: LocalFirstSyncRecord[];
+  preservedVersionCount: number;
+  conflicts: LocalFirstSyncRecord[];
+  surfaceStates: CrossSurfaceLocalFirstSyncSurfaceState[];
+}
+
+export interface CrossSurfaceLocalFirstSyncPlanInput {
+  scoutBrowserRecords?: LocalFirstSyncRecord[];
+  headScoutFirebaseRecords?: LocalFirstSyncRecord[];
+  powerScoutMacRecords?: LocalFirstSyncRecord[];
+}
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -47,6 +78,8 @@ const toTimestamp = (value: unknown) => {
 
 const syncKey = (record: Pick<LocalFirstSyncRecord, 'eventKey' | 'logicalId'>) =>
   `${record.eventKey.trim().toUpperCase()}:${record.logicalId.trim()}`;
+
+const CROSS_SURFACES: LocalFirstSyncSurface[] = ['scout-browser', 'head-scout-firebase', 'powerscout-mac'];
 
 export const buildSyncRecordFromScoutArchiveRecord = (
   record: ScoutArchiveRecord,
@@ -187,6 +220,133 @@ export const buildLocalFirstSyncPlan = (input: {
       remoteCurrent,
       localVersions: localLedger.versions,
       remoteVersions: remoteLedger.versions
+    };
+  });
+};
+
+const recordIdentityKey = (record: LocalFirstSyncRecord) =>
+  `${record.eventKey}:${record.logicalId}:v${record.version}:${record.surface}:${record.recordId}`;
+
+const findSameVersionContentConflicts = (records: LocalFirstSyncRecord[]) => {
+  const normalizedRecords = records.map(normalizeLocalFirstSyncRecord);
+  const byVersion = new Map<number, Map<string, LocalFirstSyncRecord[]>>();
+  for (const record of normalizedRecords) {
+    if (!record.contentHash) {
+      continue;
+    }
+    const hashGroups = byVersion.get(record.version) || new Map<string, LocalFirstSyncRecord[]>();
+    hashGroups.set(record.contentHash, [...(hashGroups.get(record.contentHash) || []), record]);
+    byVersion.set(record.version, hashGroups);
+  }
+
+  const conflicts = new Map<string, LocalFirstSyncRecord>();
+  for (const hashGroups of byVersion.values()) {
+    if (hashGroups.size <= 1) {
+      continue;
+    }
+    Array.from(hashGroups.values()).flat().forEach(record => {
+      conflicts.set(recordIdentityKey(record), record);
+    });
+  }
+  return Array.from(conflicts.values()).sort((left, right) => compareLocalFirstSyncRecords(right, left));
+};
+
+const isSameCurrentRecord = (left: LocalFirstSyncRecord, right: LocalFirstSyncRecord) => {
+  const normalizedLeft = normalizeLocalFirstSyncRecord(left);
+  const normalizedRight = normalizeLocalFirstSyncRecord(right);
+  return normalizedLeft.version === normalizedRight.version && (
+    normalizedLeft.recordId === normalizedRight.recordId ||
+    (
+      !!normalizedLeft.contentHash &&
+      !!normalizedRight.contentHash &&
+      normalizedLeft.contentHash === normalizedRight.contentHash
+    ) ||
+    compareLocalFirstSyncRecords(normalizedLeft, normalizedRight) === 0
+  );
+};
+
+export const buildCrossSurfaceLocalFirstSyncPlan = (
+  input: CrossSurfaceLocalFirstSyncPlanInput
+): CrossSurfaceLocalFirstSyncPlanItem[] => {
+  const recordsBySurface: Record<LocalFirstSyncSurface, LocalFirstSyncRecord[]> = {
+    'scout-browser': input.scoutBrowserRecords || [],
+    'head-scout-firebase': input.headScoutFirebaseRecords || [],
+    'powerscout-mac': input.powerScoutMacRecords || []
+  };
+  const allRecords = CROSS_SURFACES.flatMap(surface =>
+    recordsBySurface[surface].map(record => normalizeLocalFirstSyncRecord({ ...record, surface }))
+  );
+  const groups = groupBySyncKey(allRecords);
+  const keys = Array.from(groups.keys()).sort();
+
+  return keys.map(key => {
+    const versions = groups.get(key) || [];
+    const ledger = mergeLocalFirstVersionLedger(versions);
+    const conflicts = findSameVersionContentConflicts(versions);
+    const current = ledger.current;
+    const currentVersionHasConflict = !!current && conflicts.some(record => record.version === current.version);
+
+    const surfaceStates = CROSS_SURFACES.map<CrossSurfaceLocalFirstSyncSurfaceState>(surface => {
+      const surfaceLedger = mergeLocalFirstVersionLedger(versions.filter(record => record.surface === surface));
+      const surfaceCurrent = surfaceLedger.current;
+
+      if (!current) {
+        return {
+          surface,
+          action: 'no-records',
+          reason: 'No version exists on any local-first sync surface.',
+          current: null,
+          versions: []
+        };
+      }
+
+      if (currentVersionHasConflict) {
+        return {
+          surface,
+          action: 'preserve-conflict',
+          reason: `Version ${current.version} has different content on multiple surfaces; preserve all copies until a head-scout review resolves it.`,
+          current: surfaceCurrent,
+          versions: surfaceLedger.versions
+        };
+      }
+
+      if (!surfaceCurrent) {
+        return {
+          surface,
+          action: 'write-current-to-surface',
+          reason: `Surface has no copy; write current version ${current.version} from ${current.surface}.`,
+          current: null,
+          versions: []
+        };
+      }
+
+      if (isSameCurrentRecord(surfaceCurrent, current)) {
+        return {
+          surface,
+          action: 'up-to-date',
+          reason: `Surface already has current version ${current.version}.`,
+          current: surfaceCurrent,
+          versions: surfaceLedger.versions
+        };
+      }
+
+      return {
+        surface,
+        action: 'write-current-to-surface',
+        reason: `Surface has version ${surfaceCurrent.version}; write current version ${current.version} from ${current.surface} while preserving local history.`,
+        current: surfaceCurrent,
+        versions: surfaceLedger.versions
+      };
+    });
+
+    return {
+      key,
+      current,
+      currentSourceSurface: current?.surface || null,
+      versions: ledger.versions,
+      preservedVersionCount: ledger.preservedVersionCount,
+      conflicts,
+      surfaceStates
     };
   });
 };

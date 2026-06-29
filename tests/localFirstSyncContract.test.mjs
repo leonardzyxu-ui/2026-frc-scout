@@ -7,6 +7,7 @@ import {
   stableLocalFirstContentHash
 } from '../src/utils/localFirstSyncContract.ts';
 import {
+  buildCrossSurfaceLocalFirstSyncPlan,
   buildLocalFirstSyncPlan,
   buildSyncRecordFromRemotePayload,
   buildSyncRecordFromScoutArchiveRecord
@@ -190,6 +191,50 @@ test('local-first sync planner pulls remote-only records into local archive', ()
   assert.equal(item.winner, 'remote');
   assert.equal(item.localCurrent, null);
   assert.equal(item.remoteCurrent.recordId, 'firebase-v4');
+});
+
+test('cross-surface local-first plan fans the newest scout cache version to Firebase and PowerScout', () => {
+  const [item] = buildCrossSurfaceLocalFirstSyncPlan({
+    scoutBrowserRecords: [
+      { ...base, version: 3, recordId: 'scout-v3', contentHash: 'hash-v3', currentVersionSubmitted: false }
+    ],
+    headScoutFirebaseRecords: [
+      { ...base, surface: 'head-scout-firebase', version: 2, recordId: 'firebase-v2', contentHash: 'hash-v2' }
+    ],
+    powerScoutMacRecords: [
+      { ...base, surface: 'powerscout-mac', version: 1, recordId: 'mac-v1', contentHash: 'hash-v1' }
+    ]
+  });
+
+  assert.equal(item.current.recordId, 'scout-v3');
+  assert.equal(item.currentSourceSurface, 'scout-browser');
+  assert.equal(item.preservedVersionCount, 3);
+  assert.equal(item.conflicts.length, 0);
+  assert.equal(item.surfaceStates.find(state => state.surface === 'scout-browser').action, 'up-to-date');
+  assert.equal(item.surfaceStates.find(state => state.surface === 'head-scout-firebase').action, 'write-current-to-surface');
+  assert.equal(item.surfaceStates.find(state => state.surface === 'powerscout-mac').action, 'write-current-to-surface');
+});
+
+test('cross-surface local-first plan freezes writes on same-version content conflicts', () => {
+  const [item] = buildCrossSurfaceLocalFirstSyncPlan({
+    scoutBrowserRecords: [
+      { ...base, version: 2, recordId: 'scout-v2', contentHash: 'same-version-scout' }
+    ],
+    headScoutFirebaseRecords: [
+      { ...base, surface: 'head-scout-firebase', version: 1, recordId: 'firebase-v1', contentHash: 'hash-v1' }
+    ],
+    powerScoutMacRecords: [
+      { ...base, surface: 'powerscout-mac', version: 2, recordId: 'mac-v2', updatedAt: 3000, contentHash: 'same-version-mac' }
+    ]
+  });
+
+  assert.equal(item.conflicts.length, 2);
+  assert.equal(item.current.version, 2);
+  assert.deepEqual(
+    item.surfaceStates.map(state => state.action),
+    ['preserve-conflict', 'preserve-conflict', 'preserve-conflict']
+  );
+  assert.match(item.surfaceStates[0].reason, /head-scout review/i);
 });
 
 test('Match V4 archive sync consumes the planner before replacing Firebase', () => {
