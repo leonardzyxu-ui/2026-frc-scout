@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ResearchStore } from './store.ts';
@@ -67,6 +68,45 @@ const getRequiredEnv = (keys: string[], label: string) => {
   return value;
 };
 
+const headerEntries = (headers: RequestInit['headers'] | undefined): [string, string][] => {
+  if (!headers) return [];
+  if (headers instanceof Headers) return [...headers.entries()].map(([key, value]) => [String(key), String(value)]);
+  if (Array.isArray(headers)) {
+    return headers.flatMap(([key, value]) =>
+      key == null || value == null ? [] : [[String(key), String(value)] as [string, string]]
+    );
+  }
+  return Object.entries(headers).map(([key, value]) => [key, String(value)]);
+};
+
+const shouldUseCurlFallback = (error: unknown) =>
+  error instanceof Error && error.message.toLowerCase().includes('fetch failed');
+
+const fetchJsonViaCurl = <T>(url: string, init: RequestInit): T => {
+  const configLines = [
+    'silent',
+    'show-error',
+    'fail',
+    'location',
+    'connect-timeout = 10',
+    'max-time = 35',
+    'retry = 2',
+    ...headerEntries(init.headers).map(([key, value]) => `header = "${key}: ${String(value).replaceAll('"', '\\"')}"`)
+  ];
+  const result = spawnSync('curl', ['--config', '-', url], {
+    input: `${configLines.join('\n')}\n`,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024 * 8
+  });
+
+  if (result.status !== 0) {
+    const detail = String(result.stderr || result.error?.message || `curl exited ${result.status}`).trim();
+    throw new Error(detail || `curl exited ${result.status}`);
+  }
+
+  return JSON.parse(result.stdout) as T;
+};
+
 const fetchJson = async <T>(url: string, init: RequestInit = {}, retries = 2): Promise<T> => {
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -83,6 +123,11 @@ const fetchJson = async <T>(url: string, init: RequestInit = {}, retries = 2): P
       }
     }
   }
+
+  if (shouldUseCurlFallback(lastError)) {
+    return fetchJsonViaCurl<T>(url, init);
+  }
+
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 };
 

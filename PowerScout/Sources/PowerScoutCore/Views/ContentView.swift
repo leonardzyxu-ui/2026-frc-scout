@@ -37,7 +37,7 @@ public struct PowerScoutContentView: View {
                 case .dashboard:
                     DashboardView(store: store, openURL: openURL)
                 case .liveOps:
-                    LiveOpsView(store: store)
+                    LiveOpsView(store: store, openURL: openURL)
                 case .systemAudit:
                     SystemAuditView()
                 case .preScout:

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import PowerScoutCore
 
@@ -49,6 +50,29 @@ func liveOpsMakesPowerScoutTheLocalCommandCenter() {
     #expect(PowerScoutKnowledgeBase.liveOpsSteps.contains { $0.detail.localizedCaseInsensitiveContains("driver") })
     #expect(PowerScoutKnowledgeBase.postMatchRefreshCommand.title == "Post-Match Refresh")
     #expect(PowerScoutKnowledgeBase.postMatchRefreshCommand.usesProxy)
+}
+
+@Test
+func liveOpsShowsFreshnessAndDriverBriefingOutputs() {
+    let freshnessSources = Set(PowerScoutKnowledgeBase.liveOpsFreshnessCards.map(\.source))
+    #expect(freshnessSources.contains("PowerScout Local DB"))
+    #expect(freshnessSources.contains("Firebase Scout Sync"))
+    #expect(freshnessSources.contains("TBA Results"))
+    #expect(freshnessSources.contains("FIRST Events"))
+    #expect(freshnessSources.contains("Statbotics"))
+    #expect(freshnessSources.contains("Model Rerun"))
+    #expect(PowerScoutKnowledgeBase.liveOpsFreshnessCards.contains { $0.target.localizedCaseInsensitiveContains("queue") })
+
+    let outputs = PowerScoutKnowledgeBase.driverBriefingOutputs
+    #expect(outputs.contains { $0.title == "Win probability" })
+    #expect(outputs.contains { $0.title == "Role plan" && $0.detail.localizedCaseInsensitiveContains("stockpile") })
+    #expect(outputs.contains { $0.title == "RP upside" && $0.value.localizedCaseInsensitiveContains("Traversal") })
+    #expect(outputs.contains { $0.title == "Data-quality flags" && $0.detail.localizedCaseInsensitiveContains("first-shift") })
+
+    let reportPath = PowerScoutPaths.postMatchRefreshReportURL(repoRoot: URL(fileURLWithPath: "/tmp/powerscout")).path
+    let jsonPath = PowerScoutPaths.postMatchRefreshJSONURL(repoRoot: URL(fileURLWithPath: "/tmp/powerscout")).path
+    #expect(reportPath.hasSuffix("output/powerscout/post-match-refresh/latest.md"))
+    #expect(jsonPath.hasSuffix("output/powerscout/post-match-refresh/latest.json"))
 }
 
 @Test

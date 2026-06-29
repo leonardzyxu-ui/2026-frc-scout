@@ -30,6 +30,14 @@ public enum PowerScoutPaths {
         repoRoot.appendingPathComponent("docs/scouting-relay-engine-plan.md")
     }
 
+    public static func postMatchRefreshReportURL(repoRoot: URL) -> URL {
+        repoRoot.appendingPathComponent("output/powerscout/post-match-refresh/latest.md")
+    }
+
+    public static func postMatchRefreshJSONURL(repoRoot: URL) -> URL {
+        repoRoot.appendingPathComponent("output/powerscout/post-match-refresh/latest.json")
+    }
+
     public static func pptScreenshotURL(repoRoot: URL) -> URL {
         repoRoot.appendingPathComponent("output/playwright/scouting-ppt-background-analytics.png")
     }

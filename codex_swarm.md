@@ -48,11 +48,11 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 | Forge-MacParity | MAC-PARITY-001 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The Mac app surface can be inspected independently while the main thread continues web/admin integration. | 2026-06-29T04:58:33+00:00 |
 | Forge-MacParity | MAC-PARITY-001 | Explorer | gpt-5.4-mini / medium | close | read-only | completed |  | 2026-06-29T05:04:36+00:00 |
 | Rivet-QA | PWR-QA-001 | Verifier | gpt-5.4-mini / medium | close | read-only | completed-fail |  | 2026-06-29T05:05:00+00:00 |
+| Bacon | BET-CART-001 | Explorer | gpt-5.4 / medium | close | read-only | closed-stale-handle |  | 2026-06-29T05:24:08+00:00 |
+| Maxwell | PWR-INTEGRATION-CART-001 | Explorer | gpt-5.4 / medium | close | read-only | closed-stale-handle |  | 2026-06-29T05:24:08+00:00 |
 
 ## Integration Notes
 
-- Rivet-QA reported a fail on the first PowerCoin pass; conductor patched number-first adjustment selection, restore metadata clearing, restore copy, and tests.
-- Forge-MacParity found no native History/PowerCoin surface; conductor added a read-only PowerScout History / Rewards section as the first Mac parity slice.
 
 ## Safety And Scope Notes
-- Both agents were read-only. No secrets were requested, printed, or written.
+

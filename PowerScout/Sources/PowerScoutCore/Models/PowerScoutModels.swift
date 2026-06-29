@@ -200,6 +200,48 @@ public struct LiveOpsSourceRule: Identifiable, Hashable, Sendable {
     }
 }
 
+public enum LiveOpsFreshnessState: String, Sendable {
+    case ready = "Ready"
+    case syncing = "Syncing"
+    case credentialGated = "Credential Gated"
+    case fallback = "Fallback"
+    case modelRerun = "Model Rerun"
+}
+
+public struct LiveOpsFreshnessCard: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let source: String
+    public let state: LiveOpsFreshnessState
+    public let target: String
+    public let detail: String
+    public let action: String
+
+    public init(_ source: String, state: LiveOpsFreshnessState, target: String, detail: String, action: String) {
+        self.id = source
+        self.source = source
+        self.state = state
+        self.target = target
+        self.detail = detail
+        self.action = action
+    }
+}
+
+public struct DriverBriefingOutput: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let value: String
+    public let detail: String
+    public let decisionUse: String
+
+    public init(_ title: String, value: String, detail: String, decisionUse: String) {
+        self.id = title
+        self.title = title
+        self.value = value
+        self.detail = detail
+        self.decisionUse = decisionUse
+    }
+}
+
 public struct CommandResult: Identifiable, Hashable, Sendable {
     public let id = UUID()
     public let title: String
@@ -483,6 +525,84 @@ public enum PowerScoutKnowledgeBase {
             role: .localFallback,
             givesUs: "Red/blue practice totals, threshold notes, and scorekeeper observations when APIs lag or omit practice.",
             limitation: "Needs a simple local entry surface and post-match reconciliation."
+        )
+    ]
+
+    public static let liveOpsFreshnessCards: [LiveOpsFreshnessCard] = [
+        LiveOpsFreshnessCard(
+            "PowerScout Local DB",
+            state: .ready,
+            target: "instant",
+            detail: "Version-preserving local truth for scout forms, imported JSON, evidence ledgers, and PowerCoin records.",
+            action: "Promote newest usable versions, never erase older versions."
+        ),
+        LiveOpsFreshnessCard(
+            "Firebase Scout Sync",
+            state: .syncing,
+            target: "5-10 sec",
+            detail: "Receives scout-device submissions and gives the website/admin side shared field state.",
+            action: "Pull after every match and mark slow devices as local-first, not lost."
+        ),
+        LiveOpsFreshnessCard(
+            "TBA Results",
+            state: .credentialGated,
+            target: "under 1 min",
+            detail: "Official public match schedule, winners, alliances, and score breakdown context.",
+            action: "Use local env keys on the Mac; skip cleanly if the key is unavailable."
+        ),
+        LiveOpsFreshnessCard(
+            "FIRST Events",
+            state: .credentialGated,
+            target: "under 1 min",
+            detail: "Authenticated official schedule/results source, including practice-match path when available at the venue.",
+            action: "Use practice scorekeeper fallback when credentials or venue sync are unavailable."
+        ),
+        LiveOpsFreshnessCard(
+            "Statbotics",
+            state: .ready,
+            target: "under 1 min",
+            detail: "EPA context and public predictive baseline for cross-checking our local model.",
+            action: "Refresh as context only; scout-observed Contribution and Defense remain decision truth."
+        ),
+        LiveOpsFreshnessCard(
+            "Model Rerun",
+            state: .modelRerun,
+            target: "before queueing",
+            detail: "Recomputes Contribution, Defense, floors, ceilings, deviations, and next-match strategy from refreshed cache.",
+            action: "Return driver-team outputs instead of a raw stats dump."
+        )
+    ]
+
+    public static let driverBriefingOutputs: [DriverBriefingOutput] = [
+        DriverBriefingOutput(
+            "Win probability",
+            value: "Red/Blue probability",
+            detail: "Uses expected point-difference contribution and combined alliance variance after role search.",
+            decisionUse: "Tell drive team whether the base plan is favored or needs a gamble."
+        ),
+        DriverBriefingOutput(
+            "Role plan",
+            value: "Offense / Defense / Stockpile",
+            detail: "Searches each alliance's offense, defense, and stockpile role combination, caps over-defense, and keeps RP incentives separate from playoffs.",
+            decisionUse: "Assign who scores, who denies, and who supports ball flow."
+        ),
+        DriverBriefingOutput(
+            "Expected margin",
+            value: "Mean plus deviation",
+            detail: "Shows predicted margin with uncertainty so a smaller mean can still be chosen if variance creates a smart upset path.",
+            decisionUse: "Decide whether to protect a stable win or take a calculated risk."
+        ),
+        DriverBriefingOutput(
+            "RP upside",
+            value: "Energized / Supercharged / Traversal",
+            detail: "Qualification mode weighs extra ranking-point paths without letting them corrupt playoff pick logic.",
+            decisionUse: "Avoid over-defending when score thresholds are more valuable than margin."
+        ),
+        DriverBriefingOutput(
+            "Data-quality flags",
+            value: "Freshness and conflicts",
+            detail: "Calls out stale scout devices, missing official totals, first-shift disagreement, and unresolved version conflicts.",
+            decisionUse: "Know what to trust before the robot is already in queue."
         )
     ]
 
