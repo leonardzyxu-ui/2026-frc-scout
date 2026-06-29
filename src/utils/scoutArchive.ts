@@ -61,10 +61,23 @@ export type ScoutArchiveRecord = MatchArchiveRecord | MatchV4ArchiveRecord | Mat
 
 export interface ScoutArchiveBundle {
   format: 'rebuilt-2026-scout-archive';
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
   username: string;
   exportedAt: number;
   deviceId: string;
+  schema?: {
+    name: 'ScoutArchiveBundle';
+    version: 8;
+    documentationPath: string;
+    topLevelFields: string[];
+    matchV4VersioningFields: string[];
+    localFileExport: {
+      filenamePattern: string;
+      mimeType: 'application/json';
+      directDownload: boolean;
+      retryHint: string;
+    };
+  };
   exportMetadata?: {
     exportedAtIso: string;
     exportedByScoutName: string;
@@ -755,10 +768,47 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
 
   return {
     format: 'rebuilt-2026-scout-archive',
-    version: 7,
+    version: 8,
     username: normalizedUsername,
     exportedAt,
     deviceId: normalizedRecords[0]?.deviceId || '',
+    schema: {
+      name: 'ScoutArchiveBundle',
+      version: 8,
+      documentationPath: 'docs/scout-archive-json-schema-2026-06-29.md',
+      topLevelFields: [
+        'format',
+        'version',
+        'username',
+        'exportedAt',
+        'deviceId',
+        'schema',
+        'exportMetadata',
+        'recordCounts',
+        'versionChains',
+        'records',
+        'powerCoinBets',
+        'powerCoinLedger'
+      ],
+      matchV4VersioningFields: [
+        'versionMetadata.logicalId',
+        'versionMetadata.version',
+        'versionMetadata.parentVersion',
+        'versionMetadata.currentVersionSubmitted',
+        'versionMetadata.submissionNumber',
+        'versionMetadata.submittedAt',
+        'versionMetadata.editedAt',
+        'versionMetadata.editedByName',
+        'versionMetadata.editedByScoutNumber',
+        'versionMetadata.editedBySurface'
+      ],
+      localFileExport: {
+        filenamePattern: '<scout>_<event>_<exportedAtIso>.json',
+        mimeType: 'application/json',
+        directDownload: true,
+        retryHint: 'If automatic download is blocked, reopen History and export again; the source remains local IndexedDB.'
+      }
+    },
     exportMetadata: {
       exportedAtIso: new Date(exportedAt).toISOString(),
       exportedByScoutName: normalizedUsername,
@@ -780,7 +830,7 @@ export const isScoutArchiveBundle = (value: unknown): value is ScoutArchiveBundl
   const maybeBundle = value as Partial<ScoutArchiveBundle>;
   return (
     maybeBundle.format === 'rebuilt-2026-scout-archive' &&
-    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5 || maybeBundle.version === 6 || maybeBundle.version === 7) &&
+    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5 || maybeBundle.version === 6 || maybeBundle.version === 7 || maybeBundle.version === 8) &&
     Array.isArray(maybeBundle.records)
   );
 };

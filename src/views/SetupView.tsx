@@ -162,7 +162,7 @@ export default function SetupView() {
       const bundle = await buildScoutArchiveBundle(identity.username);
       const filename = `${identity.username || 'scout'}_all_history_${new Date(bundle.exportedAt).toISOString().replace(/[:.]/g, '-')}.json`;
       downloadJson(filename, JSON.stringify(bundle, null, 2));
-      setExportStatus(`Exported ${bundle.records.length} local history records as JSON.`);
+      setExportStatus(`Downloaded ${filename} to this computer with ${bundle.records.length} local history records. Schema: ${bundle.schema?.documentationPath || 'ScoutArchiveBundle v8'}.`);
       await hydrate();
     } catch (exportError) {
       console.error('Unable to export all scout history', exportError);
@@ -334,7 +334,7 @@ export default function SetupView() {
               <section className="mt-5 border border-cyan-300/20 bg-cyan-300/[0.06] p-4">
                 <div className="text-sm font-black text-white">Export options</div>
                 <p className="mt-2 text-xs font-semibold leading-relaxed text-cyan-50/75">
-                  This export includes every local record this browser still has, including old versions, conflicts, tombstones, and unsynced rows.
+                  This downloads a `.json` file directly to this computer. It includes every local record this browser still has, including old versions, conflicts, tombstones, unsynced rows, and schema metadata for Admin import.
                 </p>
                 <div className="mt-4 grid gap-2">
                   <button type="button" onClick={() => void handleDownloadAllHistory()} className="inline-flex items-center justify-center gap-2 border border-cyan-300/35 bg-cyan-300/15 px-4 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-300/25">

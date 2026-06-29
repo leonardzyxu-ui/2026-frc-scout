@@ -1414,7 +1414,11 @@ test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
   assert.equal(tbaConsumerSource.includes(legacySidebarLabel), false);
   assert.match(tbaErrorSource, /Open Admin V4 Settings > Team And Local Credentials > Clear TBA/);
   assert.match(tbaErrorSource, /upload a fresh key JSON/);
-  assert.match(scoutArchiveSource, /version: 7/);
+  assert.match(scoutArchiveSource, /version: 8/);
+  assert.match(scoutArchiveSource, /ScoutArchiveBundle/);
+  assert.match(scoutArchiveSource, /scout-archive-json-schema-2026-06-29\.md/);
+  assert.match(scoutArchiveSource, /maybeBundle\.version === 7 \|\| maybeBundle\.version === 8/);
   assert.match(scoutArchiveSource, /contentHash: stableLocalFirstContentHash/);
-  assert.match(scoutArchiveSource, /maybeBundle\.version === 7/);
+  assert.match(readFileSync('src/views/HistoryView.tsx', 'utf8'), /The full archive downloads a local `\.json` file to this computer with `ScoutArchiveBundle` schema v8/);
+  assert.match(readFileSync('src/views/SetupView.tsx', 'utf8'), /downloads a `\.json` file directly to this computer/);
 });

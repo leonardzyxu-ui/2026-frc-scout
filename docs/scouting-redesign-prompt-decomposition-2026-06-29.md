@@ -101,11 +101,11 @@ Status: living decomposition. The pasted file is treated as source material, not
 24. `Done` - Browser cache/history export metadata.
     Evidence: `src/utils/scoutArchive.ts` v6 export metadata and record counts.
 
-25. `Partial` - Direct export to local computer.
-    Evidence: app has download/export flows. Missing: review whether every requested archive path includes detailed scout names/export time and retry-to-computer path.
+25. `Done` - Direct export to local computer.
+    Evidence: Scout Settings and Scout History explicitly describe local `.json` download behavior, export status names the downloaded file, and bundle schema metadata includes local-file retry guidance.
 
-26. `Partial` - Split browser-cache export into explicit JSON schema and local-file workflow.
-    Evidence: export metadata exists. Missing: explicit user-facing schema documentation and unmistakable retry/download UI.
+26. `Done` - Split browser-cache export into explicit JSON schema and local-file workflow.
+    Evidence: new `docs/scout-archive-json-schema-2026-06-29.md`, `ScoutArchiveBundle` schema v8 metadata, History export preview schema panel, Settings export wording, and tests covering v8 plus old-bundle compatibility.
 
 ## Admin Web And PowerScout
 
@@ -146,7 +146,7 @@ Status: living decomposition. The pasted file is treated as source material, not
 
 ## Current Highest-Value Missing Slices
 
-1. Split and document browser-cache JSON export schema and direct local-file export path.
+1. Feed live Admin match/team rows into the mirrored strategy preview page instead of seeded demo rows.
 
 ## Logic Invariants From Red-Team
 

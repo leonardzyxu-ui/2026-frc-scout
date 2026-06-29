@@ -520,6 +520,7 @@ export default function HistoryView() {
       };
       const filename = `${archiveUsername || 'scout'}_${eventKey}_${new Date(bundle.exportedAt).toISOString().replace(/[:.]/g, '-')}.json`;
       downloadJson(filename, JSON.stringify(evidenceBundle, null, 2));
+      setSyncMessage(`Exported ${filename} as a direct local JSON download. Schema: ${bundle.schema?.documentationPath || 'ScoutArchiveBundle v8'}.`);
     } catch (exportError) {
       console.error('Failed to build scout archive export', exportError);
       setError('Unable to export the local JSON archive right now.');
@@ -1368,6 +1369,15 @@ export default function HistoryView() {
                 <HistorySummaryCard label="Defense Rows" value={evidenceSummary.defenseRows} tone="rose" />
                 <HistorySummaryCard label="Pit Rows" value={evidenceSummary.pitRows} tone="emerald" />
                 <HistorySummaryCard label="Deleted" value={deletedRecords.length} tone="amber" />
+              </div>
+              <div className="admin-g2 border border-cyan-300/20 bg-cyan-300/10 p-4">
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/75">Local JSON Schema</div>
+                <p className="mt-2 text-sm font-semibold leading-relaxed text-cyan-50/85">
+                  The full archive downloads a local `.json` file to this computer with `ScoutArchiveBundle` schema v8. It preserves every Match Scout V4 version, `currentVersionSubmitted`, `submissionNumber`, tombstones, sync state, and PowerCoin rows.
+                </p>
+                <p className="mt-2 text-xs font-semibold leading-relaxed text-cyan-100/70">
+                  Schema doc: docs/scout-archive-json-schema-2026-06-29.md. If the browser blocks the download, no local records are deleted; reopen History and export again.
+                </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-800 px-5 py-4">
