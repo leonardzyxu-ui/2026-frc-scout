@@ -35,7 +35,7 @@ public struct PowerScoutContentView: View {
             VStack(alignment: .leading, spacing: 18) {
                 switch store.selection {
                 case .dashboard:
-                    DashboardView(store: store, openURL: openURL)
+                    DashboardView()
                 case .liveOps:
                     LiveOpsView(store: store, openURL: openURL)
                 case .systemAudit:

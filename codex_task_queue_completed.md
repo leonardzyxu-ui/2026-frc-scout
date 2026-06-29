@@ -1,5 +1,6 @@
 # Scouting Task Queue (Completed)
 
+- [x] Create a step-by-step Render + Upstash relay setup HTML file on Leo's Desktop.
 - [x] Record the final QA subagent reports for Curie/WebLogic, Leibniz/MathModel, and Plato/MacParity with exact model and reasoning specs.
 - [x] Fix scout pager inbox delivery so messages from prior events cannot appear in the current event's Match Scout V4 inbox.
 - [x] Wire `defenseDuringOwnShiftCredit` into shift strategy math so own-shift defense is credited as a real configurable brake instead of a no-op.
@@ -154,4 +155,9 @@
 - [x] Add huge projected red score vs blue score display to the next-match dashboard, with red number, small yellow `vs`, and blue number, mirrored on web and Mac.
 - [x] Tighten projected-score spacing around `vs`, show the three alliance team numbers under each score, and use a cooler scoreboard-style display font where possible.
 - [x] Mirror the next-match dashboard concept into the PowerScout Mac app and launch the app for Leo to inspect.
+- [x] Add a dedicated Render-ready `scouting-relay` service in the scouting repo so Leo can deploy a team-account relay from the Web Service screen.
+- [x] Update the Desktop Render + Upstash checklist with exact current Render field values for the new scouting-only relay server.
+- [x] Remove the old bottom workspace/readiness chunk from the PowerScout Next Match Dashboard so the dashboard only shows match-decision content.
+- [x] Find Leo's existing Cloudflare Worker relay project in the Developer folders and report the exact path, config, and safe deploy/check commands without exposing secrets.
+- [x] Clean up dead `DashboardView` dependencies after removing the old bottom workspace/readiness chunk.
 ---

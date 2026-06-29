@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PowerScout Relay Setup: Render + Upstash</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b14;
+      --panel: #111927;
+      --panel2: #182335;
+      --text: #eef6ff;
+      --muted: #aab8cc;
+      --line: #28425f;
+      --cyan: #67e8f9;
+      --green: #74f7ae;
+      --yellow: #ffe381;
+      --red: #ff8585;
+      --blue: #7db7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, #17243a, var(--bg) 46%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 38px 22px 80px;
+    }
+    header, section {
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: rgba(17, 25, 39, 0.9);
+      box-shadow: 0 22px 70px rgba(0, 0, 0, 0.32);
+    }
+    header { padding: 34px; }
+    section { padding: 26px; margin-top: 18px; }
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(36px, 5vw, 66px);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+    h2 { margin: 0 0 12px; font-size: 25px; letter-spacing: 0; }
+    h3 { margin: 22px 0 8px; font-size: 18px; }
+    p, li, td { color: var(--muted); }
+    strong, th { color: var(--text); }
+    a { color: var(--cyan); }
+    code, pre {
+      font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    }
+    code {
+      color: var(--yellow);
+      background: rgba(255, 227, 129, 0.08);
+      border: 1px solid rgba(255, 227, 129, 0.18);
+      border-radius: 8px;
+      padding: 2px 6px;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 16px;
+      border-radius: 18px;
+      background: #060a12;
+      border: 1px solid rgba(125, 183, 255, 0.22);
+      color: #d8e8ff;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid rgba(125, 183, 255, 0.18);
+      margin: 14px 0 4px;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(125, 183, 255, 0.14);
+    }
+    tr:last-child th, tr:last-child td { border-bottom: 0; }
+    th { background: rgba(125, 183, 255, 0.1); }
+    .eyebrow {
+      color: var(--cyan);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .card {
+      border: 1px solid rgba(125, 183, 255, 0.18);
+      border-radius: 22px;
+      background: rgba(24, 35, 53, 0.82);
+      padding: 20px;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 16px;
+      padding: 18px 0;
+      border-top: 1px solid rgba(125, 183, 255, 0.16);
+    }
+    .step:first-of-type { border-top: 0; }
+    .num {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(103, 232, 249, 0.15);
+      color: var(--cyan);
+      border: 1px solid rgba(103, 232, 249, 0.42);
+      font-weight: 900;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(103, 232, 249, 0.28);
+      background: rgba(103, 232, 249, 0.11);
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+    .warn { color: var(--yellow); font-weight: 800; }
+    .bad { color: var(--red); font-weight: 800; }
+    .good { color: var(--green); font-weight: 800; }
+    .callout {
+      border-color: rgba(255, 227, 129, 0.38);
+      background: rgba(255, 227, 129, 0.08);
+    }
+    .danger {
+      border-color: rgba(255, 133, 133, 0.42);
+      background: rgba(255, 133, 133, 0.08);
+    }
+    .small { font-size: 13px; color: #8291a8; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">PowerScout relay setup</div>
+      <h1>New Render + Upstash Relay Server</h1>
+      <p>
+        This checklist is for the <strong>new scouting-only relay server</strong> using the team account.
+        It is not the old DirectChat or The Button setup. The goal is a clean relay endpoint for PowerScout,
+        the Firebase scouting website, and scout devices.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <span class="pill">What Render runs</span>
+          <h2><code>scouting-relay</code></h2>
+          <p>A small Node service inside the scouting repo. It exposes health checks and scout pager APIs.</p>
+        </div>
+        <div class="card">
+          <span class="pill">What Upstash stores</span>
+          <h2>Redis message state</h2>
+          <p>Event-scoped head-scout pings, scout inbox messages, and short-lived relay state.</p>
+        </div>
+        <div class="card">
+          <span class="pill">What stays local</span>
+          <h2>Secrets</h2>
+          <p>Tokens go in Render environment variables, never in Firebase-hosted client code or screenshots.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="danger">
+      <h2>Fix The Render Screen You Are On Right Now</h2>
+      <p>The screenshot shows Render trying to deploy the whole app as a normal frontend. For this relay, change these fields before clicking deploy:</p>
+      <table>
+        <tr><th>Render field</th><th>Fill this in</th><th>Why</th></tr>
+        <tr><td>Name</td><td><code>powerscout-relay</code></td><td>A clear service name for the scouting-only relay.</td></tr>
+        <tr><td>Language</td><td><code>Node</code></td><td>Correct.</td></tr>
+        <tr><td>Branch</td><td><code>main</code></td><td>Use the branch that contains the <code>scouting-relay</code> folder on GitHub. If this folder is not pushed yet, do not deploy yet.</td></tr>
+        <tr><td>Region</td><td><code>Oregon (US West)</code></td><td>Fine for the current screen. If Render offers Singapore later, that may be better for Sanya.</td></tr>
+        <tr><td>Root Directory</td><td><code>scouting-relay</code></td><td>This is the critical fix. Render must run only the relay folder, not the Firebase/Vite app.</td></tr>
+        <tr><td>Build Command</td><td><code>npm install &amp;&amp; npm run check</code></td><td>Installs the relay deps and runs the relay smoke tests before deploy.</td></tr>
+        <tr><td>Start Command</td><td><code>npm start</code></td><td>Starts <code>node src/server.js</code>. Replace the auto-filled <code>yarn start</code>.</td></tr>
+      </table>
+      <p class="warn">
+        Do not use <code>npm install; npm run build</code> or <code>yarn start</code> for this relay. Those are wrong for the service shown here.
+      </p>
+    </section>
+
+    <section>
+      <h2>Before Render: Create The Upstash Database</h2>
+      <div class="step">
+        <div class="num">1</div>
+        <div>
+          <strong>Open Upstash</strong>
+          <p>Log in with the team Google account at <a href="https://upstash.com/">upstash.com</a>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div>
+          <strong>Create a Redis database</strong>
+          <p>Use this name:</p>
+          <pre>powerscout-relay-prod</pre>
+          <p>Choose the closest free/available region. For Sanya, prefer an Asia region if available; otherwise use the default free region.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div>
+          <strong>Copy REST credentials</strong>
+          <p>In the Upstash database details page, copy these exact two values. You will paste them into Render later:</p>
+          <pre>UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN</pre>
+          <p class="warn">Do not paste these into chat, GitHub, Firebase, or screenshots.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Render Setup: Exact Click Path</h2>
+      <div class="step">
+        <div class="num">1</div>
+        <div>
+          <strong>Open Render Dashboard</strong>
+          <p>Use the team account. Click <strong>New</strong> then <strong>Web Service</strong>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div>
+          <strong>Select source repo</strong>
+          <p>Choose:</p>
+          <pre>leonardzyxu-ui / 2026-frc-scout</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div>
+          <strong>Fill the Configure screen</strong>
+          <p>Use exactly this table:</p>
+          <table>
+            <tr><th>Field</th><th>Value</th></tr>
+            <tr><td>Name</td><td><code>powerscout-relay</code></td></tr>
+            <tr><td>Language</td><td><code>Node</code></td></tr>
+            <tr><td>Branch</td><td><code>main</code></td></tr>
+            <tr><td>Region</td><td><code>Oregon (US West)</code></td></tr>
+            <tr><td>Root Directory</td><td><code>scouting-relay</code></td></tr>
+            <tr><td>Build Command</td><td><code>npm install &amp;&amp; npm run check</code></td></tr>
+            <tr><td>Start Command</td><td><code>npm start</code></td></tr>
+            <tr><td>Instance Type</td><td><code>Free</code> for first setup; upgrade later if sleep/wake latency hurts match-day use.</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div>
+          <strong>Add environment variables before deploying</strong>
+          <p>Open the Environment section on the same Render setup page and add:</p>
+          <table>
+            <tr><th>Key</th><th>Value</th><th>Where it comes from</th></tr>
+            <tr><td><code>NODE_ENV</code></td><td><code>production</code></td><td>Type it exactly.</td></tr>
+            <tr><td><code>UPSTASH_REDIS_REST_URL</code></td><td><code>&lt;paste from Upstash&gt;</code></td><td>Upstash database REST URL.</td></tr>
+            <tr><td><code>UPSTASH_REDIS_REST_TOKEN</code></td><td><code>&lt;paste from Upstash&gt;</code></td><td>Upstash database REST token.</td></tr>
+            <tr><td><code>POWERSCOUT_RELAY_ADMIN_TOKEN</code></td><td><code>&lt;new random secret&gt;</code></td><td>Use a password manager or <code>openssl rand -hex 32</code>.</td></tr>
+            <tr><td><code>POWERSCOUT_RELAY_SCOUT_TOKEN</code></td><td><code>&lt;different random secret&gt;</code></td><td>Use a different secret from the admin token.</td></tr>
+            <tr><td><code>POWERSCOUT_RELAY_ALLOWED_ORIGINS</code></td><td><code>https://scout-rebuilt-2026.web.app,http://localhost:3000,http://127.0.0.1:5188</code></td><td>Add official custom domains later, separated by commas.</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">5</div>
+        <div>
+          <strong>Click Deploy Web Service</strong>
+          <p>Only click deploy after the <code>scouting-relay</code> folder exists on the GitHub branch Render is using.</p>
+          <p class="bad">If Render says the root directory does not exist, stop. The relay folder has not been pushed to that branch yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>After Deploy: Verify It Works</h2>
+      <p>Render will give you a service URL like:</p>
+      <pre>https://powerscout-relay.onrender.com</pre>
+      <h3>Health check</h3>
+      <pre>curl -sS https://YOUR-RENDER-SERVICE.onrender.com/health</pre>
+      <p>Expected result:</p>
+      <pre>{
+  "ok": true,
+  "service": "powerscout-relay",
+  "runtime": "render-upstash",
+  "storage": "upstash"
+}</pre>
+      <p class="warn">If <code>storage</code> says <code>memory</code>, the Upstash environment variables are missing or wrong.</p>
+
+      <h3>Admin stats check</h3>
+      <pre>curl -sS \
+  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
+  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/stats?eventKey=2026CASNV"</pre>
+
+      <h3>Send one test scout message</h3>
+      <pre>curl -sS -X POST \
+  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventKey": "2026CASNV",
+    "recipient": { "kind": "scout", "scoutNumber": 7, "scoutName": "Test Scout" },
+    "title": "Relay test",
+    "body": "If this appears, PowerScout relay messages are working.",
+    "ttlMs": 600000
+  }' \
+  https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages</pre>
+
+      <h3>Read the test message as Scout #7</h3>
+      <pre>curl -sS \
+  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_SCOUT_TOKEN&gt;" \
+  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages?eventKey=2026CASNV&amp;scoutNumber=7"</pre>
+    </section>
+
+    <section>
+      <h2>Connect It To PowerScout And Firebase</h2>
+      <p>Once the Render service passes the checks above, record this information for the app configuration:</p>
+      <table>
+        <tr><th>Thing</th><th>Value to keep</th></tr>
+        <tr><td>Relay base URL</td><td><code>https://YOUR-RENDER-SERVICE.onrender.com</code></td></tr>
+        <tr><td>Admin token</td><td><code>POWERSCOUT_RELAY_ADMIN_TOKEN</code> value from Render</td></tr>
+        <tr><td>Scout token</td><td><code>POWERSCOUT_RELAY_SCOUT_TOKEN</code> value from Render</td></tr>
+        <tr><td>Storage health</td><td><code>storage: upstash</code> from <code>/health</code></td></tr>
+      </table>
+      <p class="warn">Do not put the admin token in scout browsers. Scout devices should only ever receive the scout token or a narrower future per-device token.</p>
+    </section>
+
+    <section>
+      <h2>Existing Backup Relay Found</h2>
+      <p>The existing Cloudflare Worker relay that can act as VPN/global fallback is:</p>
+      <pre>https://directchat-relay.leonard-zy-xu.workers.dev/</pre>
+      <p>Health check:</p>
+      <pre>curl -sS https://directchat-relay.leonard-zy-xu.workers.dev/health</pre>
+      <p>Known local project path:</p>
+      <pre>/Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/developer/DirectChatRelay</pre>
+      <p class="small">This is useful as a backup lane, especially outside mainland China or with VPN. The new Render service above should be the clean scouting-only relay.</p>
+    </section>
+
+    <section class="callout">
+      <h2>Most Common Failure Modes</h2>
+      <table>
+        <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+        <tr><td>Render build cannot find package files</td><td>Wrong root directory</td><td>Set Root Directory to <code>scouting-relay</code>.</td></tr>
+        <tr><td>Render tries <code>npm run build</code></td><td>Auto-filled frontend build command</td><td>Replace with <code>npm install &amp;&amp; npm run check</code>.</td></tr>
+        <tr><td>Render tries <code>yarn start</code></td><td>Auto-filled start command</td><td>Replace with <code>npm start</code>.</td></tr>
+        <tr><td><code>/health</code> says <code>storage: memory</code></td><td>Upstash vars missing or typoed</td><td>Paste <code>UPSTASH_REDIS_REST_URL</code> and <code>UPSTASH_REDIS_REST_TOKEN</code> again.</td></tr>
+        <tr><td>Browser scout inbox CORS error</td><td>Origin not allowed</td><td>Add the exact site origin to <code>POWERSCOUT_RELAY_ALLOWED_ORIGINS</code>.</td></tr>
+        <tr><td>401 on pager routes</td><td>Wrong token or missing Bearer header</td><td>Use <code>Authorization: Bearer &lt;token&gt;</code>.</td></tr>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

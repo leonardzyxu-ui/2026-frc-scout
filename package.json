@@ -23,6 +23,8 @@
     "capture:ppt-background": "node scripts/scouting-ppt-background.mjs",
     "report:morning": "node scripts/scouting-morning-report.mjs",
     "env:seed:tba": "node scripts/seed-tba-env.mjs",
+    "relay:check": "npm --prefix scouting-relay install && npm --prefix scouting-relay run check",
+    "powerscout:capture-window": "bash PowerScout/script/capture_window.sh",
     "powerscout:post-match-refresh": "node scripts/powerscout-post-match-refresh.mjs",
     "smoke": "node tests/smoke.mjs",
     "model:init": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts init",

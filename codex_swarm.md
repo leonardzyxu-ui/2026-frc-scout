@@ -79,7 +79,19 @@ Find concrete code, math, or logic bugs in the PowerScout/scouting web app, Mac 
 | Lovelace-MacParity-Retry | ENDQA-MAC-001R | Verifier | gpt-5.3-codex-spark / high | launch | read-only; no file changes | launched | Original gpt-5.4-mini agent errored at capacity; Spark high is allowed and cheap for bounded native parity verification. | 2026-06-29T09:38:25+00:00 |
 | Turing-MathModel-Retry / Leibniz | ENDQA-MATH-001R | Verifier | gpt-5.3-codex-spark / high | close | read-only; no file changes | completed; found medium bug | Integrating finding in main thread. | 2026-06-29T09:42:59+00:00 |
 | Lovelace-MacParity-Retry / Plato | ENDQA-MAC-001R | Verifier | gpt-5.3-codex-spark / high | close | read-only; no file changes | completed; found medium bug | Integrating finding in main thread. | 2026-06-29T09:43:56+00:00 |
+| Cloudflare-Worker-Finder | CF-WORKER-FIND-001 | read-only explorer | gpt-5.3-codex-spark / medium | launch | read-only; no file changes | launched | Leo explicitly allowed an agent for a broad whole-Developer-folder Cloudflare Worker search; the task is separable and read-only. | 2026-06-29T10:11:14+00:00 |
+| Erdos / Relay-Setup-Auditor | RELAY-SETUP-AUDIT-002 | read-only verifier | gpt-5.4-mini / medium | launch | read-only; no file changes | launched | Relay setup is separable and benefits from independent verification while the main thread continues app/build work. | 2026-06-29T11:58:09+00:00 |
+| Laplace / Mac-Dashboard-QA | MAC-DASH-QA-002 | read-only verifier | gpt-5.4-mini / medium | launch | read-only; no screenshots; no file changes | launched | Mac app quality and screenshot hygiene are separable from relay setup and should be independently checked. | 2026-06-29T11:58:09+00:00 |
+| Peirce / Queue-Steward | QUEUE-STEWARD-003 | scoped worker | gpt-5.3-codex-spark / medium | launch | scoped edits only: codex_task_queue.md and codex_task_queue_completed.md | launched | Queue cleanup is mechanical and separable, exactly the kind of work that should not occupy the main conductor. | 2026-06-29T11:58:09+00:00 |
+| Peirce / Queue-Steward | QUEUE-STEWARD-003 | scoped worker | gpt-5.3-codex-spark / medium | close | scoped edits only: codex_task_queue.md and codex_task_queue_completed.md | completed | Queue cleanup completed; main conductor will inspect diff. | 2026-06-29T12:01:31+00:00 |
+| Erdos / Relay-Setup-Auditor | RELAY-SETUP-AUDIT-002 | read-only verifier | gpt-5.4-mini / medium | close | read-only; no file changes | completed; no setup blockers found |  | 2026-06-29T12:01:56+00:00 |
+| Laplace / Mac-Dashboard-QA | MAC-DASH-QA-002 | read-only verifier | gpt-5.4-mini / medium | close | read-only; no screenshots; no file changes | errored; selected model at capacity |  | 2026-06-29T12:01:56+00:00 |
+| Boyle / Mac-Dashboard-QA-Retry | MAC-DASH-QA-002R | read-only verifier | gpt-5.3-codex-spark / high | launch | read-only; no screenshots; no file changes | launched | Previous Mac QA agent hit capacity; the task still matters and can run on Spark high safely. | 2026-06-29T12:02:44+00:00 |
+| Boyle / Mac-Dashboard-QA-Retry | MAC-DASH-QA-002R | read-only verifier | gpt-5.3-codex-spark / high | close | read-only; no screenshots; no file changes | completed; found dead dependency cleanup |  | 2026-06-29T12:06:53+00:00 |
+| Cloudflare-Worker-Finder / Linnaeus | CF-WORKER-FIND-001 | read-only explorer | gpt-5.3-codex-spark / medium | close | read-only; no file changes | closed after local search answered task |  | 2026-06-29T12:08:02+00:00 |
 
 ## Integration Notes
 
+
 ## Safety And Scope Notes
+
