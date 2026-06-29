@@ -108,7 +108,7 @@
 - [x] Add a top-right gear settings view showing locked scout name/number, Scout History link, all-history export, and passphrase-gated identity edits.
 - [x] Design history export selection and version-sync metadata so scout/admin sides preserve every version and sync the newest version both ways.
 - [x] Build Match Scout shift UI first slice with Auto Shift, first-alliance-shift toggle, red/blue ordered shift panels, offense counters only while editing, single-target defense share, and stockpile instructions.
-- [ ] Simplify alliance-selection strategy objective: ignore qualification RP incentives and rank available partners/combinations by maximizing our positive expected point-difference contribution after role simulation.
+- [x] Simplify alliance-selection strategy objective: ignore qualification RP incentives and rank available partners/combinations by maximizing our positive expected point-difference contribution after role simulation.
 - [x] Research whether practice match official scores, alliance totals, winners, and RP-like threshold data are available online/API; if not, add a practice-scorekeeper scouting role.
 - [x] Adopt Leo's `ditch x` convention: remove `x` from active model inputs and scout collection, while preserving backward-compatible reads of older records unless purge is explicitly requested.
 - [x] Ditch cycles from active scouting inputs and model-facing Match Scout V4 summaries.

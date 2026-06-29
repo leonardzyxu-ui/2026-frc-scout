@@ -73,6 +73,16 @@ export interface ShiftStrategyOptions {
   trailingBy?: number;
 }
 
+export interface AllianceSelectionCombinationRanking {
+  rank: number;
+  candidateTeamNumbers: string[];
+  expectedPointDifferenceContribution: number;
+  expectedMargin: number;
+  winProbability: number;
+  ourBestPlan: ShiftAllianceRolePlan;
+  opponentBestPlan: ShiftAllianceRolePlan;
+}
+
 const DEFAULT_OPTIONS = {
   stockpileBoostPerRobot: 0.08,
   stockpileDeviationScale: 0.5,
@@ -289,4 +299,62 @@ export const compareAllianceStrategies = (
     blueSuperchargedProbability: probabilityAtLeast(expectedBlueScore, blueBestPlan.pointDifferenceDeviation, mergedOptions.superchargedThreshold),
     warnings: [redBestPlan.saturationWarning, blueBestPlan.saturationWarning].filter((warning): warning is string => !!warning)
   };
+};
+
+const chooseCombinations = <T>(items: T[], size: number): T[][] => {
+  if (size <= 0) return [[]];
+  if (items.length < size) return [];
+  const results: T[][] = [];
+  const visit = (start: number, combo: T[]) => {
+    if (combo.length === size) {
+      results.push(combo);
+      return;
+    }
+    for (let index = start; index < items.length; index += 1) {
+      const item = items[index];
+      if (item !== undefined) visit(index + 1, [...combo, item]);
+    }
+  };
+  visit(0, []);
+  return results;
+};
+
+export const rankAllianceSelectionCombinations = ({
+  lockedTeams,
+  candidateTeams,
+  opponentTeams,
+  allianceSize = 3,
+  options = {}
+}: {
+  lockedTeams: ShiftStrategyTeamInput[];
+  candidateTeams: ShiftStrategyTeamInput[];
+  opponentTeams: ShiftStrategyTeamInput[];
+  allianceSize?: number;
+  options?: ShiftStrategyOptions;
+}): AllianceSelectionCombinationRanking[] => {
+  const neededPartners = Math.max(0, allianceSize - lockedTeams.length);
+  return chooseCombinations(candidateTeams, neededPartners)
+    .map(combo => {
+      const result = compareAllianceStrategies(
+        [...lockedTeams, ...combo],
+        opponentTeams,
+        { ...options, strategyObjective: 'alliance-selection' }
+      );
+      return {
+        rank: 0,
+        candidateTeamNumbers: combo.map(team => team.teamNumber),
+        expectedPointDifferenceContribution: result.redBestPlan.pointDifferenceMean,
+        expectedMargin: result.expectedMargin,
+        winProbability: result.redWinProbability,
+        ourBestPlan: result.redBestPlan,
+        opponentBestPlan: result.blueBestPlan
+      };
+    })
+    .sort((left, right) =>
+      right.expectedPointDifferenceContribution - left.expectedPointDifferenceContribution ||
+      right.expectedMargin - left.expectedMargin ||
+      right.winProbability - left.winProbability ||
+      left.candidateTeamNumbers.join(',').localeCompare(right.candidateTeamNumbers.join(','))
+    )
+    .map((row, index) => ({ ...row, rank: index + 1 }));
 };

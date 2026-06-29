@@ -480,7 +480,7 @@ export function AdminV4PickListWorkflow({
               <div className="admin-g2-sm border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
                 <div className="font-black text-white">Decision Rules</div>
                 <div className="mt-3 space-y-2">
-                  <div>Use expected value as the strength lens.</div>
+                  <div>Ignore qualification RP here; alliance selection is playoff point-difference contribution.</div>
                   <div>Use floor, ceiling, and tail risk before trusting it.</div>
                   <div>Use role fit to avoid three robots doing the same job.</div>
                   <div>Use Our Pick only for teams on our alliance; use Taken when another alliance removes a team.</div>

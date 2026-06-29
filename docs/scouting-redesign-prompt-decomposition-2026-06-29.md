@@ -56,6 +56,9 @@ Status: living decomposition. The pasted file is treated as source material, not
 12. `Done` - Ranking-point incentives should influence plan choice.
     Evidence: `selectAllianceRolePlan()` supports `qualification-rp`, while `alliance-selection` and default `point-difference` preserve pure margin selection. Tests prove RP threshold safety can beat pure point-difference when configured.
 
+12a. `Done` - Alliance selection should ignore qualification RP and rank partners/combinations by playoff point-difference contribution.
+    Evidence: `rankAllianceSelectionCombinations()` in `shiftStrategyEngine.ts` ranks partner sets using `strategyObjective: 'alliance-selection'`, Admin Pick List decision rules say to ignore qualification RP, and tests prove RP bait does not beat the best point-difference partner set.
+
 ## Match Scout Shift UI
 
 13. `Partial` - Shift-aware V4 data structure.

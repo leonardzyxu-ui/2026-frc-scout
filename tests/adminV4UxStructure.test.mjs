@@ -835,6 +835,7 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
   assert.match(ppaSource, /Treat Team \$\{teamNumber\} as/);
   assert.doesNotMatch(ppaSource, /sourceModelName\} says Team/);
   assert.match(pickListSource, /Pick Score/);
+  assert.match(pickListSource, /Ignore qualification RP here; alliance selection is playoff point-difference contribution/);
   assert.match(teamEvidenceSource, /Contribution Range Shape/);
   assert.doesNotMatch(
     [chartSource, ppaPanelSource, pickListSource, teamEvidenceSource, visualizeSource, adminSource].join('\n'),

@@ -4,6 +4,7 @@ import {
   compareAllianceStrategies,
   enumerateAllianceRolePlans,
   probabilityAtLeast,
+  rankAllianceSelectionCombinations,
   selectAllianceRolePlan
 } from '../src/utils/shiftStrategyEngine.ts';
 
@@ -108,4 +109,53 @@ test('variance-gamble objective can choose a lower-mean higher-variance plan whe
 
   assert.equal(selectAllianceRolePlan([safePlan, swingPlan], { strategyObjective: 'point-difference' }).label, 'safe');
   assert.equal(selectAllianceRolePlan([safePlan, swingPlan], { strategyObjective: 'variance-gamble', trailingBy: 20, varianceGambleWeight: 1 }).label, 'swing');
+});
+
+test('alliance-selection objective ignores RP incentives and ranks by point-difference contribution', () => {
+  const pointDiffPlan = {
+    label: 'point-diff',
+    pointDifferenceMean: 120,
+    pointDifferenceDeviation: 8,
+    offenseMean: 80,
+    energizedProbability: 0.2,
+    superchargedProbability: 0,
+    qualificationUtility: 120,
+    varianceGambleUtility: 120,
+    allianceSelectionUtility: 120,
+    assignments: []
+  };
+  const rpPlan = {
+    ...pointDiffPlan,
+    label: 'rp-bait',
+    pointDifferenceMean: 90,
+    energizedProbability: 1,
+    superchargedProbability: 1,
+    qualificationUtility: 500,
+    allianceSelectionUtility: 90
+  };
+
+  assert.equal(selectAllianceRolePlan([pointDiffPlan, rpPlan], { strategyObjective: 'qualification-rp', rpUtilityWeight: 300 }).label, 'rp-bait');
+  assert.equal(selectAllianceRolePlan([pointDiffPlan, rpPlan], { strategyObjective: 'alliance-selection', rpUtilityWeight: 300 }).label, 'point-diff');
+});
+
+test('alliance-selection combination ranker chooses the best partner set by role-simulated point difference', () => {
+  const rankings = rankAllianceSelectionCombinations({
+    lockedTeams: [
+      { teamNumber: '254', contribution: 80, contributionDeviation: 8, defense: 20, defenseDeviation: 4 }
+    ],
+    candidateTeams: [
+      { teamNumber: 'safe-rp', contribution: 15, contributionDeviation: 2, defense: 5, defenseDeviation: 1, traversal: 100, traversalDeviation: 1 },
+      { teamNumber: 'defender', contribution: 25, contributionDeviation: 4, defense: 80, defenseDeviation: 6 },
+      { teamNumber: 'scorer', contribution: 70, contributionDeviation: 7, defense: 10, defenseDeviation: 2 }
+    ],
+    opponentTeams: [
+      { teamNumber: 'opp1', contribution: 90, contributionDeviation: 8, defense: 0, defenseDeviation: 0 },
+      { teamNumber: 'opp2', contribution: 60, contributionDeviation: 7, defense: 0, defenseDeviation: 0 },
+      { teamNumber: 'opp3', contribution: 30, contributionDeviation: 5, defense: 0, defenseDeviation: 0 }
+    ]
+  });
+
+  assert.deepEqual(rankings[0].candidateTeamNumbers.sort(), ['defender', 'scorer']);
+  assert.equal(rankings[0].rank, 1);
+  assert.ok(rankings[0].expectedPointDifferenceContribution > rankings[1].expectedPointDifferenceContribution);
 });
