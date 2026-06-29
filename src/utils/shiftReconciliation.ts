@@ -38,6 +38,12 @@ export interface FirstShiftScoutReport {
   firstShiftAlliance: 'Red' | 'Blue' | '';
 }
 
+export interface MatchScoutingV4FirstShiftReportSource {
+  scoutName?: string;
+  assignedScoutName?: string;
+  teleopFirstShiftAlliance?: 'Red' | 'Blue' | '';
+}
+
 export interface FirstShiftConsensus {
   consensus: 'Red' | 'Blue' | null;
   counts: Record<'Red' | 'Blue', number>;
@@ -58,6 +64,9 @@ export interface FirstShiftCorrectionNotice {
 
 const uniqueCleanNames = (names: string[]) =>
   Array.from(new Set(names.map(name => name.trim()).filter(Boolean)));
+
+const normalizeFirstShiftAlliance = (value: unknown): 'Red' | 'Blue' | '' =>
+  value === 'Red' || value === 'Blue' ? value : '';
 
 export const reconcileAllianceContributions = (
   rows: AllianceContributionInput[],
@@ -145,6 +154,14 @@ export const normalizeDefenseShares = (
     warnings
   };
 };
+
+export const buildFirstShiftReportsFromMatchScoutingV4 = (
+  records: MatchScoutingV4FirstShiftReportSource[]
+): FirstShiftScoutReport[] =>
+  records.map(record => ({
+    scoutName: (record.assignedScoutName || record.scoutName || '').trim(),
+    firstShiftAlliance: normalizeFirstShiftAlliance(record.teleopFirstShiftAlliance)
+  }));
 
 export const detectFirstShiftConsensus = (reports: FirstShiftScoutReport[]): FirstShiftConsensus => {
   const counts = reports.reduce<Record<'Red' | 'Blue', number>>((acc, report) => {

@@ -64,6 +64,7 @@
 - [x] Add stable first-shift UI test hooks for browser QA and future e2e coverage.
 - [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
 - [x] Add a match-scoped first-shift correction notice payload for the future scout notification channel.
+- [x] Add the adapter that feeds Match Scout V4 `teleopFirstShiftAlliance` rows into the first-shift correction workflow.
 - [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
 - [x] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
 - [x] Add browser-cache export support for detailed JSON with export time and scout metadata.

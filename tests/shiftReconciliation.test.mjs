@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildFirstShiftCorrectionNotice,
+  buildFirstShiftReportsFromMatchScoutingV4,
   detectFirstShiftConsensus,
   normalizeDefenseShares,
   reconcileAllianceContributions
@@ -83,4 +84,26 @@ test('first-shift correction notice is not created when scouts agree', () => {
   });
 
   assert.equal(notice, null);
+});
+
+test('Match Scout V4 first-shift metadata feeds the correction workflow', () => {
+  const reports = buildFirstShiftReportsFromMatchScoutingV4([
+    { scoutName: 'Device A', assignedScoutName: 'Scout A', teleopFirstShiftAlliance: 'Red' },
+    { scoutName: 'Device B', assignedScoutName: 'Scout B', teleopFirstShiftAlliance: 'Blue' },
+    { scoutName: 'Device C', assignedScoutName: 'Scout C', teleopFirstShiftAlliance: 'Red' }
+  ]);
+  const notice = buildFirstShiftCorrectionNotice({
+    matchKey: 'qm14',
+    reports
+  });
+
+  assert.deepEqual(reports, [
+    { scoutName: 'Scout A', firstShiftAlliance: 'Red' },
+    { scoutName: 'Scout B', firstShiftAlliance: 'Blue' },
+    { scoutName: 'Scout C', firstShiftAlliance: 'Red' }
+  ]);
+  assert.ok(notice);
+  assert.equal(notice.consensus, 'Red');
+  assert.deepEqual(notice.targetScoutNames, ['Scout A', 'Scout B', 'Scout C']);
+  assert.match(notice.message, /QM14/);
 });
