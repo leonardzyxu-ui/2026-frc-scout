@@ -19,6 +19,44 @@ export interface LocalFirstSyncDecision {
   preserveBoth: boolean;
 }
 
+const CONTENT_HASH_IGNORED_KEYS = new Set([
+  'timestamp',
+  'deviceId',
+  'editHistory',
+  'currentVersionSubmitted',
+  'submissionNumber',
+  'submittedAt',
+  'lastFirebaseAttemptAt',
+  'lastFirebaseError',
+  'syncStatus'
+]);
+
+export const stableLocalFirstStringify = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableLocalFirstStringify).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => !CONTENT_HASH_IGNORED_KEYS.has(key))
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableLocalFirstStringify(item)}`)
+      .join(',')}}`;
+  }
+
+  return JSON.stringify(value) ?? 'undefined';
+};
+
+export const stableLocalFirstContentHash = (value: unknown) => {
+  const text = stableLocalFirstStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
 const normalizeVersion = (value: unknown) => {
   const version = Math.trunc(Number(value));
   return Number.isFinite(version) && version >= 1 ? version : 1;

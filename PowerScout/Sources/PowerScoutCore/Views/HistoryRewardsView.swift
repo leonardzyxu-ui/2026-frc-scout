@@ -3,6 +3,10 @@ import SwiftUI
 struct HistoryRewardsView: View {
     let openURL: OpenURLAction
     @State private var eventKey = "2026MNUM"
+    @State private var syncSnapshot: PowerScoutSyncSnapshot?
+    @State private var syncLedgerError = ""
+
+    private let syncLedgerStore = PowerScoutSyncLedgerStore()
 
     private var wallet: PowerCoinWalletSnapshot {
         PowerScoutKnowledgeBase.walletSnapshot
@@ -24,7 +28,7 @@ struct HistoryRewardsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Event mirror")
                             .font(.title3.weight(.bold))
-                        Text("PowerScout shows the native readout first, then opens the exact web cache and Admin controls while the local database bridge is being built.")
+                        Text("PowerScout keeps its own local sync ledger, mirrors the scout browser cache contract, and opens the exact web cache/Admin controls when deeper review is needed.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -35,6 +39,75 @@ struct HistoryRewardsView: View {
                     ))
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
+                }
+            }
+
+            PSCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "externaldrive.fill.badge.checkmark")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Local-First Sync Ledger")
+                                .font(.title3.weight(.bold))
+                            Text(syncSnapshot?.summary ?? "Loading PowerScout local sync ledger...")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button {
+                            refreshSyncLedger()
+                        } label: {
+                            Label("Refresh Ledger", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if let syncSnapshot {
+                        Text(syncSnapshot.ledgerURLPath)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                            .textSelection(.enabled)
+
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
+                            ForEach(syncSnapshot.entries) { entry in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text(entry.surface)
+                                            .font(.headline)
+                                        Spacer()
+                                        PSTag(text: entry.status, color: syncColor(for: entry.status))
+                                    }
+                                    Text(entry.role)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 10) {
+                                        syncMetric("v", entry.currentVersion)
+                                        syncMetric("kept", entry.preservedVersions)
+                                        syncMetric("conflicts", entry.conflicts)
+                                    }
+                                    Text(entry.detail)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            }
+                        }
+
+                        Text(syncSnapshot.nextAction)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.green)
+                    }
+
+                    if !syncLedgerError.isEmpty {
+                        Text(syncLedgerError)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.red)
+                    }
                 }
             }
 
@@ -101,7 +174,7 @@ struct HistoryRewardsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Next Native Slice")
                         .font(.title3.weight(.bold))
-                    Text("Replace this read-only mirror with the local-first database bridge: PowerScout local storage, Firebase, and scout browser caches preserving every version of every match row.")
+                    Text("Promote the local sync ledger from status tracking into real imported scout-cache rows, Firebase pull snapshots, and conflict review actions inside PowerScout.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 12) {
@@ -114,6 +187,9 @@ struct HistoryRewardsView: View {
                     }
                 }
             }
+        }
+        .task {
+            loadSyncLedger()
         }
     }
 
@@ -135,6 +211,42 @@ struct HistoryRewardsView: View {
 
     private func formatDelta(_ value: Int) -> String {
         value > 0 ? "+\(value)" : "\(value)"
+    }
+
+    private func loadSyncLedger() {
+        do {
+            syncSnapshot = try syncLedgerStore.loadSnapshot()
+            syncLedgerError = ""
+        } catch {
+            syncLedgerError = error.localizedDescription
+        }
+    }
+
+    private func refreshSyncLedger() {
+        do {
+            syncSnapshot = try syncLedgerStore.refreshSnapshot()
+            syncLedgerError = ""
+        } catch {
+            syncLedgerError = error.localizedDescription
+        }
+    }
+
+    private func syncMetric(_ label: String, _ value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label.uppercased())
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
+            Text("\(value)")
+                .font(.headline.monospacedDigit())
+        }
+    }
+
+    private func syncColor(for status: String) -> Color {
+        let normalized = status.lowercased()
+        if normalized.contains("ready") || normalized.contains("active") { return .green }
+        if normalized.contains("conflict") { return .red }
+        if normalized.contains("planned") { return .orange }
+        return .blue
     }
 
     private func color(for tone: String) -> Color {

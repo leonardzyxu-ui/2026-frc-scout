@@ -238,6 +238,17 @@ export const getMatchDefenseDocId = (record: Pick<MatchDefenseScoutingV1, 'match
 export const getPitDocId = (record: Pick<PitScoutingV2, 'teamNumber'>) =>
   record.teamNumber;
 
+export async function readMatchScoutingV4Record(record: Pick<MatchScoutingV4, 'eventKey' | 'matchKey' | 'teamNumber'>) {
+  const docId = getMatchV4DocId(record);
+  const targetRef = doc(db, 'events', record.eventKey, 'matchScoutingV4', docId);
+  const snapshot = await getDoc(targetRef);
+  return {
+    docId,
+    exists: snapshot.exists(),
+    record: snapshot.exists() ? snapshot.data() as MatchScoutingV4 : null
+  };
+}
+
 export async function writeMatchScoutingRecord(
   record: MatchScoutingV2,
   options?: { mode?: WriteMode }

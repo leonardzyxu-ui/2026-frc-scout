@@ -3,6 +3,7 @@ import { listPowerCoinBets, listPowerCoinLedger, upsertPowerCoinBet, upsertPower
 import { getMatchDefenseDocId, getMatchDocId, getMatchV3DocId, getMatchV4DocId, getPitDocId } from './scoutingWrites';
 import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from './matchScoutingV3';
 import { isMatchScoutingV4 } from './matchScoutingV4';
+import { stableLocalFirstContentHash, stableLocalFirstStringify } from './localFirstSyncContract';
 
 const DB_NAME = 'rebuilt-2026-scout-archive';
 const SETTINGS_STORE = 'settings';
@@ -136,36 +137,10 @@ const withMatchV4SubmissionState = (record: MatchScoutingV4, submitted: boolean)
     : record.versionMetadata
 });
 
-const stableStringify = (value: unknown): string => {
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
-  }
-
-  if (value && typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key !== 'timestamp' && key !== 'deviceId' && key !== 'editHistory')
-      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`)
-      .join(',')}}`;
-  }
-
-  return JSON.stringify(value) ?? 'undefined';
-};
-
-const stableContentHash = (value: unknown) => {
-  const text = stableStringify(value);
-  let hash = 2166136261;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`;
-};
-
 const isSubstantiveDuplicate = (left: ScoutArchiveRecord, right: ScoutArchiveRecord) =>
   left.recordType === right.recordType &&
   left.logicalId === right.logicalId &&
-  stableStringify(left.payload) === stableStringify(right.payload);
+  stableLocalFirstStringify(left.payload) === stableLocalFirstStringify(right.payload);
 
 const openScoutArchiveDb = async (): Promise<IDBDatabase | null> => {
   if (typeof window === 'undefined' || !('indexedDB' in window)) {
@@ -745,7 +720,7 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
       editedByName: record.payload.versionMetadata?.editedByName || record.username,
       editedByScoutNumber: record.payload.versionMetadata?.editedByScoutNumber ?? record.payload.scoutNumber ?? null,
       editedBySurface: record.payload.versionMetadata?.editedBySurface || 'scout',
-      contentHash: stableContentHash(record.payload)
+      contentHash: stableLocalFirstContentHash(record.payload)
     });
     chains[logicalId].versions.sort((left, right) => left.version - right.version || left.updatedAt - right.updatedAt);
     return chains;

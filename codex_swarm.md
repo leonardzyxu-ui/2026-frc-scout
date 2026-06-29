@@ -50,6 +50,9 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 | Rivet-QA | PWR-QA-001 | Verifier | gpt-5.4-mini / medium | close | read-only | completed-fail |  | 2026-06-29T05:05:00+00:00 |
 | Bacon | BET-CART-001 | Explorer | gpt-5.4 / medium | close | read-only | closed-stale-handle |  | 2026-06-29T05:24:08+00:00 |
 | Maxwell | PWR-INTEGRATION-CART-001 | Explorer | gpt-5.4 / medium | close | read-only | closed-stale-handle |  | 2026-06-29T05:24:08+00:00 |
+| SyncCartographer | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The local-first sync implementation spans web browser cache, Firebase/admin code, and native PowerScout; a read-only map can run while the conductor starts implementation. | 2026-06-29T05:37:39+00:00 |
+| Aristotle | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The local-first sync implementation spans web browser cache, Firebase/admin code, and native PowerScout; a read-only map can run while the conductor starts implementation. | 2026-06-29T05:38:08+00:00 |
+| Aristotle | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | close | read-only | completed |  | 2026-06-29T05:45:59+00:00 |
 
 ## Integration Notes
 

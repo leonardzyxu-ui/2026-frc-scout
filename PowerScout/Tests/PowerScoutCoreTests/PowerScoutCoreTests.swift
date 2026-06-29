@@ -87,6 +87,22 @@ func historyRewardsSurfaceMirrorsPowerCoinsAndEvidence() {
 }
 
 @Test
+func powerScoutCreatesAndLoadsLocalSyncLedger() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-sync-ledger-\(UUID().uuidString)", isDirectory: true)
+    let store = PowerScoutSyncLedgerStore(storageRoot: root)
+    let snapshot = try store.refreshSnapshot(now: Date(timeIntervalSince1970: 1_000))
+    let loaded = try store.loadSnapshot()
+
+    #expect(FileManager.default.fileExists(atPath: store.ledgerURL.path))
+    #expect(loaded.ledgerURLPath == store.ledgerURL.path)
+    #expect(loaded.entries.count == snapshot.entries.count)
+    #expect(loaded.entries.contains { $0.surface == "PowerScout Mac" && $0.status == "Ready" })
+    #expect(loaded.entries.contains { $0.surface == "Firebase" && $0.detail.localizedCaseInsensitiveContains("Match Scout V4") })
+    #expect(loaded.nextAction.localizedCaseInsensitiveContains("Firebase pull snapshots"))
+}
+
+@Test
 func practiceMatchDataUsesFirstAndLocalScorekeeperFallback() {
     let rules = PowerScoutKnowledgeBase.liveOpsSourceRules
     #expect(rules.contains { $0.source == "FIRST Events API" && $0.givesUs.localizedCaseInsensitiveContains("practice") })

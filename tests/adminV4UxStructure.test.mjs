@@ -1387,6 +1387,6 @@ test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
   assert.match(tbaErrorSource, /Open Admin V4 Settings > Team And Local Credentials > Clear TBA/);
   assert.match(tbaErrorSource, /upload a fresh key JSON/);
   assert.match(scoutArchiveSource, /version: 7/);
-  assert.match(scoutArchiveSource, /contentHash: stableContentHash/);
+  assert.match(scoutArchiveSource, /contentHash: stableLocalFirstContentHash/);
   assert.match(scoutArchiveSource, /maybeBundle\.version === 7/);
 });

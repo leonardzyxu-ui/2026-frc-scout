@@ -133,3 +133,4 @@
 - [x] Add PowerScout UI for the real-time refresh pipeline, data source freshness, model rerun status, and next-match inferences.
 - [x] Research practice-match data availability across TBA, FIRST Events API, and Statbotics; decide whether PowerScout needs a dedicated practice-scorekeeper role.
 - [x] Compact the Match Scout V4 Score Signal panel so the actual point counter dominates the space instead of long explanatory text.
+- [deferred] At the end of the current cue, hatch a 3-agent QA review swarm where the agents cross-check the whole website plus PowerScout Mac app and each tries to find a concrete code bug, math error, or logic error before final signoff.

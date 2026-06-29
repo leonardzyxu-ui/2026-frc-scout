@@ -255,6 +255,46 @@ public struct CommandResult: Identifiable, Hashable, Sendable {
     public var duration: TimeInterval { finishedAt.timeIntervalSince(startedAt) }
 }
 
+public struct PowerScoutSyncLedgerEntry: Identifiable, Codable, Hashable, Sendable {
+    public let id: String
+    public let surface: String
+    public let role: String
+    public let status: String
+    public let currentVersion: Int
+    public let preservedVersions: Int
+    public let conflicts: Int
+    public let lastCheckedAt: Date
+    public let detail: String
+
+    public init(surface: String, role: String, status: String, currentVersion: Int, preservedVersions: Int, conflicts: Int, lastCheckedAt: Date, detail: String) {
+        self.id = surface
+        self.surface = surface
+        self.role = role
+        self.status = status
+        self.currentVersion = currentVersion
+        self.preservedVersions = preservedVersions
+        self.conflicts = conflicts
+        self.lastCheckedAt = lastCheckedAt
+        self.detail = detail
+    }
+}
+
+public struct PowerScoutSyncSnapshot: Codable, Hashable, Sendable {
+    public let generatedAt: Date
+    public let ledgerURLPath: String
+    public let entries: [PowerScoutSyncLedgerEntry]
+    public let summary: String
+    public let nextAction: String
+
+    public init(generatedAt: Date, ledgerURLPath: String, entries: [PowerScoutSyncLedgerEntry], summary: String, nextAction: String) {
+        self.generatedAt = generatedAt
+        self.ledgerURLPath = ledgerURLPath
+        self.entries = entries
+        self.summary = summary
+        self.nextAction = nextAction
+    }
+}
+
 public struct PowerCoinWalletSnapshot: Identifiable, Hashable, Sendable {
     public let id: String
     public let scoutName: String
@@ -324,7 +364,7 @@ public enum PowerScoutKnowledgeBase {
         openBets: 1,
         lastResultDelta: nil,
         lastResultMatch: "No settled bets",
-        note: "Native read-only mirror of the web wallet contract. Full local database sync is the next slice."
+        note: "Native wallet readout follows the same scout-number-first contract as the web cache."
     )
 
     public static let powerCoinHistoryRows: [PowerCoinHistoryRow] = [
