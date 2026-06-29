@@ -946,7 +946,7 @@ export default function MatchScoutV4View() {
                 </p>
               </div>
 
-              <div className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
+              <div data-testid="first-shift-panel" className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Shift Metadata</div>
@@ -960,6 +960,7 @@ export default function MatchScoutV4View() {
                       <button
                         key={alliance}
                         type="button"
+                        data-testid={`first-shift-${alliance.toLowerCase()}`}
                         onClick={() => updateData({ teleopFirstShiftAlliance: normalizedData.teleopFirstShiftAlliance === alliance ? '' : alliance })}
                         className={`admin-g2-sm px-4 py-3 font-black ${
                           normalizedData.teleopFirstShiftAlliance === alliance
@@ -974,6 +975,7 @@ export default function MatchScoutV4View() {
                     ))}
                     <button
                       type="button"
+                      data-testid="first-shift-clear"
                       onClick={() => updateData({ teleopFirstShiftAlliance: '' })}
                       className="admin-g2-sm bg-slate-800 px-4 py-3 font-black text-slate-300 hover:bg-slate-700"
                     >
@@ -981,7 +983,7 @@ export default function MatchScoutV4View() {
                     </button>
                   </div>
                 </div>
-                <div className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
+                <div data-testid="first-shift-current" className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
                   Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Not recorded yet'}</span>
                 </div>
               </div>

@@ -1175,6 +1175,8 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(matchScoutSource, /First Teleop Shift/);
   assert.match(matchScoutSource, /Current first shift/);
   assert.match(matchScoutSource, /teleopFirstShiftAlliance/);
+  assert.match(matchScoutSource, /data-testid="first-shift-panel"/);
+  assert.match(matchScoutSource, /data-testid="first-shift-clear"/);
   assert.doesNotMatch(matchScoutSource, /PPA Capture Path/);
   assert.match(matchScoutSource, /verifyScoutIdentityUnlockPassphrase/);
   assert.match(matchScoutSource, /renameScoutArchiveUsername/);
