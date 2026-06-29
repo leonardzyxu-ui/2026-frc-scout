@@ -102,9 +102,10 @@ export interface MatchScoutingV2 {
   matchKey: string;
   teamNumber: string;
   scoutName: string;
+  scoutNumber?: number | null;
   assignedScoutName: string;
   assignedSlot: string;
-  substituteScoutName?: '' | 'Charlotte' | 'Matilda' | 'Scarlett';
+  substituteScoutName?: '' | 'Substitute 1' | 'Substitute 2' | 'Substitute 3';
   alliance: 'Red' | 'Blue' | '';
   deviceId?: string;
   timestamp?: number;
@@ -145,9 +146,9 @@ export type MatchScoutingV3Alliance = 'Red' | 'Blue' | '';
 export type MatchScoutingV3StartingPosition = 'Left' | 'Center' | 'Right' | '';
 export type MatchScoutingV3ShootingStyle = 'On the Fly' | 'Stationary' | '';
 export type MatchScoutingV3CapabilityRating = 'Cannot' | 'Limited' | 'Strong' | '';
-export type MatchScoutingV3SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
-export type MatchDefenseScoutingV1SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
-export type MatchScoutingV4SubstituteScoutName = '' | 'Charlotte' | 'Scarlett';
+export type MatchScoutingV3SubstituteScoutName = '' | 'Substitute 1' | 'Substitute 2' | 'Substitute 3';
+export type MatchDefenseScoutingV1SubstituteScoutName = '' | 'Substitute 1' | 'Substitute 2' | 'Substitute 3';
+export type MatchScoutingV4SubstituteScoutName = '' | 'Substitute 1' | 'Substitute 2' | 'Substitute 3';
 export type MatchScoutingV4Role = '' | 'Offense' | 'Defense' | 'Mixed' | 'Support' | 'Disabled';
 export type MatchScoutingV4ShiftRole = 'offense' | 'defense' | 'stockpile' | 'inactive' | 'mixed';
 export type MatchScoutingV4ShiftOwner = 'own' | 'opponent';
@@ -189,6 +190,7 @@ export interface MatchDefenseScoutingV1 {
   matchKey: string;
   teamNumber: string;
   scoutName: string;
+  scoutNumber?: number | null;
   assignedScoutName: string;
   assignedSlot: string;
   substituteScoutName?: MatchDefenseScoutingV1SubstituteScoutName;
@@ -209,6 +211,7 @@ export interface MatchScoutingV3 {
   matchKey: string;
   teamNumber: string;
   scoutName: string;
+  scoutNumber?: number | null;
   assignedScoutName: string;
   assignedSlot: string;
   substituteScoutName?: MatchScoutingV3SubstituteScoutName;
@@ -252,6 +255,7 @@ export interface MatchScoutingV4 {
   matchKey: string;
   teamNumber: string;
   scoutName: string;
+  scoutNumber?: number | null;
   assignedScoutName: string;
   assignedSlot: string;
   substituteScoutName?: MatchScoutingV4SubstituteScoutName;
@@ -319,18 +323,30 @@ export interface PowerCoinLedgerEntry {
   matchKey?: string;
 }
 
+export interface ScoutRosterEntry {
+  scoutKey: string;
+  scoutNumber: number | null;
+  scoutName: string;
+  displayLabel: string;
+}
+
 export interface ScoutAssignmentPlan {
   id: string;
   eventKey: string;
   createdAt: number;
   scoutNames: string[];
+  scoutRoster?: ScoutRosterEntry[];
   scoutCount: number;
   ownTeamNumber: string;
   assignments: Array<{
     matchKey: string;
     matchNumber: number;
     matchType: MatchScoutingV3MatchType;
+    scoutKey?: string;
+    scoutNumber?: number | null;
     station: string;
+    alliance: MatchScoutingV3Alliance;
+    alliancePosition: number;
     teamNumber: string;
     scoutName: string;
     priorityReason: string;
@@ -340,6 +356,8 @@ export interface ScoutAssignmentPlan {
     matchNumber: number;
     matchType: MatchScoutingV3MatchType;
     station: string;
+    alliance: MatchScoutingV3Alliance;
+    alliancePosition: number;
     teamNumber: string;
     reason: string;
   }>;
@@ -656,6 +674,7 @@ export const initialMatchScoutingV2: MatchScoutingV2 = {
   matchKey: 'qm1',
   teamNumber: '',
   scoutName: '',
+  scoutNumber: null,
   assignedScoutName: '',
   assignedSlot: '',
   substituteScoutName: '',
@@ -695,6 +714,7 @@ export const initialMatchScoutingV3: MatchScoutingV3 = {
   matchKey: 'qm1',
   teamNumber: '',
   scoutName: '',
+  scoutNumber: null,
   assignedScoutName: '',
   assignedSlot: '',
   substituteScoutName: '',
@@ -737,6 +757,7 @@ export const initialMatchScoutingV4: MatchScoutingV4 = {
   matchKey: 'qm1',
   teamNumber: '',
   scoutName: '',
+  scoutNumber: null,
   assignedScoutName: '',
   assignedSlot: '',
   substituteScoutName: '',

@@ -8,6 +8,7 @@ import {
   ModelBacktestResult,
   ModelFeatureSnapshot,
   ScoutAssignmentPlan,
+  ScoutRosterEntry,
   ScoutCalibrationRow,
   StrategyAllianceRpPath,
   StrategyRoleOption,
@@ -21,6 +22,63 @@ import { rebuilt2026GameAdapter } from './seasonGameAdapter';
 type BacktestMetadata = Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>;
 
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
+
+type ScoutRosterInput = string | ScoutRosterEntry;
+
+const parsePositiveScoutNumber = (value: unknown) => {
+  const number = Math.trunc(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+
+export const parseScoutRosterLine = (line: string, fallbackIndex = 0): ScoutRosterEntry | null => {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  const numberFirstMatch = trimmed.match(/^#?(\d+)\s*[,|:;\-\t ]+\s*(.+)$/);
+  const nameFirstMatch = trimmed.match(/^(.+?)\s*[,|:;\-\t ]+\s*#?(\d+)$/);
+  const scoutNumber = parsePositiveScoutNumber(numberFirstMatch?.[1] ?? nameFirstMatch?.[2]);
+  const scoutName = (numberFirstMatch?.[2] ?? nameFirstMatch?.[1] ?? trimmed).trim();
+  if (!scoutName) return null;
+  const scoutKey = scoutNumber ? `scout-${scoutNumber}` : `name-${scoutName.toLowerCase().replace(/\s+/g, '-') || fallbackIndex}`;
+  return {
+    scoutKey,
+    scoutNumber,
+    scoutName,
+    displayLabel: scoutNumber ? `#${scoutNumber} ${scoutName}` : scoutName
+  };
+};
+
+export const formatScoutRosterEntry = (entry: ScoutRosterEntry) =>
+  entry.scoutNumber ? `${entry.scoutNumber}, ${entry.scoutName}` : entry.scoutName;
+
+const normalizeScoutRoster = (scouts: ScoutRosterInput[]): ScoutRosterEntry[] => {
+  const seen = new Set<string>();
+  return scouts
+    .map((entry, index) => {
+      if (typeof entry === 'string') return parseScoutRosterLine(entry, index);
+      const scoutNumber = parsePositiveScoutNumber(entry.scoutNumber);
+      const scoutName = entry.scoutName?.trim();
+      if (!scoutName) return null;
+      const scoutKey = scoutNumber ? `scout-${scoutNumber}` : (entry.scoutKey || `name-${scoutName.toLowerCase().replace(/\s+/g, '-') || index}`);
+      return {
+        scoutKey,
+        scoutNumber,
+        scoutName,
+        displayLabel: scoutNumber ? `#${scoutNumber} ${scoutName}` : (entry.displayLabel || scoutName)
+      };
+    })
+    .filter((entry): entry is ScoutRosterEntry => Boolean(entry))
+    .filter(entry => {
+      const dedupeKey = entry.scoutNumber ? `number-${entry.scoutNumber}` : `name-${entry.scoutName.toLowerCase()}`;
+      if (seen.has(dedupeKey)) return false;
+      seen.add(dedupeKey);
+      return true;
+    })
+    .sort((left, right) => {
+      const leftNumber = left.scoutNumber ?? Number.MAX_SAFE_INTEGER;
+      const rightNumber = right.scoutNumber ?? Number.MAX_SAFE_INTEGER;
+      return leftNumber - rightNumber || left.scoutName.localeCompare(right.scoutName);
+    });
+};
 
 const mean = (values: number[]) => (values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length);
 
@@ -1458,15 +1516,17 @@ export const buildStrategyMatchPlans = (
 export const optimizeScoutAssignments = (
   eventKey: string,
   matches: TBAMatch[],
-  scoutNames: string[],
+  scoutRosterInput: ScoutRosterInput[],
   ownTeamNumber: string
 ): ScoutAssignmentPlan => {
-  const activeScouts = Array.from(new Set(scoutNames.map(name => name.trim()).filter(Boolean)));
+  const activeScoutRoster = normalizeScoutRoster(scoutRosterInput);
+  const activeScouts = activeScoutRoster.map(entry => entry.scoutKey);
+  const scoutByKey = Object.fromEntries(activeScoutRoster.map(entry => [entry.scoutKey, entry]));
   const normalizedOwnTeamNumber = ownTeamNumber.trim();
-  const exposureCounts: Record<string, Record<string, number>> = Object.fromEntries(activeScouts.map(name => [name, {}]));
+  const exposureCounts: Record<string, Record<string, number>> = Object.fromEntries(activeScouts.map(key => [key, {}]));
   const assignmentsBySlotId = new Map<string, ScoutAssignmentPlan['assignments'][number] & { slotId: string; stationPriority: number }>();
   const coverageGaps: NonNullable<ScoutAssignmentPlan['coverageGaps']> = [];
-  const scoutLoad: Record<string, number> = Object.fromEntries(activeScouts.map(name => [name, 0]));
+  const scoutLoad: Record<string, number> = Object.fromEntries(activeScouts.map(key => [key, 0]));
   const usedScoutsByMatch = new Map<string, Set<string>>();
   const getStationPriority = (station: string) => {
     const match = station.match(/(Red|Blue)\s+(\d+)/);
@@ -1490,6 +1550,8 @@ export const optimizeScoutAssignments = (
     matchNumber: number;
     matchType: ScoutAssignmentPlan['assignments'][number]['matchType'];
     station: string;
+    alliance: ScoutAssignmentPlan['assignments'][number]['alliance'];
+    alliancePosition: number;
     teamNumber: string;
     stationPriority: number;
     matchHasOwnTeam: boolean;
@@ -1507,39 +1569,44 @@ export const optimizeScoutAssignments = (
     usedScoutsByMatch.set(matchKey, created);
     return created;
   };
-  const addExposure = (scoutName: string, teamNumber: string, delta: number) => {
-    const scoutExposure = exposureCounts[scoutName] ?? {};
+  const addExposure = (scoutKey: string, teamNumber: string, delta: number) => {
+    const scoutExposure = exposureCounts[scoutKey] ?? {};
     const nextCount = (scoutExposure[teamNumber] || 0) + delta;
     if (nextCount <= 0) {
       delete scoutExposure[teamNumber];
     } else {
       scoutExposure[teamNumber] = nextCount;
     }
-    exposureCounts[scoutName] = scoutExposure;
+    exposureCounts[scoutKey] = scoutExposure;
   };
   const getPriorityReason = (slot: AssignmentSlot, plannedTeamSlots: number) => {
     if (normalizedOwnTeamNumber && slot.matchHasOwnTeam) return 'Our match priority';
     if (plannedTeamSlots > 1) return 'Team continuity optimization';
     return 'Balanced coverage assignment';
   };
-  const assignSlot = (slot: AssignmentSlot, scoutName: string, plannedTeamSlots: number) => {
+  const assignSlot = (slot: AssignmentSlot, scoutKey: string, plannedTeamSlots: number) => {
+    const scout = scoutByKey[scoutKey];
     assignmentsBySlotId.set(slot.id, {
       slotId: slot.id,
       matchKey: slot.matchKey,
       matchNumber: slot.matchNumber,
       matchType: slot.matchType,
+      scoutKey,
+      scoutNumber: scout?.scoutNumber ?? null,
       station: slot.station,
+      alliance: slot.alliance,
+      alliancePosition: slot.alliancePosition,
       teamNumber: slot.teamNumber,
-      scoutName,
+      scoutName: scout?.scoutName ?? scoutKey,
       priorityReason: getPriorityReason(slot, plannedTeamSlots),
       stationPriority: slot.stationPriority
     });
-    getUsedScouts(slot.matchKey).add(scoutName);
-    addExposure(scoutName, slot.teamNumber, 1);
-    scoutLoad[scoutName] = (scoutLoad[scoutName] || 0) + 1;
+    getUsedScouts(slot.matchKey).add(scoutKey);
+    addExposure(scoutKey, slot.teamNumber, 1);
+    scoutLoad[scoutKey] = (scoutLoad[scoutKey] || 0) + 1;
   };
-  const canUseScoutForSlot = (scoutName: string, slot: AssignmentSlot) =>
-    !getUsedScouts(slot.matchKey).has(scoutName);
+  const canUseScoutForSlot = (scoutKey: string, slot: AssignmentSlot) =>
+    !getUsedScouts(slot.matchKey).has(scoutKey);
 
   const rawSlotsByMatch = sortedMatches.map(match => {
     const teams = [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys].map(normalizeTeamKey);
@@ -1548,8 +1615,18 @@ export const optimizeScoutAssignments = (
       match,
       matchHasOwnTeam,
       stations: [
-        ...match.alliances.red.team_keys.map((teamKey, index) => ({ station: `Red ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) })),
-        ...match.alliances.blue.team_keys.map((teamKey, index) => ({ station: `Blue ${index + 1}`, teamNumber: normalizeTeamKey(teamKey) }))
+        ...match.alliances.red.team_keys.map((teamKey, index) => ({
+          station: `Red ${index + 1}`,
+          alliance: 'Red' as const,
+          alliancePosition: index + 1,
+          teamNumber: normalizeTeamKey(teamKey)
+        })),
+        ...match.alliances.blue.team_keys.map((teamKey, index) => ({
+          station: `Blue ${index + 1}`,
+          alliance: 'Blue' as const,
+          alliancePosition: index + 1,
+          teamNumber: normalizeTeamKey(teamKey)
+        }))
       ]
     };
   });
@@ -1560,7 +1637,7 @@ export const optimizeScoutAssignments = (
   const toAssignmentSlot = (
     match: TBAMatch,
     matchHasOwnTeam: boolean,
-    station: { station: string; teamNumber: string }
+    station: { station: string; alliance: ScoutAssignmentPlan['assignments'][number]['alliance']; alliancePosition: number; teamNumber: string }
   ): AssignmentSlot => {
     const stationPriority = getStationPriority(station.station);
     const frequency = teamFrequency.get(station.teamNumber) || 0;
@@ -1575,6 +1652,8 @@ export const optimizeScoutAssignments = (
       matchNumber: match.match_number,
       matchType: getMatchType(match),
       station: station.station,
+      alliance: station.alliance,
+      alliancePosition: station.alliancePosition,
       teamNumber: station.teamNumber,
       stationPriority,
       matchHasOwnTeam,
@@ -1607,6 +1686,8 @@ export const optimizeScoutAssignments = (
           matchNumber: slot.matchNumber,
           matchType: slot.matchType,
           station: slot.station,
+          alliance: slot.alliance,
+          alliancePosition: slot.alliancePosition,
           teamNumber: slot.teamNumber,
           reason: gapReason
         });
@@ -1625,22 +1706,22 @@ export const optimizeScoutAssignments = (
   const targetLoad = activeScouts.length === 0 ? 0 : selectedSlots.length / activeScouts.length;
   const chooseBatchScout = (teamNumber: string, remainingSlots: AssignmentSlot[]) =>
     activeScouts
-      .map(name => {
-        const assignableSlots = remainingSlots.filter(slot => canUseScoutForSlot(name, slot));
-        const existingTeamExposure = exposureCounts[name]?.[teamNumber] || 0;
-        const projectedLoad = (scoutLoad[name] || 0) + assignableSlots.length;
+      .map(scoutKey => {
+        const assignableSlots = remainingSlots.filter(slot => canUseScoutForSlot(scoutKey, slot));
+        const existingTeamExposure = exposureCounts[scoutKey]?.[teamNumber] || 0;
+        const projectedLoad = (scoutLoad[scoutKey] || 0) + assignableSlots.length;
         const continuityGain = getPairCount(existingTeamExposure + assignableSlots.length) - getPairCount(existingTeamExposure);
         const overload = Math.max(0, projectedLoad - targetLoad - 1);
         const priorityValue = assignableSlots.reduce((sum, slot) => sum + slot.priorityScore, 0);
         return {
-          name,
+          name: scoutKey,
           assignableSlots,
           score:
             assignableSlots.length * 10000 +
             continuityGain * 450 +
             priorityValue * 0.05 -
             overload * 900 -
-            (scoutLoad[name] || 0) * 35
+            (scoutLoad[scoutKey] || 0) * 35
         };
       })
       .filter(candidate => candidate.assignableSlots.length > 0)
@@ -1648,7 +1729,8 @@ export const optimizeScoutAssignments = (
         right.score - left.score ||
         right.assignableSlots.length - left.assignableSlots.length ||
         (scoutLoad[left.name] || 0) - (scoutLoad[right.name] || 0) ||
-        left.name.localeCompare(right.name)
+        (scoutByKey[left.name]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) - (scoutByKey[right.name]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) ||
+        (scoutByKey[left.name]?.scoutName ?? left.name).localeCompare(scoutByKey[right.name]?.scoutName ?? right.name)
       )[0];
 
   Array.from(slotsByTeam.entries())
@@ -1678,46 +1760,65 @@ export const optimizeScoutAssignments = (
   selectedSlots
     .filter(slot => !assignmentsBySlotId.has(slot.id))
     .forEach(slot => {
-      const scoutName = activeScouts
-        .filter(name => canUseScoutForSlot(name, slot))
-        .sort((left, right) => (scoutLoad[left] || 0) - (scoutLoad[right] || 0) || left.localeCompare(right))[0];
-      if (!scoutName) {
+      const scoutKey = activeScouts
+        .filter(key => canUseScoutForSlot(key, slot))
+        .sort((left, right) =>
+          (scoutLoad[left] || 0) - (scoutLoad[right] || 0) ||
+          (scoutByKey[left]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) - (scoutByKey[right]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) ||
+          (scoutByKey[left]?.scoutName ?? left).localeCompare(scoutByKey[right]?.scoutName ?? right)
+        )[0];
+      if (!scoutKey) {
         coverageGaps.push({
           matchKey: slot.matchKey,
           matchNumber: slot.matchNumber,
           matchType: slot.matchType,
           station: slot.station,
+          alliance: slot.alliance,
+          alliancePosition: slot.alliancePosition,
           teamNumber: slot.teamNumber,
-          reason: 'No unused scout remained for this station'
+          reason: 'No unused scout remained for this focus team'
         });
         return;
       }
-      assignSlot(slot, scoutName, 1);
+      assignSlot(slot, scoutKey, 1);
     });
 
-  const moveAssignment = (slotId: string, nextScoutName: string, nextPriorityReason?: string) => {
+  const getAssignmentScoutKey = (assignment: ScoutAssignmentPlan['assignments'][number]) =>
+    assignment.scoutKey || `name-${assignment.scoutName.toLowerCase().replace(/\s+/g, '-')}`;
+
+  const applyAssignmentScout = (
+    assignment: ScoutAssignmentPlan['assignments'][number],
+    nextScoutKey: string
+  ) => {
+    const nextScout = scoutByKey[nextScoutKey];
+    assignment.scoutKey = nextScoutKey;
+    assignment.scoutNumber = nextScout?.scoutNumber ?? null;
+    assignment.scoutName = nextScout?.scoutName ?? nextScoutKey;
+  };
+
+  const moveAssignment = (slotId: string, nextScoutKey: string, nextPriorityReason?: string) => {
     const assignment = assignmentsBySlotId.get(slotId);
-    if (!assignment || assignment.scoutName === nextScoutName) return;
-    const previousScoutName = assignment.scoutName;
-    getUsedScouts(assignment.matchKey).delete(previousScoutName);
-    getUsedScouts(assignment.matchKey).add(nextScoutName);
-    addExposure(previousScoutName, assignment.teamNumber, -1);
-    addExposure(nextScoutName, assignment.teamNumber, 1);
-    scoutLoad[previousScoutName] = Math.max(0, (scoutLoad[previousScoutName] || 0) - 1);
-    scoutLoad[nextScoutName] = (scoutLoad[nextScoutName] || 0) + 1;
-    assignment.scoutName = nextScoutName;
+    if (!assignment || getAssignmentScoutKey(assignment) === nextScoutKey) return;
+    const previousScoutKey = getAssignmentScoutKey(assignment);
+    getUsedScouts(assignment.matchKey).delete(previousScoutKey);
+    getUsedScouts(assignment.matchKey).add(nextScoutKey);
+    addExposure(previousScoutKey, assignment.teamNumber, -1);
+    addExposure(nextScoutKey, assignment.teamNumber, 1);
+    scoutLoad[previousScoutKey] = Math.max(0, (scoutLoad[previousScoutKey] || 0) - 1);
+    scoutLoad[nextScoutKey] = (scoutLoad[nextScoutKey] || 0) + 1;
+    applyAssignmentScout(assignment, nextScoutKey);
     if (assignment.priorityReason !== 'Our match priority' && nextPriorityReason) {
       assignment.priorityReason = nextPriorityReason;
     }
   };
   const getMoveContinuityDelta = (
     assignment: ScoutAssignmentPlan['assignments'][number],
-    nextScoutName: string
+    nextScoutKey: string
   ) => {
-    const previousScoutName = assignment.scoutName;
+    const previousScoutKey = getAssignmentScoutKey(assignment);
     const teamNumber = assignment.teamNumber;
-    const previousCount = exposureCounts[previousScoutName]?.[teamNumber] || 0;
-    const nextCount = exposureCounts[nextScoutName]?.[teamNumber] || 0;
+    const previousCount = exposureCounts[previousScoutKey]?.[teamNumber] || 0;
+    const nextCount = exposureCounts[nextScoutKey]?.[teamNumber] || 0;
     return getPairCount(previousCount - 1) + getPairCount(nextCount + 1) - getPairCount(previousCount) - getPairCount(nextCount);
   };
   const rebalanceLoads = () => {
@@ -1725,16 +1826,20 @@ export const optimizeScoutAssignments = (
     while (guard < selectedSlots.length * 2) {
       guard += 1;
       const rankedLoads = activeScouts
-        .map(name => ({ name, load: scoutLoad[name] || 0 }))
-        .sort((left, right) => left.load - right.load || left.name.localeCompare(right.name));
+        .map(scoutKey => ({ scoutKey, load: scoutLoad[scoutKey] || 0 }))
+        .sort((left, right) =>
+          left.load - right.load ||
+          (scoutByKey[left.scoutKey]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) - (scoutByKey[right.scoutKey]?.scoutNumber ?? Number.MAX_SAFE_INTEGER) ||
+          (scoutByKey[left.scoutKey]?.scoutName ?? left.scoutKey).localeCompare(scoutByKey[right.scoutKey]?.scoutName ?? right.scoutKey)
+        );
       const lightest = rankedLoads[0];
       const heaviest = rankedLoads[rankedLoads.length - 1];
       if (!lightest || !heaviest || heaviest.load - lightest.load <= 1) break;
       const bestMove = Array.from(assignmentsBySlotId.values())
-        .filter(assignment => assignment.scoutName === heaviest.name && !getUsedScouts(assignment.matchKey).has(lightest.name))
+        .filter(assignment => getAssignmentScoutKey(assignment) === heaviest.scoutKey && !getUsedScouts(assignment.matchKey).has(lightest.scoutKey))
         .map(assignment => ({
           assignment,
-          continuityDelta: getMoveContinuityDelta(assignment, lightest.name)
+          continuityDelta: getMoveContinuityDelta(assignment, lightest.scoutKey)
         }))
         .sort((left, right) =>
           right.continuityDelta - left.continuityDelta ||
@@ -1742,19 +1847,21 @@ export const optimizeScoutAssignments = (
           left.assignment.stationPriority - right.assignment.stationPriority
         )[0];
       if (!bestMove || bestMove.continuityDelta < -3) break;
-      moveAssignment(bestMove.assignment.slotId, lightest.name, 'Balanced load repair');
+      moveAssignment(bestMove.assignment.slotId, lightest.scoutKey, 'Balanced load repair');
     }
   };
   const getSwapContinuityDelta = (
     left: ScoutAssignmentPlan['assignments'][number],
     right: ScoutAssignmentPlan['assignments'][number]
   ) => {
-    if (left.scoutName === right.scoutName || left.teamNumber === right.teamNumber) return 0;
+    const leftScoutKey = getAssignmentScoutKey(left);
+    const rightScoutKey = getAssignmentScoutKey(right);
+    if (leftScoutKey === rightScoutKey || left.teamNumber === right.teamNumber) return 0;
     const pairKeys = new Set([
-      `${left.scoutName}|${left.teamNumber}`,
-      `${left.scoutName}|${right.teamNumber}`,
-      `${right.scoutName}|${left.teamNumber}`,
-      `${right.scoutName}|${right.teamNumber}`
+      `${leftScoutKey}|${left.teamNumber}`,
+      `${leftScoutKey}|${right.teamNumber}`,
+      `${rightScoutKey}|${left.teamNumber}`,
+      `${rightScoutKey}|${right.teamNumber}`
     ]);
     const getCurrentCount = (pairKey: string) => {
       const [scoutName, teamNumber] = pairKey.split('|');
@@ -1762,10 +1869,10 @@ export const optimizeScoutAssignments = (
     };
     const getNextCount = (pairKey: string) => {
       let count = getCurrentCount(pairKey);
-      if (pairKey === `${left.scoutName}|${left.teamNumber}`) count -= 1;
-      if (pairKey === `${right.scoutName}|${right.teamNumber}`) count -= 1;
-      if (pairKey === `${left.scoutName}|${right.teamNumber}`) count += 1;
-      if (pairKey === `${right.scoutName}|${left.teamNumber}`) count += 1;
+      if (pairKey === `${leftScoutKey}|${left.teamNumber}`) count -= 1;
+      if (pairKey === `${rightScoutKey}|${right.teamNumber}`) count -= 1;
+      if (pairKey === `${leftScoutKey}|${right.teamNumber}`) count += 1;
+      if (pairKey === `${rightScoutKey}|${left.teamNumber}`) count += 1;
       return count;
     };
     return Array.from(pairKeys).reduce(
@@ -1777,20 +1884,20 @@ export const optimizeScoutAssignments = (
     left: ScoutAssignmentPlan['assignments'][number] & { slotId: string },
     right: ScoutAssignmentPlan['assignments'][number] & { slotId: string }
   ) => {
-    const leftScoutName = left.scoutName;
-    const rightScoutName = right.scoutName;
-    addExposure(leftScoutName, left.teamNumber, -1);
-    addExposure(rightScoutName, right.teamNumber, -1);
-    addExposure(leftScoutName, right.teamNumber, 1);
-    addExposure(rightScoutName, left.teamNumber, 1);
+    const leftScoutKey = getAssignmentScoutKey(left);
+    const rightScoutKey = getAssignmentScoutKey(right);
+    addExposure(leftScoutKey, left.teamNumber, -1);
+    addExposure(rightScoutKey, right.teamNumber, -1);
+    addExposure(leftScoutKey, right.teamNumber, 1);
+    addExposure(rightScoutKey, left.teamNumber, 1);
     if (left.matchKey !== right.matchKey) {
-      getUsedScouts(left.matchKey).delete(leftScoutName);
-      getUsedScouts(left.matchKey).add(rightScoutName);
-      getUsedScouts(right.matchKey).delete(rightScoutName);
-      getUsedScouts(right.matchKey).add(leftScoutName);
+      getUsedScouts(left.matchKey).delete(leftScoutKey);
+      getUsedScouts(left.matchKey).add(rightScoutKey);
+      getUsedScouts(right.matchKey).delete(rightScoutKey);
+      getUsedScouts(right.matchKey).add(leftScoutKey);
     }
-    left.scoutName = rightScoutName;
-    right.scoutName = leftScoutName;
+    applyAssignmentScout(left, rightScoutKey);
+    applyAssignmentScout(right, leftScoutKey);
     if (left.priorityReason !== 'Our match priority') left.priorityReason = 'Team continuity optimization';
     if (right.priorityReason !== 'Our match priority') right.priorityReason = 'Team continuity optimization';
   };
@@ -1803,9 +1910,9 @@ export const optimizeScoutAssignments = (
         if (!left) continue;
         for (let rightIndex = leftIndex + 1; rightIndex < currentAssignments.length; rightIndex += 1) {
           const right = currentAssignments[rightIndex];
-          if (!right || left.scoutName === right.scoutName) continue;
+          if (!right || getAssignmentScoutKey(left) === getAssignmentScoutKey(right)) continue;
           const sameMatch = left.matchKey === right.matchKey;
-          if (!sameMatch && (getUsedScouts(left.matchKey).has(right.scoutName) || getUsedScouts(right.matchKey).has(left.scoutName))) {
+          if (!sameMatch && (getUsedScouts(left.matchKey).has(getAssignmentScoutKey(right)) || getUsedScouts(right.matchKey).has(getAssignmentScoutKey(left)))) {
             continue;
           }
           const continuityDelta = getSwapContinuityDelta(left, right);
@@ -1834,7 +1941,8 @@ export const optimizeScoutAssignments = (
     id: `${eventKey}_${Date.now()}`,
     eventKey,
     createdAt: Date.now(),
-    scoutNames: activeScouts,
+    scoutNames: activeScoutRoster.map(entry => entry.scoutName),
+    scoutRoster: activeScoutRoster,
     scoutCount: activeScouts.length,
     ownTeamNumber: normalizedOwnTeamNumber,
     assignments,

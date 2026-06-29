@@ -61,7 +61,7 @@ const normalizeAlliance = (value: unknown): MatchScoutingV3Alliance =>
   value === 'Red' || value === 'Blue' ? value : '';
 
 const normalizeSubstituteScoutName = (value: unknown): MatchScoutingV3SubstituteScoutName =>
-  value === 'Charlotte' || value === 'Scarlett' ? value : '';
+  value === 'Substitute 1' || value === 'Substitute 2' || value === 'Substitute 3' ? value : '';
 
 export const normalizeMatchScoutingV3 = (raw: Partial<MatchScoutingV3>): MatchScoutingV3 => {
   const matchType = raw.matchType || parseMatchTypeV3(raw.matchKey || initialMatchScoutingV3.matchKey);
@@ -126,7 +126,7 @@ export const mapLegacyMatchScoutingToV3 = (legacy: MatchScoutingV2): MatchScouti
     assignedScoutName: legacy.assignedScoutName,
     assignedSlot: legacy.assignedSlot,
     substituteScoutName:
-      legacy.substituteScoutName === 'Charlotte' || legacy.substituteScoutName === 'Scarlett'
+      legacy.substituteScoutName === 'Substitute 1' || legacy.substituteScoutName === 'Substitute 2' || legacy.substituteScoutName === 'Substitute 3'
         ? legacy.substituteScoutName
         : '',
     alliance: legacy.alliance,

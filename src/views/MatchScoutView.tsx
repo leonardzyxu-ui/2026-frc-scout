@@ -26,7 +26,7 @@ const MATCH_SCOUT_ASSIGNED_SCOUT_STORAGE = 'match_scout_assigned_scout';
 const MATCH_SCOUT_MATCH_TYPE_STORAGE = 'match_scout_match_type';
 const MATCH_SCOUT_MATCH_NUMBER_STORAGE = 'match_scout_match_number';
 const MATCH_EDIT_STORAGE_KEY = 'edit_match_data';
-const SUBSTITUTE_SCOUTS = ['Charlotte', 'Matilda', 'Scarlett'] as const;
+const SUBSTITUTE_SCOUTS = ['Substitute 1', 'Substitute 2', 'Substitute 3'] as const;
 
 type MatchType = MatchScoutingV2['matchType'];
 type SubstituteScoutName = (typeof SUBSTITUTE_SCOUTS)[number];

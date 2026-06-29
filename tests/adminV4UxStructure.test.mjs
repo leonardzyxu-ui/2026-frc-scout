@@ -117,10 +117,12 @@ test('Admin V4 scout assignment optimizer plans for same-team continuity across 
   assert.match(strategyBrainSource, /buildRatingForecasts/);
   assert.match(strategyBrainSource, /Unvalidated \$\{fallbackModelName\} fallback before event-local backtests/);
   assert.doesNotMatch(strategyBrainSource, /Repeated exposure optimization/);
-  assert.match(staffingSource, /whole schedule/);
-  assert.match(staffingSource, /same-team continuity/);
-  assert.match(staffingSource, /Optimize Schedule/);
+  assert.match(staffingSource, /numbered scout/);
+  assert.match(staffingSource, /specialist in a small set of teams/);
+  assert.match(staffingSource, /Optimize Focus Plan/);
+  assert.match(staffingSource, /Scout #/);
   assert.match(scoutRewardsHookSource, /repeated scout-team pairing/);
+  assert.match(scoutRewardsHookSource, /parseScoutRosterLine/);
 });
 
 test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () => {
@@ -341,10 +343,11 @@ test('Admin V4 keeps expert controls behind task-focused workflow surfaces', () 
   assert.match(dataOverviewSource, /admin-details-body/);
   assert.match(strategyPanelSource, /function AdminV4StrategyPlanPanel/);
   assert.match(staffingSource, /function AdminV4ScoutStaffingPanel/);
-  assert.match(staffingSource, /Scout Assignment Builder/);
-  assert.match(staffingSource, /Station Plan/);
+  assert.match(staffingSource, /Scout Focus Builder/);
+  assert.match(staffingSource, /Team Focus Plan/);
   assert.doesNotMatch(staffingSource, /Scout Assignment Optimizer/);
   assert.doesNotMatch(staffingSource, /Assignment Sheet/);
+  assert.doesNotMatch(staffingSource, /Station Plan/);
   assert.match(sourceFreshnessSource, /function AdminV4SourceFreshnessPanel/);
   assert.match(sourceFreshnessSource, /Official schedule\/source missing/);
   assert.match(reportsPanelSource, /function AdminV4ReportsPanel/);
@@ -1171,7 +1174,15 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(matchScoutSource, /Offline QR/);
   assert.match(matchScoutSource, /Offline Backup/);
   assert.match(matchScoutSource, /Use this only when Firebase sync is not available/);
-  assert.match(matchScoutSource, /Evidence Capture Path/);
+  assert.match(matchScoutSource, /Which robot am I responsible for/);
+  assert.match(matchScoutSource, /Locked Scout Name/);
+  assert.match(matchScoutSource, /Locked Scout Number/);
+  assert.match(matchScoutSource, /scoutNumber/);
+  assert.match(matchScoutSource, /setScoutArchiveIdentity/);
+  assert.match(matchScoutSource, /renameScoutArchiveIdentity/);
+  assert.doesNotMatch(matchScoutSource, /Total Points/);
+  assert.doesNotMatch(matchScoutSource, /Scout Slot/);
+  assert.doesNotMatch(matchScoutSource, /SCOUT_ASSIGNMENTS/);
   assert.match(matchScoutSource, /First Teleop Shift/);
   assert.match(matchScoutSource, /Current first shift/);
   assert.match(matchScoutSource, /teleopFirstShiftAlliance/);
@@ -1179,8 +1190,7 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(matchScoutSource, /data-testid="first-shift-clear"/);
   assert.doesNotMatch(matchScoutSource, /PPA Capture Path/);
   assert.match(matchScoutSource, /verifyScoutIdentityUnlockPassphrase/);
-  assert.match(matchScoutSource, /renameScoutArchiveUsername/);
-  assert.match(matchScoutSource, /Change With Admin Passphrase/);
+  assert.match(matchScoutSource, /Change with admin passphrase/);
   assert.match(matchScoutSource, /Confirm Reset/);
   assert.match(matchScoutSource, /within 3 seconds/);
   assert.doesNotMatch(matchScoutSource, /Reset \$\{label\} to 0/);
@@ -1191,6 +1201,7 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.doesNotMatch(matchScoutSource, /Lock Prediction/);
   assert.doesNotMatch(matchScoutSource, /Open Prediction/);
   assert.match(usernameGateSource, /Change locked scout identity/);
+  assert.match(usernameGateSource, /Scout Number/);
   assert.match(usernameGateSource, /Admin Unlock Passphrase/);
   assert.match(usernameGateSource, /Unlock And Rename Device/);
   assert.match(scoutArchiveSource, /Scout identity is locked on this device/);
@@ -1228,9 +1239,12 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.doesNotMatch(setupSource, /PROMOTED_PPA_MODEL|PPA_SHAPE_OUTPUTS|How admins use this evidence|Decision Model|Capture the evidence that explains whether this PPA shape is trustworthy/);
   assert.match(workflowSource, /EXPECTED_RANGE_OUTPUTS/);
   assert.doesNotMatch(workflowSource, /PPA_SHAPE_OUTPUTS/);
-  assert.match(usernameGateSource, /expected ranges/);
+  assert.match(usernameGateSource, /one scout name and scout number/);
+  assert.match(usernameGateSource, /sorted, audited, and merged/);
+  assert.match(usernameGateSource, /team-focus assignments/);
   assert.doesNotMatch(usernameGateSource, /supports PPA/);
-  assert.match(matchScoutSource, /central expected range/);
+  assert.match(matchScoutSource, /expected value and repeatability/);
+  assert.match(matchScoutSource, /Score and defense can change at any time/);
   assert.doesNotMatch(matchScoutSource, /central PPA estimate|expected-value part of PPA|Tell PPA why/);
   assert.match(preMatchSource, /Range Guardrail/);
   assert.match(preMatchSource, /Public Context/);

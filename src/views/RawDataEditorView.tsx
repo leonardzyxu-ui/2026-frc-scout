@@ -588,8 +588,9 @@ export default function RawDataEditorView({ eventKey }: RawDataEditorViewProps) 
                                     onChange={e => setEditForm({ ...editForm, substituteScoutName: e.target.value as MatchScoutingV3['substituteScoutName'] })}
                                   >
                                     <option value="">None</option>
-                                    <option value="Charlotte">Charlotte</option>
-                                    <option value="Scarlett">Scarlett</option>
+                                    <option value="Substitute 1">Substitute 1</option>
+                                    <option value="Substitute 2">Substitute 2</option>
+                                    <option value="Substitute 3">Substitute 3</option>
                                   </select>
                                 </div>
                                 <div>

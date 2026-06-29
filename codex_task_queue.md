@@ -75,3 +75,33 @@
 - [blocked] Add the token-budget rollover rule to `/Users/leoxu/.codex/AGENTS.md`; blocked until Leo provides a fresh direct secret-code reply because that file is protected by the local safety rules.
 - [x] Keep local Git checkpoint commits at meaningful completed slices, without pushing/deploying during overnight constraints.
 - [x] Prepare the June 29 8:30 AM business-style morning report with completed work, assumptions, blockers, and next actions.
+- [x] Launch a multi-agent prompt-deciphering pass over Leo's pasted overnight scouting redesign prompt.
+- [x] Create a living prompt-decomposition artifact that chunks the pasted prompt into done, partial, missing, and blocked requirements.
+- [ ] Synthesize all prompt-decoder agent outputs into the prompt-decomposition artifact and queue.
+- [x] Lock Match Scout V4 scout identity by browser cache with `scoutNumber` as the canonical identifier and `scoutName` as display-only.
+- [x] Remove all normal Match Scout V4 content above “Which robot am I responsible for?” so scouts start directly at responsibility setup.
+- [x] Redesign scout assignment away from red/blue station labels into a pre-event scout-specialization planner sorted by scout number.
+- [x] Delete stale hardcoded scout names from active admin/scout assignment surfaces and fixtures.
+- [ ] Implement Non-Defense Point Count and deviation from offense shifts where the team was not defended.
+- [ ] Build the full active/inactive teleop shift-entry UI in Match Scout V4.
+- [ ] Add stockpile and defense-shift weighted aggregation, including the configurable 0.5/0.5 and 0.1 rules.
+- [ ] Add logic-safety tests for stockpile double counting, all-zero defender shares, official-score zero totals, penalty-heavy reconciliation, and arbitrary scout counts.
+- [ ] Define a first-shift conflict authority rule so match-scoped re-confirmation converges to one authoritative match record.
+- [ ] Connect first-shift correction notices to a real match-scoped local notification or admin/scout queue surface.
+- [ ] Add RP-aware and variance-gamble-aware strategy plan selection beyond probability display.
+- [ ] Finish the scout-facing rename sweep, especially remaining PPA/reliability wording in Match Scout V4 and Admin V4 panels.
+- [ ] Connect `compareAllianceStrategies()` into a visible Admin V4 strategy surface.
+- [ ] Keep the Cue Steward loop active: forward new Leo requests into backlog audit and add missing queue chunks promptly.
+- [x] Fetch and anchor the official FIRST Season Materials, REBUILT TU22 manual, and Team Update 22 sources for RP/rules logic.
+- [ ] Add an event-tier RP threshold adapter for Regional/District, District Championship, and FIRST Championship thresholds.
+- [ ] Add Traversal RP handling as a valid low-probability strategy metric instead of treating it as obsolete.
+- [ ] Build the mirrored strategy preview page that shows predicted opponent shift behavior and our recommended shift response plan.
+- [ ] Split browser-cache export work into explicit JSON schema documentation and direct local-file export UX.
+- [deferred] Add the conditional PowerScout marketing-site task only after the core scouting redesign is otherwise complete.
+- [ ] Launch exactly two `gpt-5.4` high-reasoning agents to decipher the minimalist scout website + shift-form redesign prompt, both with the official REBUILT TU22 manual anchor.
+- [ ] Redesign the scout website first-open flow to show only admin-passphrase setup with “Find Leo for initial device setup.”
+- [ ] After valid passphrase, collect Scout Name and 1-2 digit Scout Number, then lock both in browser cache.
+- [ ] Replace the normal scout home screen with a minimalist greeting and three lane panels ordered Match Scout, Pit Scout, Pre Scout.
+- [ ] Add a top-right gear settings view showing locked scout name/number, Scout History link, all-history export, and passphrase-gated identity edits.
+- [ ] Design history export selection and version-sync metadata so scout/admin sides preserve every version and sync the newest version both ways.
+- [ ] Build Match Scout shift UI with Auto Shift, first-alliance-shift toggle, red/blue ordered shift panels, offense counters only while editing, defense target/share, and stockpile instructions.

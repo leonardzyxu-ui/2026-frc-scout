@@ -12,7 +12,7 @@ const normalizeAlliance = (value: unknown): MatchScoutingV3Alliance =>
   value === 'Red' || value === 'Blue' ? value : '';
 
 const normalizeSubstituteScoutName = (value: unknown): MatchDefenseScoutingV1['substituteScoutName'] =>
-  value === 'Charlotte' || value === 'Scarlett' ? value : '';
+  value === 'Substitute 1' || value === 'Substitute 2' || value === 'Substitute 3' ? value : '';
 
 const clampDefenseMetric = (value: number) => {
   const numeric = Number.isFinite(value) ? value : 0;

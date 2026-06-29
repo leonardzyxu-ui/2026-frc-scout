@@ -9,6 +9,7 @@ const SETTINGS_STORE = 'settings';
 const RECORDS_STORE = 'records';
 const DB_VERSION = 1;
 const USERNAME_KEY = 'scout_username';
+const SCOUT_NUMBER_KEY = 'scout_number';
 const USERNAME_RENAME_HISTORY_KEY = 'scout_username_rename_history';
 
 export type ScoutArchiveRecordType = 'match' | 'matchV4' | 'matchDefense' | 'pit';
@@ -88,8 +89,15 @@ export interface ScoutArchiveBundle {
 export interface ScoutIdentityRenameHistoryEntry {
   previousUsername: string;
   nextUsername: string;
+  previousScoutNumber?: number | null;
+  nextScoutNumber?: number | null;
   renamedAt: number;
   reason: 'unlock_passphrase' | 'import' | 'admin_reset';
+}
+
+export interface ScoutArchiveIdentity {
+  username: string;
+  scoutNumber: number | null;
 }
 
 const normalizeArchiveRecord = (record: ScoutArchiveRecord): ScoutArchiveRecord => ({
@@ -187,12 +195,35 @@ const buildMatchDefenseRecordId = (record: MatchDefenseScoutingV1) =>
 
 const normalizeUsername = (value: string) => value.trim();
 
+const normalizeScoutNumber = (value: unknown) => {
+  const number = Math.trunc(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+
 export const getScoutArchiveUsername = async () =>
   await withStore<string | null>(SETTINGS_STORE, 'readonly', (store, resolve, reject) => {
     const request = store.get(USERNAME_KEY);
     request.onerror = () => reject(request.error ?? new Error('Failed to read scout username.'));
     request.onsuccess = () => resolve((request.result?.value as string | undefined) ?? null);
   });
+
+export const getScoutArchiveScoutNumber = async () =>
+  await withStore<number | null>(SETTINGS_STORE, 'readonly', (store, resolve, reject) => {
+    const request = store.get(SCOUT_NUMBER_KEY);
+    request.onerror = () => reject(request.error ?? new Error('Failed to read scout number.'));
+    request.onsuccess = () => resolve(normalizeScoutNumber(request.result?.value));
+  });
+
+export const getScoutArchiveIdentity = async (): Promise<ScoutArchiveIdentity> => {
+  const [username, scoutNumber] = await Promise.all([
+    getScoutArchiveUsername().catch(() => null),
+    getScoutArchiveScoutNumber().catch(() => null)
+  ]);
+  return {
+    username: username || '',
+    scoutNumber
+  };
+};
 
 export const setScoutArchiveUsername = async (username: string) => {
   const normalized = normalizeUsername(username);
@@ -205,6 +236,39 @@ export const setScoutArchiveUsername = async (username: string) => {
     const request = store.put({ key: USERNAME_KEY, value: normalized, updatedAt: Date.now() });
     request.onerror = () => reject(request.error ?? new Error('Failed to save scout username.'));
     request.onsuccess = () => resolve();
+  });
+};
+
+export const setScoutArchiveIdentity = async ({ username, scoutNumber }: ScoutArchiveIdentity) => {
+  const normalized = normalizeUsername(username);
+  const normalizedNumber = normalizeScoutNumber(scoutNumber);
+  if (!normalized) {
+    throw new Error('Scout username cannot be empty.');
+  }
+  if (!normalizedNumber) {
+    throw new Error('Scout number must be a positive number.');
+  }
+
+  const existing = await getScoutArchiveIdentity().catch(() => ({ username: '', scoutNumber: null }));
+  if (
+    (existing.username && existing.username !== normalized) ||
+    (existing.scoutNumber != null && existing.scoutNumber !== normalizedNumber)
+  ) {
+    throw new Error('Scout identity is locked on this device. Use the admin unlock passphrase to change it.');
+  }
+
+  await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
+    let pendingWrites = 2;
+    const finish = () => {
+      pendingWrites -= 1;
+      if (pendingWrites === 0) resolve();
+    };
+    const usernameRequest = store.put({ key: USERNAME_KEY, value: normalized, updatedAt: Date.now() });
+    const numberRequest = store.put({ key: SCOUT_NUMBER_KEY, value: normalizedNumber, updatedAt: Date.now() });
+    usernameRequest.onerror = () => reject(usernameRequest.error ?? new Error('Failed to save scout username.'));
+    numberRequest.onerror = () => reject(numberRequest.error ?? new Error('Failed to save scout number.'));
+    usernameRequest.onsuccess = finish;
+    numberRequest.onsuccess = finish;
   });
 };
 
@@ -254,6 +318,58 @@ export const renameScoutArchiveUsername = async (
     usernameRequest.onerror = () => reject(usernameRequest.error ?? new Error('Failed to save scout username.'));
     historyRequest.onerror = () => reject(historyRequest.error ?? new Error('Failed to save scout identity rename history.'));
     usernameRequest.onsuccess = finish;
+    historyRequest.onsuccess = finish;
+  });
+};
+
+export const renameScoutArchiveIdentity = async (
+  identity: ScoutArchiveIdentity,
+  reason: ScoutIdentityRenameHistoryEntry['reason'] = 'unlock_passphrase'
+) => {
+  const normalized = normalizeUsername(identity.username);
+  const normalizedNumber = normalizeScoutNumber(identity.scoutNumber);
+  if (!normalized) {
+    throw new Error('Scout username cannot be empty.');
+  }
+  if (!normalizedNumber) {
+    throw new Error('Scout number must be a positive number.');
+  }
+
+  const previousIdentity = await getScoutArchiveIdentity().catch(() => ({ username: '', scoutNumber: null }));
+  if (previousIdentity.username === normalized && previousIdentity.scoutNumber === normalizedNumber) {
+    return;
+  }
+
+  const history = await listScoutIdentityRenameHistory().catch(() => []);
+  const renamedAt = Date.now();
+  const nextHistory = previousIdentity.username
+    ? [
+        ...history,
+        {
+          previousUsername: previousIdentity.username,
+          nextUsername: normalized,
+          previousScoutNumber: previousIdentity.scoutNumber,
+          nextScoutNumber: normalizedNumber,
+          renamedAt,
+          reason
+        }
+      ]
+    : history;
+
+  await withStore<void>(SETTINGS_STORE, 'readwrite', (store, resolve, reject) => {
+    let pendingWrites = 3;
+    const finish = () => {
+      pendingWrites -= 1;
+      if (pendingWrites === 0) resolve();
+    };
+    const usernameRequest = store.put({ key: USERNAME_KEY, value: normalized, updatedAt: renamedAt });
+    const numberRequest = store.put({ key: SCOUT_NUMBER_KEY, value: normalizedNumber, updatedAt: renamedAt });
+    const historyRequest = store.put({ key: USERNAME_RENAME_HISTORY_KEY, value: nextHistory, updatedAt: renamedAt });
+    usernameRequest.onerror = () => reject(usernameRequest.error ?? new Error('Failed to save scout username.'));
+    numberRequest.onerror = () => reject(numberRequest.error ?? new Error('Failed to save scout number.'));
+    historyRequest.onerror = () => reject(historyRequest.error ?? new Error('Failed to save scout identity rename history.'));
+    usernameRequest.onsuccess = finish;
+    numberRequest.onsuccess = finish;
     historyRequest.onsuccess = finish;
   });
 };

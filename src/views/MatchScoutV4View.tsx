@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, Download, QrCode, RefreshCw, Save, Shield, Target, Trophy } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { AlertTriangle, Download, QrCode, Save, Shield, Trophy } from 'lucide-react';
 import { MatchScoutingV4, MatchScoutingV4Role, initialMatchScoutingV4 } from '../types';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
-import { SCOUT_ASSIGNMENTS, getScoutAssignmentByName } from '../utils/scoutAssignments';
 import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventState';
 import { buildMatchKeyV4, normalizeMatchScoutingV4 } from '../utils/matchScoutingV4';
 import {
-  getScoutArchiveUsername,
-  renameScoutArchiveUsername,
-  setScoutArchiveUsername,
+  getScoutArchiveIdentity,
+  renameScoutArchiveIdentity,
+  setScoutArchiveIdentity,
+  type ScoutArchiveIdentity,
   updateScoutArchiveRecordSyncState,
   upsertMatchArchiveRecordV4
 } from '../utils/scoutArchive';
@@ -19,14 +19,12 @@ import { compressMatchDataV4 } from '../utils/qrCompression';
 import { loadTbaApiKey } from '../utils/adminV4LocalStore';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
-import ScoutWorkflowHeader, { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
-import ScoutingMissionPanel from '../components/scouting/ScoutingMissionPanel';
-import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff, getScoutTaskReturnPath } from '../utils/scoutTaskHandoff';
+import { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
+import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff } from '../utils/scoutTaskHandoff';
 import { verifyScoutIdentityUnlockPassphrase } from '../utils/scoutIdentityLock';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
-const SUBSTITUTES = ['Charlotte', 'Scarlett'] as const;
 const ROLE_OPTIONS: MatchScoutingV4Role[] = ['Offense', 'Defense', 'Mixed', 'Support', 'Disabled'];
 type MatchScoutStepKey = 'setup' | 'score' | 'role' | 'risk' | 'handoff';
 const MATCH_SCOUT_STEPS: Array<{
@@ -39,7 +37,7 @@ const MATCH_SCOUT_STEPS: Array<{
     key: 'setup',
     label: 'Setup',
     question: 'Which robot am I responsible for?',
-    output: 'match, scout slot, alliance, team'
+    output: 'locked scout identity, match, alliance, team'
   },
   {
     key: 'score',
@@ -72,23 +70,27 @@ const FAILURE_TOGGLES: Array<{ key: 'robotDied' | 'commsLost' | 'mechanismBroke'
   { key: 'mechanismBroke', label: 'Mechanism Broke' },
   { key: 'tippedOver', label: 'Tipped Over' }
 ];
-const EXPECTED_RANGE_SIGNAL_STEPS = [
-  { key: 'expected', label: 'Expected Value', detail: 'Auto, teleop, and endgame points set the central expected range.' },
-  { key: 'repeatability', label: 'Repeatability', detail: 'Cycles explain whether the score was stable or a one-off spike.' },
-  { key: 'role', label: 'Role Context', detail: 'Role and defense fields prevent the model from confusing strategy with weakness.' },
-  { key: 'floor', label: 'Floor Risk', detail: 'Reliability and failures define how low the team can realistically fall.' }
-];
 const inputClass = 'admin-g2-sm w-full border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400';
 const fieldLabelClass = 'text-xs font-black uppercase tracking-widest text-slate-500';
 const sanitizeScheduleEventKey = (value: string) => value.toUpperCase().replace(/\s+/g, '');
 const getShortMatchKey = (match: TBAMatch) => match.key.split('_')[1]?.toLowerCase() || '';
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
 
-const getDefaultData = (deviceId: string, scoutName = '') =>
+const normalizeScoutNumberForView = (value: unknown) => {
+  const number = Math.trunc(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+
+const buildScoutNumberSlot = (scoutNumber: number | null) => scoutNumber ? `Scout #${scoutNumber}` : '';
+
+const getDefaultData = (deviceId: string, scoutName = '', scoutNumber: number | null = null) =>
   normalizeMatchScoutingV4({
     ...initialMatchScoutingV4,
     eventKey: DEFAULT_EVENT_KEY,
     scoutName,
+    scoutNumber,
+    assignedScoutName: scoutName,
+    assignedSlot: buildScoutNumberSlot(scoutNumber),
     deviceId
   });
 
@@ -229,97 +231,7 @@ function StepFrame({
   );
 }
 
-function PpaSignalStrip({ data }: { data: MatchScoutingV4 }) {
-  const totalCycles = data.autoCycles + data.teleopCycles;
-  const activeFailures = FAILURE_TOGGLES.filter(({ key }) => data[key]).length;
-  const failurePenalty = activeFailures * 8 + data.fouls * 1.5 + data.techFouls * 4;
-  const reliabilityFloor = Math.max(0, data.totalMatchPoints * data.reliabilityScore - failurePenalty);
-  const cycleBonus = Math.min(18, totalCycles * 1.25);
-  const roleBonus =
-    data.rolePlayed === 'Defense'
-      ? data.defenseIntensity * 10 + Math.min(8, data.defenseDurationSeconds / 15)
-      : data.rolePlayed === 'Mixed'
-        ? data.defenseIntensity * 5 + Math.min(6, data.defenseDurationSeconds / 25)
-        : data.rolePlayed === 'Support'
-          ? 3
-          : 0;
-  const ceilingSignal = Math.max(data.totalMatchPoints, data.totalMatchPoints + cycleBonus + roleBonus);
-  const floorLabel = `${Math.round(reliabilityFloor)} pts`;
-  const ceilingLabel = `${Math.round(ceilingSignal)} pts`;
-  const roleLabel = data.rolePlayed || 'Choose role';
-  const headScoutRead = (() => {
-    if (data.rolePlayed === 'Disabled' || activeFailures > 1 || data.reliabilityScore < 0.55) {
-      return 'Treat this as floor-risk evidence until another clean row confirms recovery.';
-    }
-    if (data.rolePlayed === 'Defense' || data.defenseIntensity >= 0.5 || data.defenseDurationSeconds >= 45) {
-      return 'Tell strategy whether the defense was worth the scoring tradeoff.';
-    }
-    if (data.totalMatchPoints > 0 && totalCycles === 0) {
-      return 'Add cycles or notes so Admin can tell spike scoring from repeatable scoring.';
-    }
-    if (!data.rolePlayed) {
-      return 'Pick the role before submit; the model needs to know why the points happened.';
-    }
-    return 'Good row shape: expected value, repeatability, role, and floor risk are all represented.';
-  })();
-  const signalValues: Record<string, string> = {
-    expected: `${data.totalMatchPoints} pts`,
-    repeatability: `${totalCycles} cycles`,
-    role: roleLabel,
-    floor: `${(data.reliabilityScore * 100).toFixed(0)}% / ${activeFailures} flags`
-  };
-
-  return (
-    <section className="admin-g2 border border-cyan-400/25 bg-cyan-500/10 p-5">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">Evidence Capture Path</div>
-          <h2 className="mt-1 text-xl font-black text-white">Collect the shape, not just the score</h2>
-        </div>
-        <div className="text-sm font-semibold text-cyan-50/75">
-          {data.totalMatchPoints} pts · {totalCycles} cycles · {data.rolePlayed || 'role pending'} · {(data.reliabilityScore * 100).toFixed(0)}% reliability
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        {EXPECTED_RANGE_SIGNAL_STEPS.map(item => (
-          <div key={item.label} className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-3 py-3">
-            <div className="text-xs font-black uppercase tracking-wider text-cyan-100">{item.label}</div>
-            <div className="mt-2 text-2xl font-black text-white">{signalValues[item.key]}</div>
-            <div className="mt-2 text-xs font-semibold text-slate-300">{item.detail}</div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1.4fr]">
-        <div className="admin-g2-sm border border-cyan-200/10 bg-slate-950/55 px-3 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Row Expected</div>
-          <div className="mt-1 text-xl font-black text-cyan-100">{data.totalMatchPoints} pts</div>
-          <div className="mt-1 text-xs font-semibold text-slate-400">Direct contribution recorded here.</div>
-        </div>
-        <div className="admin-g2-sm border border-amber-200/10 bg-slate-950/55 px-3 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Floor Guard</div>
-          <div className="mt-1 text-xl font-black text-amber-100">{floorLabel}</div>
-          <div className="mt-1 text-xs font-semibold text-slate-400">Reliability minus fouls and failure flags.</div>
-        </div>
-        <div className="admin-g2-sm border border-violet-200/10 bg-slate-950/55 px-3 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Ceiling Clue</div>
-          <div className="mt-1 text-xl font-black text-violet-100">{ceilingLabel}</div>
-          <div className="mt-1 text-xs font-semibold text-slate-400">Points plus repeatability and role context.</div>
-        </div>
-        <div className="admin-g2-sm border border-emerald-200/10 bg-slate-950/55 px-3 py-3">
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Head Scout Read</div>
-          <div className="mt-1 text-sm font-black text-emerald-100">{roleLabel}</div>
-          <div className="mt-1 text-xs font-semibold leading-relaxed text-slate-300">{headScoutRead}</div>
-        </div>
-      </div>
-      <div className="mt-3 text-xs font-semibold leading-relaxed text-cyan-50/70">
-        This is a live evidence preview for this row only. Admin V4 combines it with prior rows, defense scouting, public context, and the promoted model before producing the final expected-range read.
-      </div>
-    </section>
-  );
-}
-
 export default function MatchScoutV4View() {
-  const navigate = useNavigate();
   const location = useLocation();
   const taskHandoff = useMemo(() => getScoutTaskHandoff('matchScout', location.search), [location.search]);
   const taskHandoffKey = taskHandoff
@@ -336,7 +248,9 @@ export default function MatchScoutV4View() {
   const activeTaskHandoff = taskHandoffKey && taskHandoffKey === completedAdminTaskKey ? null : taskHandoff;
   const deviceId = useMemo(() => getPersistentDeviceId(), []);
   const [archiveUsername, setArchiveUsername] = useState('');
+  const [archiveScoutNumber, setArchiveScoutNumber] = useState<number | null>(null);
   const [pendingUsername, setPendingUsername] = useState('');
+  const [pendingScoutNumber, setPendingScoutNumber] = useState('');
   const [renameGateOpen, setRenameGateOpen] = useState(false);
   const [identityUnlockPassphrase, setIdentityUnlockPassphrase] = useState('');
   const [identityUnlockError, setIdentityUnlockError] = useState('');
@@ -345,45 +259,45 @@ export default function MatchScoutV4View() {
   const [statusMessage, setStatusMessage] = useState('');
   const [showQr, setShowQr] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [eventMatches, setEventMatches] = useState<TBAMatch[]>([]);
   const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
-  const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
   const [assignmentWarning, setAssignmentWarning] = useState('');
   const [teamWarning, setTeamWarning] = useState('');
   const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
   const [teamManuallyEdited, setTeamManuallyEdited] = useState(false);
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
-  const totalPoints = normalizedData.totalMatchPoints;
   const currentMatchKey = useMemo(
     () => buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber),
     [normalizedData.matchNumber, normalizedData.matchType]
   );
-  const selectedAssignment = useMemo(
-    () => getScoutAssignmentByName(normalizedData.assignedScoutName),
-    [normalizedData.assignedScoutName]
-  );
-  const canOpenForm = Boolean(normalizedData.teamNumber && normalizedData.assignedScoutName && normalizedData.alliance);
+  const canOpenForm = Boolean(normalizedData.teamNumber && archiveUsername && archiveScoutNumber && normalizedData.alliance);
   useEffect(() => {
     let cancelled = false;
     const hydrate = async () => {
       try {
-        const username = await getScoutArchiveUsername();
+        const identity = await getScoutArchiveIdentity();
         const draftText = localStorage.getItem(DRAFT_KEY);
         const editMode = !!draftText && localStorage.getItem(EDIT_MODE_KEY) === 'true';
         if (!draftText) {
           localStorage.removeItem(EDIT_MODE_KEY);
         }
         const draft = draftText ? JSON.parse(draftText) as Partial<MatchScoutingV4> : null;
+        const scoutNumber = normalizeScoutNumberForView(draft?.scoutNumber ?? identity.scoutNumber);
+        const scoutName = draft?.scoutName || identity.username || '';
         if (cancelled) return;
-        setArchiveUsername(username || '');
-        setPendingUsername(username || '');
+        setArchiveUsername(identity.username || '');
+        setArchiveScoutNumber(identity.scoutNumber);
+        setPendingUsername(identity.username || '');
+        setPendingScoutNumber(identity.scoutNumber ? String(identity.scoutNumber) : '');
         setIsEditingExistingRecord(editMode);
         setTeamManuallyEdited(Boolean(draft?.teamNumber));
         setData(normalizeMatchScoutingV4({
-          ...getDefaultData(deviceId, username || ''),
+          ...getDefaultData(deviceId, scoutName, scoutNumber),
           ...(draft || {}),
-          scoutName: draft?.scoutName || username || '',
+          scoutName,
+          scoutNumber,
+          assignedScoutName: scoutName,
+          assignedSlot: buildScoutNumberSlot(scoutNumber),
           deviceId
         }));
       } catch (error) {
@@ -423,7 +337,6 @@ export default function MatchScoutV4View() {
     let cancelled = false;
     const fetchMatches = async () => {
       if (normalizedData.eventKey === 'TEST') {
-        setEventMatches([]);
         setScheduledTeams([]);
         setAssignmentWarning('');
         setTeamWarning('');
@@ -436,7 +349,6 @@ export default function MatchScoutV4View() {
         try {
           const parsed = JSON.parse(cachedMatches) as TBAMatch[];
           if (!cancelled) {
-            setEventMatches(parsed);
             const teams = new Set<string>();
             parsed.forEach(match => {
               match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
@@ -454,18 +366,16 @@ export default function MatchScoutV4View() {
       if (!effectiveTbaApiKey) {
         setAssignmentWarning(
           cachedMatches
-            ? 'Using cached schedule. Upload a local TBA key in Admin V4 Settings to refresh live auto-fill.'
-            : 'Schedule auto-fill needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
+            ? 'Using cached schedule validation. Upload a local TBA key in Admin V4 Settings to refresh live schedule checks.'
+            : 'Schedule validation needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
         );
         return;
       }
 
-      setIsLoadingSchedule(true);
       try {
         const engine = new MathEngine(effectiveTbaApiKey);
         const matches = await engine.fetchEventMatches(normalizedData.eventKey, { includeUnplayed: true });
         if (cancelled) return;
-        setEventMatches(matches);
         localStorage.setItem(cacheKey, JSON.stringify(matches));
 
         const teams = new Set<string>();
@@ -479,8 +389,6 @@ export default function MatchScoutV4View() {
         if (!cancelled && !cachedMatches) {
           setAssignmentWarning('Unable to load the live schedule. Team number and alliance can still be entered manually.');
         }
-      } finally {
-        if (!cancelled) setIsLoadingSchedule(false);
       }
     };
 
@@ -492,55 +400,13 @@ export default function MatchScoutV4View() {
 
   useEffect(() => {
     const generatedMatchKey = buildMatchKeyV4(normalizedData.matchType, normalizedData.matchNumber);
-    const assignment = selectedAssignment;
-
-    if (!assignment) {
+    if (normalizedData.matchKey !== generatedMatchKey) {
       updateData({ matchKey: generatedMatchKey });
-      setAssignmentWarning('');
-      return;
     }
-
-    const scheduledMatch = eventMatches.find(match => getShortMatchKey(match) === generatedMatchKey.toLowerCase());
-    const allianceTeamKeys =
-      assignment.alliance === 'Red'
-        ? scheduledMatch?.alliances.red.team_keys || []
-        : scheduledMatch?.alliances.blue.team_keys || [];
-    const assignedTeamNumber = normalizeTeamKey(allianceTeamKeys[assignment.positionIndex] || '');
-
-    updateData({
-      matchKey: generatedMatchKey,
-      assignedSlot: assignment.slotLabel,
-      alliance: assignment.alliance,
-      teamNumber: !teamManuallyEdited && assignedTeamNumber ? assignedTeamNumber : normalizedData.teamNumber
-    });
-
-    if (normalizedData.eventKey === 'TEST') {
-      setAssignmentWarning('');
-      return;
-    }
-
-    if (!scheduledMatch) {
-      if (!isLoadingSchedule) {
-        setAssignmentWarning(`No scheduled ${generatedMatchKey.toUpperCase()} was found for ${normalizedData.eventKey}. Team number remains editable.`);
-      }
-      return;
-    }
-
-    if (!assignedTeamNumber) {
-      setAssignmentWarning(`No team is published yet for ${assignment.slotLabel} in ${generatedMatchKey.toUpperCase()}. Team number remains editable.`);
-      return;
-    }
-
-    setAssignmentWarning('');
   }, [
-    eventMatches,
-    isLoadingSchedule,
-    normalizedData.eventKey,
+    normalizedData.matchKey,
     normalizedData.matchNumber,
-    normalizedData.matchType,
-    normalizedData.teamNumber,
-    selectedAssignment,
-    teamManuallyEdited
+    normalizedData.matchType
   ]);
 
   useEffect(() => {
@@ -561,27 +427,53 @@ export default function MatchScoutV4View() {
     setData(previous => normalizeMatchScoutingV4({ ...previous, ...patch }));
   };
 
+  const getPendingIdentity = (): ScoutArchiveIdentity => ({
+    username: pendingUsername.trim(),
+    scoutNumber: normalizeScoutNumberForView(pendingScoutNumber)
+  });
+
+  const applyLockedIdentityToForm = (identity: ScoutArchiveIdentity) => {
+    setArchiveUsername(identity.username);
+    setArchiveScoutNumber(identity.scoutNumber);
+    setPendingUsername(identity.username);
+    setPendingScoutNumber(identity.scoutNumber ? String(identity.scoutNumber) : '');
+    updateData({
+      scoutName: identity.username,
+      scoutNumber: identity.scoutNumber,
+      assignedScoutName: identity.username,
+      assignedSlot: buildScoutNumberSlot(identity.scoutNumber),
+      substituteScoutName: ''
+    });
+  };
+
   const handleUsernameSave = async () => {
-    const normalized = pendingUsername.trim();
-    if (!normalized) {
+    const identity = getPendingIdentity();
+    if (!identity.username) {
       setStatusMessage('Scout username is required on this device.');
       return;
     }
+    if (!identity.scoutNumber) {
+      setStatusMessage('Scout number is required on this device.');
+      return;
+    }
 
-    await setScoutArchiveUsername(normalized);
-    setArchiveUsername(normalized);
-    updateData({ scoutName: normalized });
+    await setScoutArchiveIdentity(identity);
+    applyLockedIdentityToForm(identity);
     setStatusMessage('');
   };
 
   const handleIdentityRename = async () => {
-    const normalized = pendingUsername.trim();
-    if (!normalized) {
+    const identity = getPendingIdentity();
+    if (!identity.username) {
       setIdentityUnlockError('New scout username is required.');
       return;
     }
+    if (!identity.scoutNumber) {
+      setIdentityUnlockError('New scout number is required.');
+      return;
+    }
 
-    if (normalized === archiveUsername.trim()) {
+    if (identity.username === archiveUsername.trim() && identity.scoutNumber === archiveScoutNumber) {
       setRenameGateOpen(false);
       setIdentityUnlockError('');
       setIdentityUnlockPassphrase('');
@@ -594,32 +486,18 @@ export default function MatchScoutV4View() {
       return;
     }
 
-    await renameScoutArchiveUsername(normalized, 'unlock_passphrase');
-    setArchiveUsername(normalized);
-    setPendingUsername(normalized);
-    updateData({ scoutName: normalized });
+    await renameScoutArchiveIdentity(identity, 'unlock_passphrase');
+    applyLockedIdentityToForm(identity);
     setRenameGateOpen(false);
     setIdentityUnlockError('');
     setIdentityUnlockPassphrase('');
     setStatusMessage('Scout identity renamed on this device.');
   };
 
-  const handleScoutSelection = (name: string) => {
-    const assignment = getScoutAssignmentByName(name);
-    if (!assignment) return;
-    updateData({
-      assignedScoutName: assignment.name,
-      assignedSlot: assignment.slotLabel,
-      alliance: assignment.alliance,
-      substituteScoutName: ''
-    });
-    setTeamManuallyEdited(false);
-  };
-
   const validate = () => {
     if (!archiveUsername.trim()) return 'Scout username is required.';
+    if (!archiveScoutNumber) return 'Scout number is required.';
     if (!normalizedData.teamNumber.trim()) return 'Team number is required.';
-    if (!normalizedData.assignedScoutName.trim()) return 'Select the fixed scout assignment.';
     if (!normalizedData.alliance) return 'Alliance is required.';
     if (!normalizedData.rolePlayed) return 'Role played is required. Choose Offense, Defense, Mixed, Support, or Disabled.';
     return '';
@@ -629,17 +507,21 @@ export default function MatchScoutV4View() {
     normalizeMatchScoutingV4({
       ...normalizedData,
       scoutName: scoutNameOverride.trim(),
+      scoutNumber: archiveScoutNumber,
+      assignedScoutName: scoutNameOverride.trim(),
+      assignedSlot: buildScoutNumberSlot(archiveScoutNumber),
+      substituteScoutName: '',
       matchKey: currentMatchKey,
       timestamp: Date.now(),
       deviceId,
       adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
     });
 
-  const resetFormAfterLocalSave = (scoutName = archiveUsername) => {
+  const resetFormAfterLocalSave = (scoutName = archiveUsername, scoutNumber = archiveScoutNumber) => {
     localStorage.removeItem(DRAFT_KEY);
     localStorage.removeItem(EDIT_MODE_KEY);
     setIsEditingExistingRecord(false);
-    setData(getDefaultData(deviceId, scoutName));
+    setData(getDefaultData(deviceId, scoutName, scoutNumber));
     setTeamManuallyEdited(false);
   };
 
@@ -656,9 +538,7 @@ export default function MatchScoutV4View() {
     const scoutName = archiveUsername.trim();
 
     try {
-      await setScoutArchiveUsername(scoutName);
-      setArchiveUsername(scoutName);
-      setPendingUsername(scoutName);
+      await setScoutArchiveIdentity({ username: scoutName, scoutNumber: archiveScoutNumber });
 
       const payload = buildCurrentPayload(scoutName);
       const archiveRecord = await upsertMatchArchiveRecordV4(payload, scoutName, 'local_submit', {
@@ -709,22 +589,26 @@ export default function MatchScoutV4View() {
     }
   };
 
-  const showUsernameGate = isUsernameResolved && (!archiveUsername || renameGateOpen);
+  const showUsernameGate = isUsernameResolved && (!archiveUsername || !archiveScoutNumber || renameGateOpen);
 
   return (
     <div className="h-full overflow-y-auto bg-slate-950 px-4 py-6 text-white md:px-8">
       {showUsernameGate && (
         <ScoutUsernameGate
           currentUsername={archiveUsername}
+          currentScoutNumber={archiveScoutNumber}
           errorMessage={identityUnlockError}
           isUnlockMode={Boolean(archiveUsername && renameGateOpen)}
           onCancel={() => {
             setRenameGateOpen(false);
             setPendingUsername(archiveUsername);
+            setPendingScoutNumber(archiveScoutNumber ? String(archiveScoutNumber) : '');
             setIdentityUnlockError('');
             setIdentityUnlockPassphrase('');
           }}
+          pendingScoutNumber={pendingScoutNumber}
           pendingUsername={pendingUsername}
+          setPendingScoutNumber={setPendingScoutNumber}
           setPendingUsername={setPendingUsername}
           unlockPassphrase={identityUnlockPassphrase}
           setUnlockPassphrase={setIdentityUnlockPassphrase}
@@ -736,35 +620,6 @@ export default function MatchScoutV4View() {
         aria-hidden={showUsernameGate}
         className={`mx-auto max-w-6xl space-y-6 pb-24 ${showUsernameGate ? 'pointer-events-none select-none blur-sm' : ''}`}
       >
-        <ScoutWorkflowHeader
-          missionKey="matchScout"
-          title="Match Scout"
-          subtitle="Capture what the robot actually contributed, plus the role and reliability context the model needs."
-          handoff={activeTaskHandoff}
-          onBack={() => navigate(getScoutTaskReturnPath(activeTaskHandoff ?? taskHandoff))}
-          status={isEditingExistingRecord && (
-            <div className="admin-g2-sm inline-flex border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-amber-100">
-              Editing existing V4 dataset
-            </div>
-          )}
-          metric={(
-            <div className="admin-g2-sm border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-right sm:px-5 sm:py-4">
-              <div className="text-xs font-black uppercase tracking-widest text-cyan-200">Total Points</div>
-              <div className="text-3xl font-black text-cyan-100 sm:text-5xl">{totalPoints}</div>
-            </div>
-          )}
-        />
-
-        <ScoutingMissionPanel missionKey="matchScout" compact />
-
-        {statusMessage && (
-          <div className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
-            {statusMessage}
-          </div>
-        )}
-
-        {canOpenForm && <PpaSignalStrip data={normalizedData} />}
-
         <div className="scroll-mt-4">
           <StepFrame step="setup">
             <div className="grid gap-4 md:grid-cols-3">
@@ -811,22 +666,20 @@ export default function MatchScoutV4View() {
                 />
               </label>
               <label className="space-y-2">
-                <span className={fieldLabelClass}>Scout Username</span>
+                <span className={fieldLabelClass}>Locked Scout Name</span>
                 <input
                   value={archiveUsername}
                   readOnly
                   className={`${inputClass} border-slate-800 font-bold opacity-80`}
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPendingUsername(archiveUsername);
-                    setRenameGateOpen(true);
-                  }}
-                  className="admin-g2-sm mt-2 w-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-sm font-black text-cyan-100 hover:bg-cyan-500/20"
-                >
-                  Change With Admin Passphrase
-                </button>
+              </label>
+              <label className="space-y-2">
+                <span className={fieldLabelClass}>Locked Scout Number</span>
+                <input
+                  value={archiveScoutNumber ?? ''}
+                  readOnly
+                  className={`${inputClass} border-slate-800 font-mono text-xl font-black opacity-80`}
+                />
               </label>
               <label className="space-y-2">
                 <span className={fieldLabelClass}>Team Number</span>
@@ -856,82 +709,48 @@ export default function MatchScoutV4View() {
               </div>
             </div>
 
-            <div className="admin-g2-sm mt-5 border border-slate-800 bg-slate-950/45 p-4">
-              <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <Target className="h-5 w-5 text-cyan-300" />
-                  <div>
-                    <h2 className="text-xl font-black text-white">Scout Slot</h2>
-                    <p className="text-sm font-semibold text-slate-400">Choose the assigned robot slot so the team can autofill from the match schedule.</p>
+            <div className="admin-g2-sm mt-5 border border-slate-800 bg-slate-950/45 px-4 py-3 text-sm text-slate-300">
+              This device is locked to <span className="font-black text-white">{archiveUsername || 'no scout name'}</span>
+              {' '}as <span className="font-black text-white">Scout #{archiveScoutNumber ?? 'not set'}</span>.
+              {' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingUsername(archiveUsername);
+                  setPendingScoutNumber(archiveScoutNumber ? String(archiveScoutNumber) : '');
+                  setRenameGateOpen(true);
+                }}
+                className="font-black text-cyan-200 underline-offset-4 hover:text-cyan-100 hover:underline"
+              >
+                Change with admin passphrase
+              </button>
+            </div>
+
+            {(assignmentWarning || teamWarning) && (
+              <div className="mt-4 space-y-2">
+                {assignmentWarning && (
+                  <div className="admin-g2-sm flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {assignmentWarning}
                   </div>
-                </div>
-                {isLoadingSchedule && (
-                  <span className="admin-g2-sm inline-flex items-center gap-2 border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-200">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Loading schedule
-                  </span>
+                )}
+                {teamWarning && (
+                  <div className="admin-g2-sm flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    {teamWarning}
+                  </div>
                 )}
               </div>
-              <div className="grid gap-2 md:grid-cols-6">
-                {SCOUT_ASSIGNMENTS.map(assignment => (
-                  <button
-                    key={assignment.name}
-                    type="button"
-                    onClick={() => handleScoutSelection(assignment.name)}
-                    className={`admin-g2-sm px-3 py-4 text-center font-black transition active:scale-95 ${
-                      normalizedData.assignedScoutName === assignment.name
-                        ? assignment.alliance === 'Red'
-                          ? 'bg-red-500 text-white'
-                          : 'bg-blue-500 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    <div>{assignment.name}</div>
-                    <div className="text-xs opacity-80">{assignment.slotLabel}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className={`mr-2 self-center ${fieldLabelClass}`}>Substitute</span>
-                {SUBSTITUTES.map(name => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => updateData({ substituteScoutName: normalizedData.substituteScoutName === name ? '' : name })}
-                    className={`admin-g2-sm px-4 py-2 text-sm font-black ${
-                      normalizedData.substituteScoutName === name ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                  >
-                    {name}
-                  </button>
-                ))}
-              </div>
-              <div className="admin-g2-sm mt-4 border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-                Assigned slot: <span className="font-black text-white">{normalizedData.assignedSlot || 'Select scout'}</span>
-                {' • '}
-                Actual scout: <span className="font-black text-white">{normalizedData.substituteScoutName || archiveUsername || normalizedData.scoutName || 'Unassigned'}</span>
-              </div>
-              {(assignmentWarning || teamWarning) && (
-                <div className="mt-4 space-y-2">
-                  {assignmentWarning && (
-                    <div className="admin-g2-sm flex items-start gap-2 border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      {assignmentWarning}
-                    </div>
-                  )}
-                  {teamWarning && (
-                    <div className="admin-g2-sm flex items-start gap-2 border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-200">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                      {teamWarning}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
 
             {canOpenForm && (
               <div className="admin-g2-sm mt-5 border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-100">
                 Setup is ready. Offense, defense, risk, and notes are all unlocked below.
+              </div>
+            )}
+            {statusMessage && (
+              <div className="admin-g2-sm mt-4 border border-amber-400/30 bg-amber-500/10 p-4 text-sm font-bold text-amber-100">
+                {statusMessage}
               </div>
             )}
           </StepFrame>

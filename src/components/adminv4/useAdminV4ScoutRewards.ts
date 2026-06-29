@@ -22,10 +22,10 @@ import type {
   PowerCoinSettlementRequest,
   PowerCoinSettlementWinner
 } from './AdminV4SafetyModals';
-import { optimizeScoutAssignments } from '../../utils/strategyBrain';
+import { formatScoutRosterEntry, optimizeScoutAssignments, parseScoutRosterLine } from '../../utils/strategyBrain';
 import { downloadCsvFile } from '../../utils/csv';
 
-export const DEFAULT_ADMIN_V4_SCOUTS = ['Olivia', 'Eason', 'Matilda', 'Sophia', 'Lucas', 'Justin'];
+export const DEFAULT_ADMIN_V4_SCOUTS: string[] = [];
 
 const STARTING_REWARD_POINTS = 1000;
 
@@ -77,7 +77,9 @@ export function useAdminV4ScoutRewards({
   }, [refreshScoutOpsState]);
 
   React.useEffect(() => {
-    if (scoutAssignmentPlan?.scoutNames?.length) {
+    if (scoutAssignmentPlan?.scoutRoster?.length) {
+      setScoutRosterText(scoutAssignmentPlan.scoutRoster.map(formatScoutRosterEntry).join('\n'));
+    } else if (scoutAssignmentPlan?.scoutNames?.length) {
       setScoutRosterText(scoutAssignmentPlan.scoutNames.join('\n'));
     }
   }, [scoutAssignmentPlan]);
@@ -234,15 +236,18 @@ export function useAdminV4ScoutRewards({
   ]);
 
   const handleOptimizeScouts = React.useCallback(async () => {
-    const scoutNames = scoutRosterText.split('\n').map(name => name.trim()).filter(Boolean);
-    const plan = optimizeScoutAssignments(eventKey, activePredictorMatches, scoutNames, ownTeamNumber);
+    const scoutRoster = scoutRosterText
+      .split('\n')
+      .map((line, index) => parseScoutRosterLine(line, index))
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+    const plan = optimizeScoutAssignments(eventKey, activePredictorMatches, scoutRoster, ownTeamNumber);
     const repeatedTeamPairings = Object.values(plan.exposureCounts).reduce(
       (sum, teamCounts) => sum + Object.values(teamCounts).filter(count => count > 1).length,
       0
     );
     setScoutAssignmentPlan(plan);
     await saveScoutAssignmentPlan(plan);
-    setScoutControlStatus(`Optimized ${plan.assignments.length} scout assignments across ${plan.scoutNames.length} scouts with ${repeatedTeamPairings} repeated scout-team pairing${repeatedTeamPairings === 1 ? '' : 's'}.`);
+    setScoutControlStatus(`Optimized ${plan.assignments.length} focus-team assignments across ${plan.scoutCount} numbered scout${plan.scoutCount === 1 ? '' : 's'} with ${repeatedTeamPairings} repeated scout-team pairing${repeatedTeamPairings === 1 ? '' : 's'}.`);
   }, [activePredictorMatches, eventKey, ownTeamNumber, scoutRosterText]);
 
   const handleExportScoutAssignmentsCsv = React.useCallback(() => {
@@ -253,19 +258,21 @@ export function useAdminV4ScoutRewards({
 
     downloadCsvFile(
       `scout_assignments_${eventKey}_${new Date().toISOString().split('T')[0]}.csv`,
-      ['eventKey', 'matchType', 'matchNumber', 'matchKey', 'station', 'teamNumber', 'scoutName', 'priorityReason'],
+      ['eventKey', 'matchType', 'matchNumber', 'matchKey', 'scoutNumber', 'scoutName', 'teamNumber', 'alliance', 'alliancePosition', 'priorityReason'],
       scoutAssignmentPlan.assignments.map(assignment => [
         scoutAssignmentPlan.eventKey,
         assignment.matchType,
         assignment.matchNumber,
         assignment.matchKey,
-        assignment.station,
-        assignment.teamNumber,
+        assignment.scoutNumber ?? '',
         assignment.scoutName,
+        assignment.teamNumber,
+        assignment.alliance,
+        assignment.alliancePosition,
         assignment.priorityReason
       ])
     );
-    setScoutControlStatus(`Exported ${scoutAssignmentPlan.assignments.length} scout assignments as CSV.`);
+    setScoutControlStatus(`Exported ${scoutAssignmentPlan.assignments.length} focus-team assignments as CSV.`);
   }, [eventKey, scoutAssignmentPlan]);
 
   const handleExportScoutCoverageGapsCsv = React.useCallback(() => {
@@ -277,14 +284,15 @@ export function useAdminV4ScoutRewards({
 
     downloadCsvFile(
       `scout_coverage_gaps_${eventKey}_${new Date().toISOString().split('T')[0]}.csv`,
-      ['eventKey', 'matchType', 'matchNumber', 'matchKey', 'station', 'teamNumber', 'reason'],
+      ['eventKey', 'matchType', 'matchNumber', 'matchKey', 'teamNumber', 'alliance', 'alliancePosition', 'reason'],
       gaps.map(gap => [
         scoutAssignmentPlan.eventKey,
         gap.matchType,
         gap.matchNumber,
         gap.matchKey,
-        gap.station,
         gap.teamNumber,
+        gap.alliance,
+        gap.alliancePosition,
         gap.reason
       ])
     );

@@ -37,7 +37,7 @@ const MATCH_DEFENSE_ASSIGNED_SCOUT_STORAGE = 'match_defense_assigned_scout';
 const MATCH_DEFENSE_MATCH_TYPE_STORAGE = 'match_defense_match_type';
 const MATCH_DEFENSE_MATCH_NUMBER_STORAGE = 'match_defense_match_number';
 const MATCH_DEFENSE_TEAM_STORAGE = 'match_defense_team';
-const SUBSTITUTE_SCOUTS = ['Charlotte', 'Scarlett'] as const;
+const SUBSTITUTE_SCOUTS = ['Substitute 1', 'Substitute 2', 'Substitute 3'] as const;
 const MATCH_TYPES: MatchDefenseScoutingV1['matchType'][] = ['Practice', 'Qualification'];
 type DefenseScoutStepKey = 'match' | 'target' | 'impact' | 'evidence' | 'handoff';
 

@@ -179,7 +179,7 @@ export default function PracticeMatchesView({ eventKey }: PracticeMatchesViewPro
               <input
                 value={scoutFilter}
                 onChange={event => setScoutFilter(event.target.value)}
-                placeholder="e.g. Olivia"
+                placeholder="e.g. Scout One"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-white outline-none transition-colors focus:border-emerald-500"
               />
             </div>

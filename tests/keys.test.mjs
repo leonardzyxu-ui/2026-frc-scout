@@ -34,12 +34,12 @@ test('builds and parses match keys with stable practice/qualification labels', (
 
 test('finds scout assignments without caring about input casing', () => {
   const assignments = [
-    { name: 'Olivia', alliance: 'Red', positionIndex: 0, slotLabel: 'Red 1' },
-    { name: 'Sophia', alliance: 'Blue', positionIndex: 0, slotLabel: 'Blue 1' }
+    { name: 'Scout One', alliance: 'Red', positionIndex: 0, slotLabel: 'Red 1' },
+    { name: 'Scout Two', alliance: 'Blue', positionIndex: 0, slotLabel: 'Blue 1' }
   ];
 
-  assert.equal(getScoutAssignment(assignments, { name: 'olivia' })?.slotLabel, 'Red 1');
-  assert.equal(getScoutAssignment(assignments, { slotLabel: 'blue 1' })?.name, 'Sophia');
+  assert.equal(getScoutAssignment(assignments, { name: 'scout one' })?.slotLabel, 'Red 1');
+  assert.equal(getScoutAssignment(assignments, { slotLabel: 'blue 1' })?.name, 'Scout Two');
   assert.equal(getScoutAssignment(assignments, { alliance: 'Red', positionIndex: 2 }), null);
 });
 

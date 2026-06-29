@@ -65,7 +65,8 @@ qualification,1,58,11783,10669,5453,8483,9616,5889,35,44,0,0
 qualification,1,59,5864,6328,8815,9122,5805,9165,38,22,0,0
 `.trim();
 
-const SCOUTS = ['Olivia', 'Eason', 'Matilda', 'Sophia', 'Lucas', 'Justin'];
+const SCOUT_ROSTER_INPUT = ['1, Scout One', '2, Scout Two', '3, Scout Three', '4, Scout Four', '5, Scout Five', '6, Scout Six'];
+const SCOUT_NAMES = ['Scout One', 'Scout Two', 'Scout Three', 'Scout Four', 'Scout Five', 'Scout Six'];
 const OWN_TEAM_NUMBER = '5515';
 
 const toMatch = (line: string): TBAMatch => {
@@ -118,7 +119,7 @@ const countRepeatedScoutTeamPairs = (exposureCounts: ScoutAssignmentPlan['exposu
     .filter(count => count > 1).length;
 
 const getLoads = (plan: ScoutAssignmentPlan) => {
-  const loads = Object.fromEntries(SCOUTS.map(scout => [scout, 0]));
+  const loads = Object.fromEntries(plan.scoutNames.map(scout => [scout, 0]));
   plan.assignments.forEach(assignment => {
     loads[assignment.scoutName] = (loads[assignment.scoutName] || 0) + 1;
   });
@@ -126,12 +127,12 @@ const getLoads = (plan: ScoutAssignmentPlan) => {
 };
 
 const buildStationRotationExposureCounts = (matches: TBAMatch[]) => {
-  const exposureCounts: ScoutAssignmentPlan['exposureCounts'] = Object.fromEntries(SCOUTS.map(scout => [scout, {}]));
+  const exposureCounts: ScoutAssignmentPlan['exposureCounts'] = Object.fromEntries(SCOUT_NAMES.map(scout => [scout, {}]));
   matches.forEach(match => {
     [...match.alliances.red.team_keys, ...match.alliances.blue.team_keys]
       .map(team => team.replace(/^frc/i, ''))
       .forEach((teamNumber, index) => {
-        const scout = SCOUTS[index]!;
+        const scout = SCOUT_NAMES[index]!;
         exposureCounts[scout]![teamNumber] = (exposureCounts[scout]![teamNumber] || 0) + 1;
       });
   });
@@ -139,7 +140,7 @@ const buildStationRotationExposureCounts = (matches: TBAMatch[]) => {
 };
 
 const matches = buildShanghaiMatches();
-const plan = optimizeScoutAssignments('2026cnsh', matches, SCOUTS, OWN_TEAM_NUMBER);
+const plan = optimizeScoutAssignments('2026cnsh', matches, SCOUT_ROSTER_INPUT, OWN_TEAM_NUMBER);
 const loads = getLoads(plan);
 const loadValues = Object.values(loads);
 const stationRotationExposureCounts = buildStationRotationExposureCounts(matches);

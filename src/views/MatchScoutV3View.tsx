@@ -36,7 +36,7 @@ const MATCH_V3_ASSIGNED_SCOUT_STORAGE = 'match_scout_v3_assigned_scout';
 const MATCH_V3_MATCH_TYPE_STORAGE = 'match_scout_v3_match_type';
 const MATCH_V3_MATCH_NUMBER_STORAGE = 'match_scout_v3_match_number';
 const MATCH_V3_TEAM_STORAGE = 'match_scout_v3_team';
-const SUBSTITUTE_SCOUTS = ['Charlotte', 'Scarlett'] as const;
+const SUBSTITUTE_SCOUTS = ['Substitute 1', 'Substitute 2', 'Substitute 3'] as const;
 
 interface MatchScoutV3DraftPayload {
   data: MatchScoutingV3;

@@ -3,20 +3,26 @@ import { Database, KeyRound, ShieldCheck, UserCheck } from 'lucide-react';
 
 export default function ScoutUsernameGate({
   currentUsername = '',
+  currentScoutNumber = null,
   errorMessage = '',
   isUnlockMode = false,
   onCancel,
+  pendingScoutNumber,
   pendingUsername,
+  setPendingScoutNumber,
   setPendingUsername,
   unlockPassphrase = '',
   setUnlockPassphrase,
   onSave
 }: {
   currentUsername?: string;
+  currentScoutNumber?: number | null;
   errorMessage?: string;
   isUnlockMode?: boolean;
   onCancel?: () => void;
+  pendingScoutNumber?: string;
   pendingUsername: string;
+  setPendingScoutNumber?: (value: string) => void;
   setPendingUsername: (value: string) => void;
   unlockPassphrase?: string;
   setUnlockPassphrase?: (value: string) => void;
@@ -41,14 +47,17 @@ export default function ScoutUsernameGate({
             </h2>
             <p className="mt-3 max-w-xl text-sm font-semibold leading-relaxed text-slate-400">
               {isUnlockMode
-                ? 'This device already has a scout name attached. Changing it requires the admin unlock passphrase and leaves a local rename record.'
-                : 'This is not an account login. It labels this device\'s scout rows so Admin V4 can audit coverage, resolve sync conflicts, and understand how much local evidence supports expected ranges.'}
+                ? 'This device already has a scout name and scout number attached. Changing either one requires the admin unlock passphrase and leaves a local rename record.'
+                : 'This is not an account login. It locks this device to one scout name and scout number so assignments can be sorted, audited, and merged without guessing.'}
             </p>
 
             {isUnlockMode && (
               <div className="admin-g2-sm mt-5 border border-cyan-400/25 bg-cyan-500/10 px-4 py-3">
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/70">Current Locked Name</div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/70">Current Locked Identity</div>
                 <div className="mt-1 text-lg font-black text-white">{currentUsername || 'No name attached'}</div>
+                <div className="mt-1 text-sm font-black text-cyan-100">
+                  Scout #{currentScoutNumber ?? 'not set'}
+                </div>
               </div>
             )}
 
@@ -65,6 +74,22 @@ export default function ScoutUsernameGate({
                 autoFocus
               />
             </div>
+
+            {setPendingScoutNumber && (
+              <div className="mt-4 space-y-2">
+                <label className="block text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                  {isUnlockMode ? 'New Scout Number' : 'Scout Number'}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={pendingScoutNumber ?? ''}
+                  onChange={(event) => setPendingScoutNumber(event.target.value.replace(/[^\d]/g, ''))}
+                  className="admin-g2-sm w-full border border-slate-700 bg-slate-900 px-4 py-3 text-base font-black text-white outline-none transition-colors placeholder:text-slate-600 focus:border-cyan-400"
+                  placeholder="Example: 7"
+                />
+              </div>
+            )}
 
             {isUnlockMode && (
               <div className="mt-4 space-y-2">
@@ -110,18 +135,18 @@ export default function ScoutUsernameGate({
             <div className="mt-4 space-y-3">
               {[
                 {
-                  title: 'Evidence Ledger',
-                  detail: 'Every local row can be traced to the scout and device that created it.',
+                  title: 'Locked Device',
+                  detail: 'Each scout computer stays tied to one person unless an admin unlocks it.',
                   icon: <Database className="h-4 w-4" />
                 },
                 {
-                  title: 'Sync Review',
-                  detail: 'Conflicts are easier to resolve when the source scout is visible.',
+                  title: 'Scout Number',
+                  detail: 'Admin can sort a large crew by scout number before building team-focus assignments.',
                   icon: <ShieldCheck className="h-4 w-4" />
                 },
                 {
-                  title: 'Forecast Confidence',
-                  detail: 'Coverage and reliability context help admins read team forecasts as a range, not just one magic number.',
+                  title: 'Evidence Ledger',
+                  detail: 'Every local row can be traced to the scout and device that created it.',
                   icon: <UserCheck className="h-4 w-4" />
                 }
               ].map(item => (

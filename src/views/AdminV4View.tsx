@@ -2115,22 +2115,38 @@ export default function AdminV4View() {
   );
   const scoutExposureRows = useMemo(() => {
     if (!scoutAssignmentPlan) return [];
-    return scoutAssignmentPlan.scoutNames.map(scoutName => {
-      const scoutAssignments = scoutAssignmentPlan.assignments.filter(assignment => assignment.scoutName === scoutName);
-      const exposureCounts = scoutAssignmentPlan.exposureCounts[scoutName] || {};
+    const roster = scoutAssignmentPlan.scoutRoster?.length
+      ? scoutAssignmentPlan.scoutRoster
+      : scoutAssignmentPlan.scoutNames.map(scoutName => ({
+        scoutKey: `name-${scoutName.toLowerCase().replace(/\s+/g, '-')}`,
+        scoutNumber: null,
+        scoutName,
+        displayLabel: scoutName
+      }));
+    return roster.map(scout => {
+      const scoutAssignments = scoutAssignmentPlan.assignments.filter(assignment =>
+        (assignment.scoutKey || `name-${assignment.scoutName.toLowerCase().replace(/\s+/g, '-')}`) === scout.scoutKey ||
+        assignment.scoutName === scout.scoutName
+      );
+      const exposureCounts = scoutAssignmentPlan.exposureCounts[scout.scoutKey] || scoutAssignmentPlan.exposureCounts[scout.scoutName] || {};
       const topTeamExposures = Object.entries(exposureCounts)
         .sort((left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]))
         .slice(0, 4)
         .map(([teamNumber, count]) => ({ teamNumber, count }));
       return {
-        scoutName,
+        scoutNumber: scout.scoutNumber,
+        scoutName: scout.scoutName,
         assignments: scoutAssignments.length,
         distinctTeams: Object.keys(exposureCounts).length,
         repeatFocus: Object.values(exposureCounts).filter(count => count > 1).length,
-        ourMatchAssignments: scoutAssignments.filter(assignment => assignment.priorityReason === 'Our match priority').length,
+        ourTeamFocusAssignments: scoutAssignments.filter(assignment => assignment.priorityReason === 'Our match priority').length,
         topTeamExposures
       };
-    }).sort((left, right) => right.assignments - left.assignments || left.scoutName.localeCompare(right.scoutName));
+    }).sort((left, right) =>
+      (left.scoutNumber ?? Number.MAX_SAFE_INTEGER) - (right.scoutNumber ?? Number.MAX_SAFE_INTEGER) ||
+      right.assignments - left.assignments ||
+      left.scoutName.localeCompare(right.scoutName)
+    );
   }, [scoutAssignmentPlan]);
   const bestModelJudgeSummary = useMemo(() => {
     const decidedRows = (bestModelBacktest?.comparisonRows || []).filter(row => row.actualWinner !== 'Tie' && row.predictedWinner !== 'Tie');
@@ -3305,7 +3321,7 @@ export default function AdminV4View() {
       {
         label: 'Coverage Gaps',
         value: rawEditorSummary.missingSlotCount,
-        detail: 'missing six-slot assignments',
+        detail: 'missing team-focus coverage',
         tone: rawEditorSummary.missingSlotCount > 0 ? 'rose' : 'emerald'
       },
       {
@@ -3813,7 +3829,11 @@ export default function AdminV4View() {
       if (backupImportOptions.scoutAssignments && backupPayload.scoutAssignmentPlan) {
         await saveScoutAssignmentPlan(backupPayload.scoutAssignmentPlan);
         setScoutAssignmentPlan(backupPayload.scoutAssignmentPlan);
-        if (backupPayload.scoutAssignmentPlan.scoutNames?.length) {
+        if (backupPayload.scoutAssignmentPlan.scoutRoster?.length) {
+          setScoutRosterText(backupPayload.scoutAssignmentPlan.scoutRoster
+            .map(scout => scout.scoutNumber ? `${scout.scoutNumber}, ${scout.scoutName}` : scout.scoutName)
+            .join('\n'));
+        } else if (backupPayload.scoutAssignmentPlan.scoutNames?.length) {
           setScoutRosterText(backupPayload.scoutAssignmentPlan.scoutNames.join('\n'));
         }
       }
@@ -5681,16 +5701,18 @@ export default function AdminV4View() {
         loadedAt: row.timestamp ? new Date(row.timestamp).toISOString() : ''
       })));
 
-      addWorkbookSheet(workbook, 'Scout Assignments', [
+      addWorkbookSheet(workbook, 'Scout Focus Plan', [
         { header: 'Plan ID', key: 'planId', width: 32 },
         { header: 'Created At', key: 'createdAt', width: 24 },
         { header: 'Match Type', key: 'matchType', width: 16 },
         { header: 'Match Number', key: 'matchNumber', width: 14 },
         { header: 'Match Key', key: 'matchKey', width: 18 },
-        { header: 'Station', key: 'station', width: 12 },
-        { header: 'Team', key: 'teamNumber', width: 10 },
-        { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Scout Number', key: 'scoutNumber', width: 14 },
         { header: 'Scout', key: 'scoutName', width: 18 },
+        { header: 'Focus Team', key: 'teamNumber', width: 12 },
+        { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Alliance', key: 'alliance', width: 10 },
+        { header: 'Alliance Position', key: 'alliancePosition', width: 18 },
         { header: 'Reason', key: 'priorityReason', width: 44 }
       ], exportedScoutPlan
         ? exportedScoutPlan.assignments.map(assignment => ({
@@ -5707,9 +5729,10 @@ export default function AdminV4View() {
         { header: 'Match Type', key: 'matchType', width: 16 },
         { header: 'Match Number', key: 'matchNumber', width: 14 },
         { header: 'Match Key', key: 'matchKey', width: 18 },
-        { header: 'Station', key: 'station', width: 12 },
-        { header: 'Team', key: 'teamNumber', width: 10 },
+        { header: 'Focus Team', key: 'teamNumber', width: 12 },
         { header: 'Team Name', key: 'teamName', width: 24 },
+        { header: 'Alliance', key: 'alliance', width: 10 },
+        { header: 'Alliance Position', key: 'alliancePosition', width: 18 },
         { header: 'Reason', key: 'reason', width: 52 }
       ], exportedScoutPlan
         ? (exportedScoutPlan.coverageGaps || []).map(gap => ({
@@ -5721,19 +5744,22 @@ export default function AdminV4View() {
         : []);
 
       addWorkbookSheet(workbook, 'Scout Exposure', [
+        { header: 'Scout Number', key: 'scoutNumber', width: 14 },
         { header: 'Scout', key: 'scoutName', width: 18 },
         { header: 'Team', key: 'teamNumber', width: 10 },
         { header: 'Team Name', key: 'teamName', width: 24 },
         { header: 'Assigned Matches', key: 'assignedMatches', width: 18 }
       ], exportedScoutPlan
-        ? Object.entries(exportedScoutPlan.exposureCounts).flatMap(([scoutName, teamCounts]) =>
-          Object.entries(teamCounts).map(([teamNumber, assignedMatches]) => ({
-            scoutName,
+        ? Object.entries(exportedScoutPlan.exposureCounts).flatMap(([scoutKey, teamCounts]) => {
+          const scout = exportedScoutPlan.scoutRoster?.find(entry => entry.scoutKey === scoutKey || entry.scoutName === scoutKey);
+          return Object.entries(teamCounts).map(([teamNumber, assignedMatches]) => ({
+            scoutNumber: scout?.scoutNumber ?? '',
+            scoutName: scout?.scoutName ?? scoutKey,
             teamNumber,
             teamName: resolvedTeamNameLookup[teamNumber] || '',
             assignedMatches
-          }))
-        )
+          }));
+        })
         : []);
 
       addWorkbookSheet(workbook, 'Scout Rewards', [
@@ -8324,8 +8350,8 @@ export default function AdminV4View() {
       {
         label: 'assign scouts for the next block',
         detail: scoutAssignmentPlan
-          ? `${scoutAssignmentPlan.assignments.length} assignments exist. Recheck station coverage and same-team continuity.`
-          : 'Build a scout assignment plan before practice or qualification blocks start.',
+          ? `${scoutAssignmentPlan.assignments.length} team-focus assignments exist. Recheck focus coverage and same-team continuity.`
+          : 'Build a numbered scout focus plan before practice or qualification blocks start.',
         actionLabel: 'Open scouts',
         panel: 'scouts',
         tone: scoutAssignmentPlan ? 'cyan' : 'amber'

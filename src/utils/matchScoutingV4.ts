@@ -15,11 +15,16 @@ import { normalizeTeamNumber } from './keys.ts';
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 
+const toPositiveIntOrNull = (value: unknown) => {
+  const number = Math.trunc(Number(value));
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
+
 const normalizeAlliance = (value: unknown): MatchScoutingV3Alliance =>
   value === 'Red' || value === 'Blue' ? value : '';
 
 const normalizeSubstituteScoutName = (value: unknown): MatchScoutingV4SubstituteScoutName =>
-  value === 'Charlotte' || value === 'Scarlett' ? value : '';
+  value === 'Substitute 1' || value === 'Substitute 2' || value === 'Substitute 3' ? value : '';
 
 const normalizeRole = (value: unknown): MatchScoutingV4Role =>
   value === 'Offense' || value === 'Defense' || value === 'Mixed' || value === 'Support' || value === 'Disabled'
@@ -102,6 +107,7 @@ export const normalizeMatchScoutingV4 = (raw: Partial<MatchScoutingV4>): MatchSc
     matchKey: (raw.matchKey || buildMatchKeyV4(matchType, matchNumber)).toLowerCase(),
     teamNumber: normalizeTeamNumber(raw.teamNumber),
     scoutName: (raw.scoutName || '').trim(),
+    scoutNumber: toPositiveIntOrNull(raw.scoutNumber),
     assignedScoutName: (raw.assignedScoutName || '').trim(),
     assignedSlot: (raw.assignedSlot || '').trim(),
     substituteScoutName: normalizeSubstituteScoutName(raw.substituteScoutName),

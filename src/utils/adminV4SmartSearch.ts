@@ -239,10 +239,10 @@ const STATIC_TARGETS: StaticSmartSearchTarget[] = [
     kind: 'panel',
     badge: 'Data Panel',
     title: 'Scouts',
-    description: 'Scout assignments, schedule split, station plan, PowerCoins, and scout rewards.',
+    description: 'Numbered scout roster, team-focus plan, coverage gaps, PowerCoins, and scout rewards.',
     quickTitle: 'Assign scouts',
-    quickDescription: 'Open schedule splitting, station coverage, scout rewards, and staffing checks.',
-    keywords: ['scout', 'scouts', 'who scouts next', 'which scout watches', 'which scout watches team', 'scout schedule', 'make scout schedule', 'scout assignment', 'scout assignments', 'schedule split', 'schedule splitting', 'station plan', 'station coverage', 'assign scouts', 'assign team members', 'team member assignments', 'same teams', 'same teams per scout', 'repeat teams', 'scout continuity', 'continuity', 'maximize same teams', 'split matches', 'split schedule', 'powercoins', 'power coins', 'rewards'],
+    quickDescription: 'Open team-focus planning, coverage gaps, scout rewards, and staffing checks.',
+    keywords: ['scout', 'scouts', 'scout number', 'scout roster', 'who scouts next', 'which scout watches', 'which scout watches team', 'scout schedule', 'make scout schedule', 'scout assignment', 'scout assignments', 'team focus', 'focus team', 'focus plan', 'schedule split', 'schedule splitting', 'coverage gaps', 'assign scouts', 'assign team members', 'team member assignments', 'same teams', 'same teams per scout', 'repeat teams', 'scout continuity', 'continuity', 'maximize same teams', 'split matches', 'split schedule', 'powercoins', 'power coins', 'rewards'],
     workflowKey: 'import',
     panel: 'scouts'
   },

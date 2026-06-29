@@ -442,7 +442,7 @@ export default function PitDataView({ eventKey }: PitDataViewProps) {
               value={bulkPasteValue}
               onChange={(event) => setBulkPasteValue(event.target.value)}
               className="min-h-56 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
-              placeholder={'Olivia\nEason\nRoger'}
+              placeholder={'Scout One\nScout Two\nScout Three'}
             />
             <button
               type="button"
