@@ -60,6 +60,7 @@
 - [x] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
 - [x] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
 - [x] Preserve shift-aware Match Scout V4 fields through normalization so drafts/imports/QR paths do not drop the new data.
+- [x] Add the reversible first-teleop-shift control to the Match Scout V4 interface.
 - [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
 - [x] Add a match-scoped first-shift correction notice payload for the future scout notification channel.
 - [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.

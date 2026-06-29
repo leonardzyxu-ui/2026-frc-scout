@@ -1172,6 +1172,9 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(matchScoutSource, /Offline Backup/);
   assert.match(matchScoutSource, /Use this only when Firebase sync is not available/);
   assert.match(matchScoutSource, /Evidence Capture Path/);
+  assert.match(matchScoutSource, /First Teleop Shift/);
+  assert.match(matchScoutSource, /Current first shift/);
+  assert.match(matchScoutSource, /teleopFirstShiftAlliance/);
   assert.doesNotMatch(matchScoutSource, /PPA Capture Path/);
   assert.match(matchScoutSource, /verifyScoutIdentityUnlockPassphrase/);
   assert.match(matchScoutSource, /renameScoutArchiveUsername/);

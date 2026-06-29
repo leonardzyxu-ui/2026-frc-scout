@@ -946,6 +946,46 @@ export default function MatchScoutV4View() {
                 </p>
               </div>
 
+              <div className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Shift Metadata</div>
+                    <h2 className="mt-1 text-xl font-black text-white">First Teleop Shift</h2>
+                    <p className="mt-1 max-w-2xl text-sm font-semibold leading-relaxed text-slate-400">
+                      Tap which alliance started the first teleop shift. This is reversible, and a later match audit can ask this match's scouts to confirm if reports disagree.
+                    </p>
+                  </div>
+                  <div className="grid min-w-full grid-cols-3 gap-2 md:min-w-[22rem]">
+                    {(['Red', 'Blue'] as const).map(alliance => (
+                      <button
+                        key={alliance}
+                        type="button"
+                        onClick={() => updateData({ teleopFirstShiftAlliance: normalizedData.teleopFirstShiftAlliance === alliance ? '' : alliance })}
+                        className={`admin-g2-sm px-4 py-3 font-black ${
+                          normalizedData.teleopFirstShiftAlliance === alliance
+                            ? alliance === 'Red'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-blue-500 text-white'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
+                      >
+                        {alliance}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => updateData({ teleopFirstShiftAlliance: '' })}
+                      className="admin-g2-sm bg-slate-800 px-4 py-3 font-black text-slate-300 hover:bg-slate-700"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
+                  Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Not recorded yet'}</span>
+                </div>
+              </div>
+
               <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
                 <StepFrame step="score">
                   <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
