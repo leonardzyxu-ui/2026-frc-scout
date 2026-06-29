@@ -161,4 +161,5 @@
 - [x] Find Leo's existing Cloudflare Worker relay project in the Developer folders and report the exact path, config, and safe deploy/check commands without exposing secrets.
 - [x] Clean up dead `DashboardView` dependencies after removing the old bottom workspace/readiness chunk.
 - [x] Replace demo-only next-match strategy data with live/local source paths for `/strategy-preview` and PowerScout, with explicit fallback notices plus stale-event, corrupt-JSON, and newest-snapshot regression coverage.
+- [x] Diagnose the Render scouting relay failure, verify `scouting-relay` locally, and update the setup guide to use `codex/adminv4-snapshot-20260620` until the relay folder exists on `main`.
 ---
