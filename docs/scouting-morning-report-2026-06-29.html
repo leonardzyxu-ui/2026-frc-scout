@@ -255,6 +255,14 @@
           <h3>Data trust checks</h3>
           <p>Official-score reconciliation, defender-share normalization, and browser-cache export metadata now make scout data easier to repair and audit.</p>
         </article>
+        <article class="card">
+          <h3>First-shift capture</h3>
+          <p>Match Scout V4 now preserves shift metadata through normalization and gives scouts a reversible Red/Blue/Clear control for the first teleop shift.</p>
+        </article>
+        <article class="card">
+          <h3>Targeted correction notices</h3>
+          <p>First-shift disagreement can now produce a tested action-required payload targeted only at the scouts assigned to that specific match.</p>
+        </article>
       </div>
     </section>
 
@@ -262,6 +270,7 @@
       <h2>What users can do now</h2>
       <ul>
         <li><strong>Scouts</strong> can produce shift-aware records with room for offense, defense, stockpile, first-shift metadata, and later correction.</li>
+        <li><strong>Match scouts</strong> can now mark the first teleop shift directly in Match Scout V4, then clear or change it if the tap was accidental.</li>
         <li><strong>Head scouts</strong> can ask which alliance role combination currently has the best expected point difference and how risky it is.</li>
         <li><strong>Analysts</strong> can export browser-cache scouting data with export time, scout metadata, record counts, and pending-sync context.</li>
         <li><strong>Developers</strong> can run a full score-consistent replay and inspect prediction ledger, team timeline, scout ledger, and score reconciliation artifacts.</li>
@@ -311,7 +320,7 @@
         <li>Total alliance uncertainty uses independent standard deviations: <code>sqrt(j^2 + k^2 + l^2)</code>.</li>
         <li>DPR is treated as least-squares opponent-score context, not proof of actual defensive skill.</li>
         <li>Traversal is rare, but not obsolete. It is still a valid ranking-point condition.</li>
-        <li>The full animated two-sided Match Scout shift UI is not finished yet; the schema, math, strategy engine, exports, and surfaces are the first implementation slice.</li>
+        <li>The full animated two-sided Match Scout shift UI is not finished yet; the schema, first-shift capture, math, strategy engine, exports, and surfaces are the first implementation slice.</li>
       </ul>
     </section>
 
@@ -321,7 +330,7 @@
         <li><span class="red">Blocked:</span> editing <code>/Users/leoxu/.codex/AGENTS.md</code> needs a fresh direct secret-code reply because the file is protected by local safety rules.</li>
         <li><span class="red">Blocked:</span> no push/deploy was done overnight because the active rule says no push/deploy without fresh direct authorization.</li>
         <li><span class="red">Blocked:</span> The Button primary relay timed out in the final live check; DirectChat and Cloudflare DirectChat are healthy fallbacks.</li>
-        <li><span class="cyan">Next slice:</span> live scout-specific notifications for first-shift disagreement and the full animated Match Scout shift form.</li>
+        <li><span class="cyan">Next slice:</span> wire the tested first-shift correction payload to a live scout notification channel and finish the full animated Match Scout shift form.</li>
       </ul>
     </section>
 

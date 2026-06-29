@@ -28,6 +28,9 @@ The product is better because it now speaks in head-scout language: Contribution
 - Added PowerScout strategy metric definitions, safety rules, Reports surfacing, and Alliance Selection strategy panels.
 - Updated Synthetic Full System Test output so team timelines carry Contribution, Floor, Floor Non Zero, Ceiling, Defense, and both deviation metrics while preserving legacy aliases for transition.
 - Added browser-cache archive metadata in `src/utils/scoutArchive.ts`.
+- Preserved shift-aware Match Scout V4 fields through normalization so drafts, QR payloads, archive imports, and Firebase write preparation do not drop first-shift metadata or shift rows.
+- Added a reversible First Teleop Shift control in Match Scout V4.
+- Added a match-scoped first-shift correction notice payload so the future live notification channel can target only the scouts assigned to the disputed match.
 
 ## Synthetic Event Proof
 
@@ -94,20 +97,23 @@ Checkpoint commits already made:
 - `e80f2e6` Surface contribution strategy metrics
 - `c5aa7ed` Add scout archive export metadata
 - `8061e63` Add June 29 scouting morning report
+- `7ba1b63` Add match-scoped first shift correction notices
+- `90b6e8e` Preserve shift fields in match scout normalization
+- `96d84a3` Add first shift control to match scout
 
 ## Assumptions Made
 
 - I treated Leo's attached standard-deviation logic as independent contribution uncertainty, so the total alliance uncertainty is `sqrt(j^2 + k^2 + l^2)`.
 - I treated DPR as a least-squares opponent-score context stat, not as proof that a team personally plays defense.
 - I treated Traversal as rare but still valid. The rules report says it is not obsolete: it is still a ranking-point condition.
-- I implemented the data contract, math, reconciliation, and surfacing first. The full animated two-sided Match Scout shift form is still a next slice.
+- I implemented the data contract, math, reconciliation, first-shift capture, and surfacing first. The full animated two-sided Match Scout shift form is still a next slice.
 
 ## Blocked Or Deferred
 
 - I did not edit `/Users/leoxu/.codex/AGENTS.md`; that file is protected by local safety rules and needs a fresh direct secret-code reply after the specific action is requested.
 - I did not push or deploy overnight. The active overnight rule says no push/deploy without fresh direct authorization.
 - The Button primary relay timed out during the final live check. DirectChat and Cloudflare DirectChat are healthy fallbacks.
-- Full match-scoped scout notification delivery for first-shift disagreement is designed in the schema/audit layer, but not wired to a live push channel yet.
+- Full match-scoped scout notification delivery for first-shift disagreement now has a tested payload contract, but is not wired to a live push channel yet.
 - DPR research is strong enough for a safe implementation stance, but should stay labeled as contextual until we validate it across more real events.
 
 ## Business Bottom Line
