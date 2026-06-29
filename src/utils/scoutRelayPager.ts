@@ -25,6 +25,7 @@ export interface ScoutPagerMessage {
 export interface ScoutPagerIdentity {
   scoutNumber: number | null;
   scoutName?: string;
+  eventKey?: string;
 }
 
 export interface ScoutPagerDirectoryEntry {
@@ -74,6 +75,7 @@ const normalizeScoutNumber = (value: unknown) => {
   const number = Math.trunc(Number(value));
   return Number.isFinite(number) && number >= 1 && number <= 99 ? number : null;
 };
+const normalizeEventKey = (value: unknown) => String(value || '').trim().toUpperCase();
 
 const providerByKey = new Map(SCOUTING_RELAY_PROVIDERS.map(provider => [provider.key, provider]));
 
@@ -179,6 +181,8 @@ export const shouldDeliverScoutPagerMessage = (
   identity: ScoutPagerIdentity,
   now = Date.now()
 ) => {
+  const activeEventKey = normalizeEventKey(identity.eventKey);
+  if (activeEventKey && normalizeEventKey(message.eventKey) !== activeEventKey) return false;
   if (message.expiresAt && message.expiresAt < now) return false;
   if (message.recipient.kind === 'all') return true;
   return normalizeScoutNumber(identity.scoutNumber) === message.recipient.scoutNumber;
@@ -252,7 +256,7 @@ export const queueFirstShiftCorrectionForLocalScout = ({
     notice,
     scoutDirectory,
     createdAt
-  }).filter(message => shouldDeliverScoutPagerMessage(message, identity, createdAt));
+  }).filter(message => shouldDeliverScoutPagerMessage(message, { ...identity, eventKey }, createdAt));
   deliverableMessages.forEach(message => appendScoutPagerInboxMessage(message));
   return deliverableMessages;
 };

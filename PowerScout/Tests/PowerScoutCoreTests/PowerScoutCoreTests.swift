@@ -78,11 +78,13 @@ func liveOpsShowsFreshnessAndDriverBriefingOutputs() {
 @Test
 func relayDispatchCandidatesKeepCloudflareAsGlobalBackup() {
     let candidates = PowerScoutKnowledgeBase.relayDispatchCandidates
-    let mainlandOrder = candidates.sorted { $0.mainlandOrder < $1.mainlandOrder }.map(\.label)
-    let globalOrder = candidates.sorted { $0.globalVpnOrder < $1.globalVpnOrder }.map(\.label)
+    let mainlandOrder = candidates.sorted { $0.order(in: .mainlandSanya) < $1.order(in: .mainlandSanya) }.map(\.label)
+    let globalOrder = candidates.sorted { $0.order(in: .globalVpn) < $1.order(in: .globalVpn) }.map(\.label)
 
     #expect(mainlandOrder == ["The Button", "DirectChat", "Cloudflare DirectChat"])
     #expect(globalOrder == ["The Button", "Cloudflare DirectChat", "DirectChat"])
+    #expect(RelayDispatchRegion.mainlandSanya.dispatchRule.localizedCaseInsensitiveContains("Sanya"))
+    #expect(RelayDispatchRegion.globalVpn.dispatchRule.localizedCaseInsensitiveContains("Cloudflare DirectChat"))
     #expect(candidates.first { $0.label == "Cloudflare DirectChat" }?.caveat.localizedCaseInsensitiveContains("workers.dev") == true)
     #expect(candidates.first { $0.label == "Cloudflare DirectChat" }?.caveat.localizedCaseInsensitiveContains("Sanya") == true)
 }

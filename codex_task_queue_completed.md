@@ -1,5 +1,10 @@
 # Scouting Task Queue (Completed)
 
+- [x] Record the final QA subagent reports for Curie/WebLogic, Leibniz/MathModel, and Plato/MacParity with exact model and reasoning specs.
+- [x] Fix scout pager inbox delivery so messages from prior events cannot appear in the current event's Match Scout V4 inbox.
+- [x] Wire `defenseDuringOwnShiftCredit` into shift strategy math so own-shift defense is credited as a real configurable brake instead of a no-op.
+- [x] Add region-aware relay ordering to PowerScout so the native app can switch between Mainland/Sanya and Global/VPN fallback order.
+- [x] Give Leo a current Render + Upstash setup runbook for adding more The Button and DirectChat relay servers under the new Google account.
 - [x] Run a fresh 2026 Silicon Valley agentic replay as 254 after the latest strategy-preview/PowerScout changes and verify required artifacts, score consistency, no-future-leakage, scout coverage, model typecheck, and PowerScout build/run.
 - [x] Make every Explore Shifts per-team shift panel/card the same visual length in the web strategy preview and PowerScout Mac app, even when defense text is longer.
 - [x] Build `PowerScout`, Powerhouse's native SwiftUI macOS scouting app.

@@ -699,7 +699,11 @@ export default function MatchScoutV4View() {
   const refreshPagerInbox = () => {
     setPagerMessages(
       readScoutPagerInbox()
-        .filter(message => shouldDeliverScoutPagerMessage(message, { scoutName: archiveUsername, scoutNumber: archiveScoutNumber }))
+        .filter(message => shouldDeliverScoutPagerMessage(message, {
+          eventKey: normalizedData.eventKey,
+          scoutName: archiveUsername,
+          scoutNumber: archiveScoutNumber
+        }))
         .slice(0, 3)
     );
   };
@@ -713,7 +717,7 @@ export default function MatchScoutV4View() {
       window.removeEventListener('scout-pager-inbox-updated', refreshPagerInbox);
       window.clearInterval(interval);
     };
-  }, [archiveScoutNumber, archiveUsername]);
+  }, [archiveScoutNumber, archiveUsername, normalizedData.eventKey]);
   useEffect(() => {
     let cancelled = false;
     const hydrate = async () => {

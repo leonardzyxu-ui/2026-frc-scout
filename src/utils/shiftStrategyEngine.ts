@@ -1,4 +1,5 @@
 import { combineIndependentStdDevs } from './shiftMetricContract.ts';
+import { DEFAULT_SHIFT_ACTION_CREDIT_WEIGHTS } from './shiftActionWeights.ts';
 
 export type ShiftStrategyRole = 'offense' | 'defense' | 'stockpile';
 export type ShiftStrategyObjective = 'point-difference' | 'qualification-rp' | 'variance-gamble' | 'alliance-selection';
@@ -86,7 +87,7 @@ export interface AllianceSelectionCombinationRanking {
 const DEFAULT_OPTIONS = {
   stockpileBoostPerRobot: 0.08,
   stockpileDeviationScale: 0.5,
-  defenseDuringOwnShiftCredit: 0.1,
+  defenseDuringOwnShiftCredit: DEFAULT_SHIFT_ACTION_CREDIT_WEIGHTS.defenseDuringOffenseCredit,
   energizedThreshold: 100,
   traversalThreshold: 50,
   superchargedThreshold: 360,
@@ -97,6 +98,18 @@ const DEFAULT_OPTIONS = {
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const normalizeDefenseDuringOwnShiftCredit = (value: unknown) => {
+  const number = Number(value);
+  return clamp(
+    Number.isFinite(number) ? number : DEFAULT_OPTIONS.defenseDuringOwnShiftCredit,
+    0,
+    1
+  );
+};
+
+const getFullMatchDefenseScale = (defenseDuringOwnShiftCredit: unknown) =>
+  (1 + normalizeDefenseDuringOwnShiftCredit(defenseDuringOwnShiftCredit)) / 2;
 
 export const normalCdf = (value: number) => {
   const sign = value < 0 ? -1 : 1;
@@ -171,6 +184,9 @@ export const enumerateAllianceRolePlans = (
   const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
   const maxOpponentOffense = Math.max(0, opponentAvailableOffense);
   const allOffenseMean = teams.reduce((sum, team) => sum + Math.max(0, team.contribution), 0);
+  const fullMatchDefenseScale = getFullMatchDefenseScale(mergedOptions.defenseDuringOwnShiftCredit);
+  const scaledDefenseMean = (team: ShiftStrategyTeamInput) => Math.max(0, team.defense) * fullMatchDefenseScale;
+  const scaledDefenseDeviation = (team: ShiftStrategyTeamInput) => Math.max(0, team.defenseDeviation) * fullMatchDefenseScale;
 
   return enumerateRoleCombos(teams)
     .map(combo => {
@@ -182,12 +198,12 @@ export const enumerateAllianceRolePlans = (
       const offenseMean = offenseBase * stockpileMultiplier;
       const traversalMean = teams.reduce((sum, team) => sum + Math.max(0, team.traversal ?? 0), 0);
       const rawDefenseMean = teams.reduce((sum, team, index) => {
-        if (combo[index] === 'defense') return sum + Math.max(0, team.defense);
+        if (combo[index] === 'defense') return sum + scaledDefenseMean(team);
         return sum;
       }, 0);
       const saturatedDefenseMean = Math.min(rawDefenseMean, maxOpponentOffense);
       const saturationWarning = rawDefenseMean > maxOpponentOffense && maxOpponentOffense > 0
-        ? `Defense capped from ${rawDefenseMean.toFixed(1)} to ${saturatedDefenseMean.toFixed(1)} because the opponent cannot lose more offense than it has.`
+        ? `Credited defense capped from ${rawDefenseMean.toFixed(1)} to ${saturatedDefenseMean.toFixed(1)} because the opponent cannot lose more offense than it has.`
         : null;
 
       const assignments = teams.map<ShiftStrategyAssignment>((team, index) => {
@@ -196,8 +212,8 @@ export const enumerateAllianceRolePlans = (
           return {
             teamNumber: team.teamNumber,
             role,
-            mean: Math.max(0, team.defense),
-            deviation: Math.max(0, team.defenseDeviation)
+            mean: scaledDefenseMean(team),
+            deviation: scaledDefenseDeviation(team)
           };
         }
         if (role === 'stockpile') {

@@ -53,6 +53,36 @@ test('scout relay pager ignores expired messages', () => {
   assert.equal(shouldDeliverScoutPagerMessage(message, { scoutNumber: 1 }, 1770000002000), false);
 });
 
+test('scout relay pager does not leak messages across events', () => {
+  const targetedMessage = buildScoutPagerMessage({
+    eventKey: '2026casj',
+    recipient: { kind: 'scout', scoutNumber: 7, scoutName: 'Scout Seven' },
+    title: 'Old event check',
+    body: 'This belongs to a different event.',
+    createdAt: 1770000000000
+  });
+  const broadcastMessage = buildScoutPagerMessage({
+    eventKey: '2026casj',
+    recipient: { kind: 'all' },
+    title: 'Old event sync',
+    body: 'This broadcast also belongs to a different event.',
+    createdAt: 1770000000000
+  });
+
+  assert.equal(
+    shouldDeliverScoutPagerMessage(targetedMessage, { eventKey: '2026casj', scoutNumber: 7 }, 1770000000001),
+    true
+  );
+  assert.equal(
+    shouldDeliverScoutPagerMessage(targetedMessage, { eventKey: '2026casnv', scoutNumber: 7 }, 1770000000001),
+    false
+  );
+  assert.equal(
+    shouldDeliverScoutPagerMessage(broadcastMessage, { eventKey: '2026casnv', scoutNumber: 7 }, 1770000000001),
+    false
+  );
+});
+
 test('first-shift correction notices become scout-number targeted pager messages', () => {
   const messages = buildFirstShiftCorrectionPagerMessages({
     eventKey: '2026casj',

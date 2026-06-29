@@ -27,10 +27,26 @@ test('defense is saturated by opponent available offense without wasting extra d
     { teamNumber: '3', contribution: 0, contributionDeviation: 0, defense: 150, defenseDeviation: 4 }
   ], 100)[0];
 
-  assert.equal(best.rawDefenseMean, 150);
+  assert.equal(best.rawDefenseMean, 165);
   assert.equal(best.saturatedDefenseMean, 100);
-  assert.equal(best.assignments.filter(assignment => assignment.role === 'defense').length, 1);
-  assert.match(best.saturationWarning, /Defense capped/);
+  assert.equal(best.assignments.filter(assignment => assignment.role === 'defense').length, 2);
+  assert.match(best.saturationWarning, /Credited defense capped/);
+});
+
+test('defenseDuringOwnShiftCredit changes full-match defense strategy value', () => {
+  const teams = [
+    { teamNumber: 'swing-defender', contribution: 60, contributionDeviation: 4, defense: 100, defenseDeviation: 8 },
+    { teamNumber: 'scorer', contribution: 50, contributionDeviation: 4, defense: 0, defenseDeviation: 0 }
+  ];
+  const lowOwnShiftCredit = enumerateAllianceRolePlans(teams, 200, { defenseDuringOwnShiftCredit: 0 })[0];
+  const fullOwnShiftCredit = enumerateAllianceRolePlans(teams, 200, { defenseDuringOwnShiftCredit: 1 })[0];
+
+  assert.equal(lowOwnShiftCredit.assignments.every(assignment => assignment.role === 'offense'), true);
+  assert.equal(
+    fullOwnShiftCredit.assignments.find(assignment => assignment.teamNumber === 'swing-defender')?.role,
+    'defense'
+  );
+  assert.ok(fullOwnShiftCredit.rawDefenseMean > lowOwnShiftCredit.rawDefenseMean);
 });
 
 test('match strategy reports win probability and ranking point probabilities', () => {

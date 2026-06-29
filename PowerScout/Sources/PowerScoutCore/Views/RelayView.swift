@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RelayView: View {
     let openURL: OpenURLAction
+    @State private var selectedRegion: RelayDispatchRegion = .mainlandSanya
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -11,8 +12,25 @@ struct RelayView: View {
                 subtitle: "Relay is useful for urgent scouting nudges, but it must not become the only record of predictions or evidence."
             )
 
+            PSCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Relay region")
+                        .font(.title3.weight(.bold))
+                    Picker("Relay region", selection: $selectedRegion) {
+                        ForEach(RelayDispatchRegion.allCases) { region in
+                            Text(region.rawValue).tag(region)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(selectedRegion.dispatchRule)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
-                ForEach(PowerScoutKnowledgeBase.relayDispatchCandidates.sorted { $0.mainlandOrder < $1.mainlandOrder }) { candidate in
+                ForEach(sortedCandidates) { candidate in
                     PSCard {
                         relayBlock(candidate)
                     }
@@ -23,10 +41,10 @@ struct RelayView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Relay dispatch rule")
                         .font(.title3.weight(.bold))
-                    Text("For Sanya or mainland China, try The Button, then DirectChat, then Cloudflare only with VPN/global access. Relays are for speed; Firebase, local exports, and the Forecast Ledger remain the durable record.")
+                    Text("\(selectedRegion.dispatchRule) Relays are for speed; Firebase, local exports, and the Forecast Ledger remain the durable record.")
                         .font(.body)
                         .foregroundStyle(.secondary)
-                    Text("Global/VPN order: The Button -> Cloudflare DirectChat -> DirectChat.")
+                    Text("Current \(selectedRegion.shortLabel) order: \(sortedCandidates.map(\.label).joined(separator: " -> ")).")
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Button {
@@ -46,10 +64,16 @@ struct RelayView: View {
         }
     }
 
+    private var sortedCandidates: [RelayDispatchCandidateSpec] {
+        PowerScoutKnowledgeBase.relayDispatchCandidates.sorted {
+            $0.order(in: selectedRegion) < $1.order(in: selectedRegion)
+        }
+    }
+
     private func relayBlock(_ candidate: RelayDispatchCandidateSpec) -> some View {
         let color = color(for: candidate.label)
         return VStack(alignment: .leading, spacing: 10) {
-            PSTag(text: "Mainland order \(candidate.mainlandOrder)", color: color)
+            PSTag(text: "\(selectedRegion.shortLabel) order \(candidate.order(in: selectedRegion))", color: color)
             Text(candidate.label)
                 .font(.title3.weight(.bold))
             Text(candidate.role)

@@ -315,6 +315,29 @@ public struct NextMatchDashboardSnapshot: Identifiable, Hashable, Sendable {
     }
 }
 
+public enum RelayDispatchRegion: String, CaseIterable, Identifiable, Sendable {
+    case mainlandSanya = "Mainland / Sanya"
+    case globalVpn = "Global / VPN"
+
+    public var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .mainlandSanya: "Mainland"
+        case .globalVpn: "Global/VPN"
+        }
+    }
+
+    var dispatchRule: String {
+        switch self {
+        case .mainlandSanya:
+            "For Sanya or mainland China, try The Button, then DirectChat, then Cloudflare only with VPN/global access."
+        case .globalVpn:
+            "For US travel or reliable VPN operation, try The Button, then Cloudflare DirectChat, then DirectChat."
+        }
+    }
+}
+
 public struct RelayDispatchCandidateSpec: Identifiable, Hashable, Sendable {
     public let id: String
     public let priority: Int
@@ -334,6 +357,13 @@ public struct RelayDispatchCandidateSpec: Identifiable, Hashable, Sendable {
         self.caveat = caveat
         self.mainlandOrder = mainlandOrder
         self.globalVpnOrder = globalVpnOrder
+    }
+
+    public func order(in region: RelayDispatchRegion) -> Int {
+        switch region {
+        case .mainlandSanya: mainlandOrder
+        case .globalVpn: globalVpnOrder
+        }
     }
 }
 

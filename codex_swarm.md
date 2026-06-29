@@ -2,13 +2,13 @@
 
 ## Goal
 
-Continue PowerScout/scouting redesign with bounded subagent support. Current focus: PowerCoin betting wallet/disqualification QA and Mac app parity inventory while the main conductor integrates web/admin changes.
+Find concrete code, math, or logic bugs in the PowerScout/scouting web app, Mac app, and SyntheticFullSystemTest after the latest checkpoint.
 
 ## Delegation Decision
 
 - Use subagents: True
-- Reason: Leo asked where agents are and has repeatedly requested subagents for higher quality and parallel workflow.
-- Token budget posture: Use gpt-5.4-mini medium for bounded read-only QA/exploration. Respect Leo's cap: no GPT-5.5 high/xhigh, no GPT-5.4 xhigh.
+- Reason: End-of-cue bounded QA swarm requested by Leo: three independent read-only verifiers for web logic, math/model logic, and PowerScout parity.
+- Token budget posture: Use gpt-5.4-mini medium for all three agents; no GPT-5.5 high/xhigh and no GPT-5.4 xhigh.
 
 ## Delegation Gate Answers
 
@@ -39,13 +39,8 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 
 | Agent | Task | Report path | Status |
 | --- | --- | --- | --- |
-| Rivet-QA | PWR-QA-001 | `codex_agent_reports/rivet-qa-pwr-qa-001.md` | completed-fail; findings integrated |
-| Forge-MacParity | MAC-PARITY-001 | `codex_agent_reports/forge-mac-parity-001.md` | completed; recommendation integrated |
-| Noether / QA-Web-Logic | qa-web-logic-001 | `codex_agent_reports/qa-web-logic-001-noether.md` | completed; finding integrated |
-| Archimedes / QA-Math-Safety | qa-math-safety-001 | `codex_agent_reports/qa-math-safety-001-archimedes.md` | completed; finding integrated |
-| Galileo / QA-PowerScout-Mac | qa-powerscout-mac-001 | `codex_agent_reports/qa-powerscout-mac-001-galileo.md` | completed; finding integrated |
-| Queue-Keeper | queue-cleanup-20260629 | `codex_agent_reports/queue-cleanup-20260629.md` | completed |
-| Mac-App-Inspector | mac-app-ui-inspection-20260629 | `codex_agent_reports/mac-app-ui-inspection-20260629.md` | completed; suggestions integrated |
+| Turing-MathModel-Retry-Leibniz | ENDQA-MATH-001R | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-175538-ENDQA-MATH-001R-Turing-MathModel-Retry-Leibniz.md | completed; found medium bug |
+| Lovelace-MacParity-Retry-Plato | ENDQA-MAC-001R | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-175552-ENDQA-MAC-001R-Lovelace-MacParity-Retry-Plato.md | completed; found medium bug |
 
 ## Subagent Lifecycle
 
@@ -74,8 +69,17 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 | Queue-Keeper | queue-cleanup-20260629 | worker | gpt-5.3-codex-spark / medium | close | scoped edits: codex_task_queue.md and codex_task_queue_completed.md only | completed | Queue split completed without blockers. | 2026-06-29T08:04:21+00:00 |
 | Mac-App-Inspector | mac-app-ui-inspection-20260629 | verifier | gpt-5.4 / medium | launch | read-only; UI inspection only | launched | Leo explicitly requested an agent focused on using Mac Computer Use to inspect the app and improve quality while the main thread implements. | 2026-06-29T08:27:29+00:00 |
 | Mac-App-Inspector | mac-app-ui-inspection-20260629 | verifier | gpt-5.4 / medium | close | read-only; UI inspection only | completed | Report received and used to prioritize native next-match dashboard at top of Dashboard. | 2026-06-29T08:31:43+00:00 |
+| Curie-WebLogic | ENDQA-WEB-001 | Verifier | gpt-5.4-mini / medium | launch | read-only; no file changes | launched | Independent web QA can run in parallel and is likely to catch UI/state regressions after many rapid changes. | 2026-06-29T09:28:28+00:00 |
+| Turing-MathModel | ENDQA-MATH-001 | Verifier | gpt-5.4-mini / medium | launch | read-only; no file changes | launched | Math/model bugs can pass UI tests silently; an independent verifier increases quality without blocking implementation. | 2026-06-29T09:29:57+00:00 |
+| Lovelace-MacParity | ENDQA-MAC-001 | Verifier | gpt-5.4-mini / medium | launch | read-only; no file changes | launched | Leo prioritizes the Mac app; independent native parity QA can catch gaps separate from web checks. | 2026-06-29T09:31:29+00:00 |
+| Curie-WebLogic / Maxwell | ENDQA-WEB-001 | Verifier | gpt-5.4-mini / medium | close | read-only; no file changes | completed; found medium bug | Integrating finding in main thread. | 2026-06-29T09:35:07+00:00 |
+| Turing-MathModel / Fermat | ENDQA-MATH-001 | Verifier | gpt-5.4-mini / medium | close | read-only; no file changes | errored; selected model at capacity | Will relaunch on a cheaper allowed model. | 2026-06-29T09:36:27+00:00 |
+| Lovelace-MacParity / Lagrange | ENDQA-MAC-001 | Verifier | gpt-5.4-mini / medium | close | read-only; no file changes | errored; selected model at capacity | Will relaunch on a cheaper allowed model. | 2026-06-29T09:37:17+00:00 |
+| Turing-MathModel-Retry | ENDQA-MATH-001R | Verifier | gpt-5.3-codex-spark / high | launch | read-only; no file changes | launched | Original gpt-5.4-mini agent errored at capacity; Spark high is allowed and cheap for bounded verification. | 2026-06-29T09:37:50+00:00 |
+| Lovelace-MacParity-Retry | ENDQA-MAC-001R | Verifier | gpt-5.3-codex-spark / high | launch | read-only; no file changes | launched | Original gpt-5.4-mini agent errored at capacity; Spark high is allowed and cheap for bounded native parity verification. | 2026-06-29T09:38:25+00:00 |
+| Turing-MathModel-Retry / Leibniz | ENDQA-MATH-001R | Verifier | gpt-5.3-codex-spark / high | close | read-only; no file changes | completed; found medium bug | Integrating finding in main thread. | 2026-06-29T09:42:59+00:00 |
+| Lovelace-MacParity-Retry / Plato | ENDQA-MAC-001R | Verifier | gpt-5.3-codex-spark / high | close | read-only; no file changes | completed; found medium bug | Integrating finding in main thread. | 2026-06-29T09:43:56+00:00 |
 
 ## Integration Notes
-
 
 ## Safety And Scope Notes
