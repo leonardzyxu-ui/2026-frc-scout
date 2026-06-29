@@ -39,6 +39,13 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 
 | Agent | Task | Report path | Status |
 | --- | --- | --- | --- |
+| Rivet-QA | PWR-QA-001 | `codex_agent_reports/rivet-qa-pwr-qa-001.md` | completed-fail; findings integrated |
+| Forge-MacParity | MAC-PARITY-001 | `codex_agent_reports/forge-mac-parity-001.md` | completed; recommendation integrated |
+| Noether / QA-Web-Logic | qa-web-logic-001 | `codex_agent_reports/qa-web-logic-001-noether.md` | completed; finding integrated |
+| Archimedes / QA-Math-Safety | qa-math-safety-001 | `codex_agent_reports/qa-math-safety-001-archimedes.md` | completed; finding integrated |
+| Galileo / QA-PowerScout-Mac | qa-powerscout-mac-001 | `codex_agent_reports/qa-powerscout-mac-001-galileo.md` | completed; finding integrated |
+| Queue-Keeper | queue-cleanup-20260629 | `codex_agent_reports/queue-cleanup-20260629.md` | completed |
+| Mac-App-Inspector | mac-app-ui-inspection-20260629 | `codex_agent_reports/mac-app-ui-inspection-20260629.md` | completed; suggestions integrated |
 
 ## Subagent Lifecycle
 
@@ -72,4 +79,3 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 
 
 ## Safety And Scope Notes
-

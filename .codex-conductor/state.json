@@ -96,7 +96,7 @@
       "commands_run": [],
       "files_changed": [],
       "verification": "Read-only parity inventory completed; recommended first native slice is History / Rewards with wallet summary and recent bets.",
-      "report_path": "multi_agent_v1 completion message; to be summarized into codex_agent_reports if needed",
+      "report_path": "codex_agent_reports/forge-mac-parity-001.md",
       "safety_concerns": [],
       "time": "2026-06-29T05:04:36+00:00"
     },
@@ -127,7 +127,7 @@
       ],
       "files_changed": [],
       "verification": "Agent marked slice fail due to name-only adjustment ambiguity, stale settlement metadata on restore, status copy bug, and missing tests.",
-      "report_path": "multi_agent_v1 completion message; issues being patched by conductor",
+      "report_path": "codex_agent_reports/rivet-qa-pwr-qa-001.md",
       "safety_concerns": [],
       "time": "2026-06-29T05:05:00+00:00"
     },
@@ -574,7 +574,7 @@
         "codex_task_queue_completed.md"
       ],
       "verification": "Reported 12 unresolved items left and 133 completed items archived; conductor will spot-check before final integration.",
-      "report_path": "",
+      "report_path": "codex_agent_reports/queue-cleanup-20260629.md",
       "safety_concerns": [],
       "time": "2026-06-29T08:04:21+00:00"
     },
@@ -621,7 +621,7 @@
       "commands_run": [],
       "files_changed": [],
       "verification": "Inspected running PowerScout app via Computer Use and code; identified Mac app is polished but lacks next-match dashboard fields.",
-      "report_path": "",
+      "report_path": "codex_agent_reports/mac-app-ui-inspection-20260629.md",
       "safety_concerns": [],
       "time": "2026-06-29T08:31:43+00:00"
     }

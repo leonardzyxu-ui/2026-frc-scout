@@ -121,6 +121,7 @@
 - [x] Remove all non-SF-Pro typography from the PowerScout Mac app and current strategy preview; no SF Rounded, SF Mono, Avenir, DIN, or Impact.
 - [x] Make Next Match Dashboard shift instruction panels equal height so defense text cannot stretch one team column.
 - [x] Integrate Leo's Cloudflare Worker relay into the relay engine alongside the Render relay, preserving mainland-China fallback ordering and no-VPN caveats.
+- [x] Finish recording missing subagent reports for the June 29 QA, queue-cleanup, and Mac-app inspection agents.
 - [x] Ditch the per-shift “Submit this shift” button; scouts should move to the next shift card instead.
 - [x] Add scout-facing PowerCoin betting before Auto: concealed red/blue bet, Secure Mode letter entry, amount, bright green Start Game, lock on first gameplay action, visible yellow locked state, match JSON storage, and deferred send-failure notice.
 - [x] Persist locked bets with scout number/name, match key, selected side, amount, lock reason/time, direct-send status, and disqualification metadata.
