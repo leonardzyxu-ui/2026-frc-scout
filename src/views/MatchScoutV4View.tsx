@@ -537,7 +537,8 @@ function ShiftCard({
   onActionToggle,
   onAddScore,
   onUndoScore,
-  onDefenseChange
+  onDefenseToggle,
+  onDefenseShareChange
 }: {
   entry: MatchScoutingV4ShiftEntry;
   isActive: boolean;
@@ -546,12 +547,20 @@ function ShiftCard({
   onActionToggle: (action: MatchScoutingV4ShiftAction) => void;
   onAddScore: (delta: 1 | 3 | 5 | 10) => void;
   onUndoScore: () => void;
-  onDefenseChange: (targetTeamNumber: string, share: number) => void;
+  onDefenseToggle: (targetTeamNumber: string) => void;
+  onDefenseShareChange: (targetTeamNumber: string, share: number) => void;
 }) {
   const selectedActions = normalizeActionsForView(entry);
   const actionOptions: MatchScoutingV4ShiftAction[] =
     entry.owner === 'own' ? ['offense', 'defense', 'stockpile'] : ['defense', 'stockpile'];
-  const defenseAssignment = entry.defendedTeams[0] || createDefenseAssignment(opponentTeamOptions[0] || '');
+  const defenseAssignmentsByTeam = new Map((entry.defendedTeams || []).map(assignment => [assignment.targetTeamNumber, assignment]));
+  const selectedDefenseTargets = new Set(defenseAssignmentsByTeam.keys());
+  const orderedDefenseAssignments = [
+    ...opponentTeamOptions
+      .map(teamNumber => defenseAssignmentsByTeam.get(teamNumber))
+      .filter((assignment): assignment is MatchScoutingV4DefenseAssignment => Boolean(assignment)),
+    ...(entry.defendedTeams || []).filter(assignment => !opponentTeamOptions.includes(assignment.targetTeamNumber))
+  ];
   const canShowCounter = isActive && entry.owner === 'own' && selectedActions.includes('offense');
   const canShowDefense = isActive && selectedActions.includes('defense');
   const canShowStockpile = selectedActions.includes('stockpile');
@@ -649,9 +658,10 @@ function ShiftCard({
                   <button
                     key={teamNumber}
                     type="button"
-                    onClick={() => onDefenseChange(teamNumber, defenseAssignment.claimedSharePercent || 100)}
+                    aria-pressed={selectedDefenseTargets.has(teamNumber)}
+                    onClick={() => onDefenseToggle(teamNumber)}
                     className={`admin-g2-sm px-3 py-3 font-black ${
-                      defenseAssignment.targetTeamNumber === teamNumber
+                      selectedDefenseTargets.has(teamNumber)
                         ? 'bg-emerald-300 text-slate-950'
                         : 'bg-slate-950/65 text-slate-200 hover:bg-slate-800'
                     }`}
@@ -662,19 +672,29 @@ function ShiftCard({
                   <div className="sm:col-span-3 text-xs font-semibold text-amber-100">Enter the three opposing robots above before assigning defense.</div>
                 )}
               </div>
-              <label className="mt-4 block">
-                <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-100/75">
-                  This robot's share of denying that team: {Math.round(defenseAssignment.claimedSharePercent || 0)}%
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={defenseAssignment.claimedSharePercent || 0}
-                  onChange={event => onDefenseChange(defenseAssignment.targetTeamNumber || opponentTeamOptions[0] || '', Number(event.target.value))}
-                  className="mt-3 w-full accent-emerald-300"
-                />
-              </label>
+              {orderedDefenseAssignments.length > 0 ? (
+                <div className="mt-4 space-y-4">
+                  {orderedDefenseAssignments.map(assignment => (
+                    <label key={assignment.targetTeamNumber} className="block">
+                      <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-100/75">
+                        Share of denying Team {assignment.targetTeamNumber}: {Math.round(assignment.claimedSharePercent || 0)}%
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={assignment.claimedSharePercent || 0}
+                        onChange={event => onDefenseShareChange(assignment.targetTeamNumber, Number(event.target.value))}
+                        className="mt-3 w-full accent-emerald-300"
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-50">
+                  Select every opponent this robot defended. Add one slider per target.
+                </div>
+              )}
             </section>
           )}
         </div>
@@ -1071,9 +1091,7 @@ export default function MatchScoutV4View() {
       ? nextActions
       : nextActions.filter(item => item !== 'offense');
     const defendedTeams = allowedActions.includes('defense')
-      ? entry.defendedTeams.length > 0
-        ? entry.defendedTeams
-        : [createDefenseAssignment(opponentTeamOptions[0] || '')]
+      ? entry.defendedTeams.filter(assignment => assignment.targetTeamNumber)
       : [];
     updateShiftEntry(entry.index, {
       actions: allowedActions,
@@ -1106,18 +1124,40 @@ export default function MatchScoutV4View() {
     });
   };
 
-  const updateShiftDefenseAssignment = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string, claimedSharePercent: number) => {
+  const toggleShiftDefenseTarget = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string) => {
+    if (!targetTeamNumber) return;
     lockPowerCoinBet('gameplay_action');
     const actions = Array.from(new Set([...normalizeActionsForView(entry), 'defense' as const]));
+    const hasTarget = entry.defendedTeams.some(assignment => assignment.targetTeamNumber === targetTeamNumber);
+    const defendedTeams = hasTarget
+      ? entry.defendedTeams.filter(assignment => assignment.targetTeamNumber !== targetTeamNumber)
+      : [...entry.defendedTeams, createDefenseAssignment(targetTeamNumber)];
     updateShiftEntry(entry.index, {
       actions,
       role: deriveShiftRoleForView(actions),
-      defendedTeams: [{
-        targetTeamNumber,
-        claimedSharePercent,
-        normalizedSharePercent: claimedSharePercent,
-        notes: ''
-      }]
+      defendedTeams
+    });
+  };
+
+  const updateShiftDefenseShare = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string, claimedSharePercent: number) => {
+    if (!targetTeamNumber) return;
+    lockPowerCoinBet('gameplay_action');
+    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'defense' as const]));
+    const clampedShare = Math.max(0, Math.min(100, Number.isFinite(claimedSharePercent) ? claimedSharePercent : 0));
+    const hasTarget = entry.defendedTeams.some(assignment => assignment.targetTeamNumber === targetTeamNumber);
+    const defendedTeams = hasTarget
+      ? entry.defendedTeams.map(assignment => assignment.targetTeamNumber === targetTeamNumber
+          ? { ...assignment, claimedSharePercent: clampedShare, normalizedSharePercent: clampedShare }
+          : assignment
+        )
+      : [...entry.defendedTeams, createDefenseAssignment(targetTeamNumber)].map(assignment => assignment.targetTeamNumber === targetTeamNumber
+          ? { ...assignment, claimedSharePercent: clampedShare, normalizedSharePercent: clampedShare }
+          : assignment
+        );
+    updateShiftEntry(entry.index, {
+      actions,
+      role: deriveShiftRoleForView(actions),
+      defendedTeams
     });
   };
 
@@ -1721,7 +1761,8 @@ export default function MatchScoutV4View() {
                     onActionToggle={action => toggleShiftAction(entry, action)}
                     onAddScore={delta => addShiftScoreAction(entry, delta)}
                     onUndoScore={() => undoShiftScoreAction(entry)}
-                    onDefenseChange={(targetTeamNumber, share) => updateShiftDefenseAssignment(entry, targetTeamNumber, share)}
+                    onDefenseToggle={targetTeamNumber => toggleShiftDefenseTarget(entry, targetTeamNumber)}
+                    onDefenseShareChange={(targetTeamNumber, share) => updateShiftDefenseShare(entry, targetTeamNumber, share)}
                   />
                 ))}
               </section>

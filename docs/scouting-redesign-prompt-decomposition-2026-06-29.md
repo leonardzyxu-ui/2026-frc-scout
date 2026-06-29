@@ -67,11 +67,11 @@ Status: living decomposition. The pasted file is treated as source material, not
 15. `Partial` - Full active/inactive alternating teleop-shift UI.
     Evidence: Match Scout V4 has Auto Shift, red/blue first toggle, ordered colored shift cards, no per-shift submit button, and editable history. Missing: transition/endgame phase handling, Auto/FMS-derived first active side, rolling submitted-card behavior, and no-loss remapping when the timeline changes after entries exist.
 
-16. `Partial` - Per-shift action input.
-    Evidence: Match Scout V4 supports multi-select Offense/Defense/Stockpile, and opponent/inactive shifts do not expose offense counters. Missing: multi-target defended-team editing; current UI is single-target even though the data model supports an array.
+16. `Done` - Per-shift action input.
+    Evidence: Match Scout V4 supports multi-select Offense/Defense/Stockpile, opponent/inactive shifts do not expose offense counters, and defense target selection now supports multiple defended teams.
 
-17. `Partial` - Defense share slider UI.
-    Evidence: current shift card has a defense target and share slider. Missing: per-target sliders for multiple defended teams in one shift.
+17. `Done` - Defense share slider UI.
+    Evidence: each selected defended team gets its own share slider in Match Scout V4, and source-structure tests guard against collapsing back to `entry.defendedTeams[0]`.
 
 18. `Done` - Stockpile/defense shift weighting UI and aggregation.
     Evidence: current summary applies stockpile credit and defense credit through `shiftActionWeights.ts`, including default 0.5/0.5 and 0.1 behaviors, optional normalization-time custom weights, and focused tests for support-not-direct-points plus custom weight regression.
@@ -147,9 +147,8 @@ Status: living decomposition. The pasted file is treated as source material, not
 ## Current Highest-Value Missing Slices
 
 1. Finish the full shift-entry UI inside Match Scout V4: transition/endgame phases, Auto/FMS first active side, rolling shift cards, and no-loss timeline remapping.
-2. Add multi-target defense editing with per-target sliders.
-3. Build the mirrored shift strategy preview page.
-4. Split and document browser-cache JSON export schema and direct local-file export path.
+2. Build the mirrored shift strategy preview page.
+3. Split and document browser-cache JSON export schema and direct local-file export path.
 
 ## Logic Invariants From Red-Team
 

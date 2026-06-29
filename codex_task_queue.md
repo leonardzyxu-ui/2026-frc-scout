@@ -85,7 +85,7 @@
 - [x] Implement Non-Defense Point Count and deviation from offense shifts where the team was not defended, including source-labeled fallback for always-defended teams.
 - [x] Build the first slice of the active/inactive teleop shift-entry UI in Match Scout V4.
 - [ ] Finish the full active/inactive teleop timeline: transition/endgame phases, FMS/Auto-derived first active side, rolling submitted shift cards, and no-loss editing after timeline changes.
-- [ ] Add multi-target defense editing in Match Scout V4 so scouts can select multiple defended teams and set per-target share sliders.
+- [x] Add multi-target defense editing in Match Scout V4 so scouts can select multiple defended teams and set per-target share sliders.
 - [x] Add stockpile and defense-shift weighted aggregation first slice, including 0.5/0.5 and 0.1 rules.
 - [x] Make stockpile/defense weighting configurable and covered by focused regression tests.
 - [x] Add logic-safety tests for stockpile double counting, all-zero defender shares, official-score zero totals, penalty-heavy reconciliation, and arbitrary scout counts.

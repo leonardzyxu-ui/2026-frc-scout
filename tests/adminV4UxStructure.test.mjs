@@ -1220,9 +1220,13 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(matchScoutSource, /getShiftActionLabel/);
   assert.match(matchScoutSource, /onActionToggle/);
   assert.match(matchScoutSource, /aria-pressed/);
+  assert.match(matchScoutSource, /selectedDefenseTargets/);
+  assert.match(matchScoutSource, /onDefenseToggle/);
+  assert.match(matchScoutSource, /orderedDefenseAssignments/);
+  assert.match(matchScoutSource, /Share of denying Team/);
   assert.match(matchScoutSource, /Undo Last/);
   assert.doesNotMatch(matchScoutSource, /data-testid="first-shift-clear"/);
-  assert.doesNotMatch(matchScoutSource, /Defense \+ Stockpile|roleOptions|onRoleChange|setShiftRole|Auto Cycles|Teleop Cycles|What points and cycles|Submit this shift|markShiftSubmitted/);
+  assert.doesNotMatch(matchScoutSource, /Defense \+ Stockpile|roleOptions|onRoleChange|setShiftRole|Auto Cycles|Teleop Cycles|What points and cycles|Submit this shift|markShiftSubmitted|entry\.defendedTeams\[0\]/);
   assert.doesNotMatch(matchScoutSource, /PPA Capture Path/);
   assert.match(matchScoutSource, /fetchLocalTbaSchedule/);
   assert.match(matchScoutSource, /\/api\/local-tba\/event/);
