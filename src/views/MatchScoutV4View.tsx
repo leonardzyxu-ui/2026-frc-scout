@@ -5,7 +5,6 @@ import {
   MatchScoutingV3Alliance,
   MatchScoutingV4,
   MatchScoutingV4DefenseAssignment,
-  MatchScoutingV4Role,
   MatchScoutingV4ShiftAction,
   MatchScoutingV4ShiftEntry,
   PowerCoinBetLockReason,
@@ -46,10 +45,17 @@ import {
   shouldDeliverScoutPagerMessage,
   type ScoutPagerMessage
 } from '../utils/scoutRelayPager';
+import {
+  buildMatchScoutTimelineEntries,
+  deriveMatchScoutShiftRole,
+  deriveMatchScoutShiftSummary,
+  inferFirstShiftAllianceFromFmsAuto,
+  normalizeMatchScoutShiftActions,
+  shouldRollSubmitShift
+} from '../utils/matchScoutTimeline';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
-const TELEOP_SHIFT_COUNT = 8;
 const SCORE_ACTION_STEPS = [1, 3, 5, 10] as const;
 const HEAD_SCOUT_SUBMIT_TIMEOUT_MS = 8000;
 type MatchScoutStepKey = 'setup' | 'score' | 'risk' | 'handoff';
@@ -130,7 +136,11 @@ const getAllianceTone = (alliance: MatchScoutingV3Alliance) =>
       ? 'border-blue-400/45 bg-blue-950/60 text-blue-50'
       : 'border-slate-800 bg-slate-900/70 text-slate-50';
 
-const SHIFT_ACTIONS: MatchScoutingV4ShiftAction[] = ['offense', 'defense', 'stockpile'];
+const getShiftPhaseLabel = (phase: MatchScoutingV4ShiftEntry['phase']) => {
+  if (phase === 'transition') return 'Transition';
+  if (phase === 'endgame') return 'Endgame';
+  return 'Teleop';
+};
 
 const getShiftActionLabel = (action: MatchScoutingV4ShiftAction) => {
   if (action === 'offense') return 'Offense';
@@ -138,29 +148,8 @@ const getShiftActionLabel = (action: MatchScoutingV4ShiftAction) => {
   return 'Stockpile';
 };
 
-const normalizeActionsForView = (entry: Partial<MatchScoutingV4ShiftEntry>): MatchScoutingV4ShiftAction[] => {
-  const directActions = Array.isArray(entry.actions)
-    ? entry.actions.filter((action): action is MatchScoutingV4ShiftAction => SHIFT_ACTIONS.includes(action as MatchScoutingV4ShiftAction))
-    : [];
-  if (directActions.length) return Array.from(new Set(directActions));
-  if (entry.role === 'offense') return ['offense'];
-  if (entry.role === 'defense') return ['defense'];
-  if (entry.role === 'stockpile') return ['stockpile'];
-  if (entry.role === 'mixed') return ['defense', 'stockpile'];
-  return [];
-};
-
-const deriveShiftRoleForView = (actions: MatchScoutingV4ShiftAction[]): MatchScoutingV4ShiftEntry['role'] => {
-  if (actions.includes('offense') && actions.includes('defense')) return 'mixed';
-  if (actions.includes('offense')) return 'offense';
-  if (actions.includes('defense') && actions.includes('stockpile')) return 'mixed';
-  if (actions.includes('defense')) return 'defense';
-  if (actions.includes('stockpile')) return 'stockpile';
-  return 'inactive';
-};
-
 const deriveActionSummaryLabel = (entry: MatchScoutingV4ShiftEntry) => {
-  const actions = normalizeActionsForView(entry);
+  const actions = normalizeMatchScoutShiftActions(entry);
   return actions.length ? actions.map(getShiftActionLabel).join(' + ') : 'Inactive';
 };
 
@@ -170,67 +159,6 @@ const createDefenseAssignment = (targetTeamNumber = ''): MatchScoutingV4DefenseA
   normalizedSharePercent: targetTeamNumber ? 100 : 0,
   notes: ''
 });
-
-const sumScoreActions = (entry: MatchScoutingV4ShiftEntry) =>
-  (entry.scoreActions || []).reduce((sum, action) => sum + action.delta, 0);
-
-const buildTimelineEntries = (
-  entries: MatchScoutingV4ShiftEntry[] = [],
-  firstShiftAlliance: MatchScoutingV3Alliance,
-  scoutedAlliance: MatchScoutingV3Alliance
-) => {
-  const first = firstShiftAlliance || 'Red';
-  return Array.from({ length: TELEOP_SHIFT_COUNT }, (_, index) => {
-    const shiftAlliance = index % 2 === 0 ? first : getOppositeAlliance(first);
-    const existing = entries.find(entry => entry.index === index || entry.id === `teleop-shift-${index + 1}`);
-    const scoreActions = existing?.scoreActions || [];
-    const ballsScored = existing ? Math.max(existing.ballsScored || 0, sumScoreActions(existing)) : 0;
-    const owner = scoutedAlliance && shiftAlliance === scoutedAlliance ? 'own' : 'opponent';
-    const actions = normalizeActionsForView(existing || {});
-    const allowedActions = owner === 'own'
-      ? actions
-      : actions.filter(action => action !== 'offense');
-    return {
-      id: `teleop-shift-${index + 1}`,
-      index,
-      shiftAlliance,
-      owner,
-      role: deriveShiftRoleForView(allowedActions),
-      actions: allowedActions,
-      ballsScored: allowedActions.includes('offense') ? ballsScored : 0,
-      scoreActions: allowedActions.includes('offense') ? scoreActions : [],
-      ...deriveShiftActionCredits(allowedActions),
-      defendedTeams: allowedActions.includes('defense') ? existing?.defendedTeams || [] : [],
-      notes: existing?.notes || '',
-      status: existing?.status || 'draft',
-      submittedAt: existing?.submittedAt
-    } satisfies MatchScoutingV4ShiftEntry;
-  });
-};
-
-const deriveShiftSummary = (entries: MatchScoutingV4ShiftEntry[]) => {
-  const offenseEntries = entries.filter(entry => entry.owner === 'own' && normalizeActionsForView(entry).includes('offense'));
-  const defenseEntries = entries.filter(entry => normalizeActionsForView(entry).includes('defense'));
-  const stockpileEntries = entries.filter(entry => normalizeActionsForView(entry).includes('stockpile'));
-  const teleopPoints = offenseEntries.reduce((sum, entry) => sum + entry.ballsScored, 0);
-  const defenseAssignments = entries.flatMap(entry => entry.defendedTeams || []);
-  let rolePlayed: MatchScoutingV4Role = '';
-  if (offenseEntries.length && defenseEntries.length) rolePlayed = 'Mixed';
-  else if (offenseEntries.length) rolePlayed = 'Offense';
-  else if (defenseEntries.length) rolePlayed = 'Defense';
-  else if (stockpileEntries.length) rolePlayed = 'Support';
-  else rolePlayed = 'Disabled';
-
-  return {
-    teleopPoints,
-    rolePlayed,
-    defenseAssignments,
-    defendedTeamNumber: defenseAssignments[0]?.targetTeamNumber || '',
-    defenseIntensity: defenseAssignments.length
-      ? Math.min(1, defenseAssignments.reduce((sum, assignment) => sum + assignment.claimedSharePercent, 0) / (defenseAssignments.length * 100))
-      : 0
-  };
-};
 
 const getDefaultData = (deviceId: string, scoutName = '', scoutNumber: number | null = null) =>
   normalizeMatchScoutingV4({
@@ -550,7 +478,7 @@ function ShiftCard({
   onDefenseToggle: (targetTeamNumber: string) => void;
   onDefenseShareChange: (targetTeamNumber: string, share: number) => void;
 }) {
-  const selectedActions = normalizeActionsForView(entry);
+  const selectedActions = normalizeMatchScoutShiftActions(entry);
   const actionOptions: MatchScoutingV4ShiftAction[] =
     entry.owner === 'own' ? ['offense', 'defense', 'stockpile'] : ['defense', 'stockpile'];
   const defenseAssignmentsByTeam = new Map((entry.defendedTeams || []).map(assignment => [assignment.targetTeamNumber, assignment]));
@@ -573,7 +501,7 @@ function ShiftCard({
       <button type="button" onClick={onActivate} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left">
         <span className="min-w-0">
           <span className="block text-xs font-black uppercase tracking-[0.22em] opacity-70">
-            Shift {entry.index + 1} · {entry.shiftAlliance || 'Unknown'} · {entry.owner === 'own' ? 'Scouted alliance' : 'Opponent alliance'}
+            Shift {entry.index + 1} · {getShiftPhaseLabel(entry.phase)} · {entry.shiftAlliance || 'Unknown'} · {entry.owner === 'own' ? 'Scouted alliance' : 'Opponent alliance'}
           </span>
           <span className="mt-1 block text-lg font-black text-white">{deriveActionSummaryLabel(entry)}</span>
         </span>
@@ -747,12 +675,16 @@ export default function MatchScoutV4View() {
   );
   const canOpenForm = Boolean(normalizedData.teamNumber && archiveUsername && archiveScoutNumber && normalizedData.alliance);
   const timelineEntries = useMemo(
-    () => buildTimelineEntries(normalizedData.shiftBreakdown || [], normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance),
+    () => buildMatchScoutTimelineEntries(normalizedData.shiftBreakdown || [], normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance),
     [normalizedData.alliance, normalizedData.shiftBreakdown, normalizedData.teleopFirstShiftAlliance]
   );
   const currentScheduleMatch = useMemo(
     () => scheduledMatches.find(match => getShortMatchKey(match) === currentMatchKey),
     [currentMatchKey, scheduledMatches]
+  );
+  const fmsAutoFirstShiftAlliance = useMemo(
+    () => inferFirstShiftAllianceFromFmsAuto(currentScheduleMatch),
+    [currentScheduleMatch]
   );
   const opponentTeamOptions = useMemo(() => {
     const opponentAlliance = getOppositeAlliance(normalizedData.alliance);
@@ -1043,7 +975,7 @@ export default function MatchScoutV4View() {
   };
 
   const commitShiftEntries = (nextEntries: MatchScoutingV4ShiftEntry[]) => {
-    const summary = deriveShiftSummary(nextEntries);
+    const summary = deriveMatchScoutShiftSummary(nextEntries);
     updateData({
       shiftBreakdown: nextEntries,
       teleopPoints: summary.teleopPoints,
@@ -1055,14 +987,37 @@ export default function MatchScoutV4View() {
     });
   };
 
+  const applyFirstShiftAlliance = (alliance: MatchScoutingV3Alliance) => {
+    if (!alliance) return;
+    const nextEntries = buildMatchScoutTimelineEntries(timelineEntries, alliance, normalizedData.alliance);
+    updateData({
+      teleopFirstShiftAlliance: alliance,
+      shiftBreakdown: nextEntries,
+      ...deriveMatchScoutShiftSummary(nextEntries)
+    });
+  };
+
+  const activateShift = (nextIndex: number) => {
+    if (nextIndex === activeShiftIndex) return;
+    const currentEntry = timelineEntries.find(entry => entry.index === activeShiftIndex);
+    if (shouldRollSubmitShift(activeShiftIndex, nextIndex, currentEntry)) {
+      const nextEntries = timelineEntries.map(entry => entry.index === activeShiftIndex
+        ? { ...entry, status: 'submitted' as const, submittedAt: Date.now() }
+        : entry
+      );
+      commitShiftEntries(nextEntries);
+    }
+    setActiveShiftIndex(nextIndex);
+  };
+
   const updateShiftEntry = (shiftIndex: number, patch: Partial<MatchScoutingV4ShiftEntry>) => {
     const nextEntries = timelineEntries.map(entry => {
       if (entry.index !== shiftIndex) return entry;
-      const mergedActions = normalizeActionsForView({ ...entry, ...patch });
+      const mergedActions = normalizeMatchScoutShiftActions({ ...entry, ...patch });
       const nextActions = entry.owner === 'own'
         ? mergedActions
         : mergedActions.filter(action => action !== 'offense');
-      const nextRole = deriveShiftRoleForView(nextActions);
+      const nextRole = deriveMatchScoutShiftRole(nextActions);
       const defaultCredits = deriveShiftActionCredits(nextActions);
       const nextEntry = {
         ...entry,
@@ -1083,7 +1038,7 @@ export default function MatchScoutV4View() {
 
   const toggleShiftAction = (entry: MatchScoutingV4ShiftEntry, action: MatchScoutingV4ShiftAction) => {
     lockPowerCoinBet('gameplay_action');
-    const currentActions = normalizeActionsForView(entry);
+    const currentActions = normalizeMatchScoutShiftActions(entry);
     const nextActions = currentActions.includes(action)
       ? currentActions.filter(item => item !== action)
       : [...currentActions, action];
@@ -1095,7 +1050,7 @@ export default function MatchScoutV4View() {
       : [];
     updateShiftEntry(entry.index, {
       actions: allowedActions,
-      role: deriveShiftRoleForView(allowedActions),
+      role: deriveMatchScoutShiftRole(allowedActions),
       defendedTeams,
       ballsScored: allowedActions.includes('offense') ? entry.ballsScored : 0,
       scoreActions: allowedActions.includes('offense') ? entry.scoreActions : []
@@ -1105,11 +1060,11 @@ export default function MatchScoutV4View() {
   const addShiftScoreAction = (entry: MatchScoutingV4ShiftEntry, delta: 1 | 3 | 5 | 10) => {
     if (entry.owner !== 'own') return;
     lockPowerCoinBet('gameplay_action');
-    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'offense' as const]));
+    const actions = Array.from(new Set([...normalizeMatchScoutShiftActions(entry), 'offense' as const]));
     const scoreActions = [...(entry.scoreActions || []), { delta, at: Date.now() }];
     updateShiftEntry(entry.index, {
       actions,
-      role: deriveShiftRoleForView(actions),
+      role: deriveMatchScoutShiftRole(actions),
       scoreActions,
       ballsScored: scoreActions.reduce((sum, action) => sum + action.delta, 0)
     });
@@ -1127,14 +1082,14 @@ export default function MatchScoutV4View() {
   const toggleShiftDefenseTarget = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string) => {
     if (!targetTeamNumber) return;
     lockPowerCoinBet('gameplay_action');
-    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'defense' as const]));
+    const actions = Array.from(new Set([...normalizeMatchScoutShiftActions(entry), 'defense' as const]));
     const hasTarget = entry.defendedTeams.some(assignment => assignment.targetTeamNumber === targetTeamNumber);
     const defendedTeams = hasTarget
       ? entry.defendedTeams.filter(assignment => assignment.targetTeamNumber !== targetTeamNumber)
       : [...entry.defendedTeams, createDefenseAssignment(targetTeamNumber)];
     updateShiftEntry(entry.index, {
       actions,
-      role: deriveShiftRoleForView(actions),
+      role: deriveMatchScoutShiftRole(actions),
       defendedTeams
     });
   };
@@ -1142,7 +1097,7 @@ export default function MatchScoutV4View() {
   const updateShiftDefenseShare = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string, claimedSharePercent: number) => {
     if (!targetTeamNumber) return;
     lockPowerCoinBet('gameplay_action');
-    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'defense' as const]));
+    const actions = Array.from(new Set([...normalizeMatchScoutShiftActions(entry), 'defense' as const]));
     const clampedShare = Math.max(0, Math.min(100, Number.isFinite(claimedSharePercent) ? claimedSharePercent : 0));
     const hasTarget = entry.defendedTeams.some(assignment => assignment.targetTeamNumber === targetTeamNumber);
     const defendedTeams = hasTarget
@@ -1156,7 +1111,7 @@ export default function MatchScoutV4View() {
         );
     updateShiftEntry(entry.index, {
       actions,
-      role: deriveShiftRoleForView(actions),
+      role: deriveMatchScoutShiftRole(actions),
       defendedTeams
     });
   };
@@ -1252,8 +1207,8 @@ export default function MatchScoutV4View() {
     const previousVersion = Math.max(1, Number(normalizedData.versionMetadata?.version || 1));
     const nextVersion = isEditingExistingRecord ? previousVersion + 1 : previousVersion;
     const nextMatchKey = currentMatchKey;
-    const nextShiftBreakdown = buildTimelineEntries(timelineEntries, normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance);
-    const shiftSummary = deriveShiftSummary(nextShiftBreakdown);
+    const nextShiftBreakdown = buildMatchScoutTimelineEntries(timelineEntries, normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance);
+    const shiftSummary = deriveMatchScoutShiftSummary(nextShiftBreakdown);
     return normalizeMatchScoutingV4({
       ...normalizedData,
       ...shiftSummary,
@@ -1700,14 +1655,7 @@ export default function MatchScoutV4View() {
                         key={alliance}
                         type="button"
                         data-testid={`first-shift-${alliance.toLowerCase()}`}
-                        onClick={() => {
-                          const nextEntries = buildTimelineEntries(timelineEntries, alliance, normalizedData.alliance);
-                          updateData({
-                            teleopFirstShiftAlliance: alliance,
-                            shiftBreakdown: nextEntries,
-                            ...deriveShiftSummary(nextEntries)
-                          });
-                        }}
+                        onClick={() => applyFirstShiftAlliance(alliance)}
                         className={`admin-g2-sm px-4 py-3 font-black ${
                           normalizedData.teleopFirstShiftAlliance === alliance
                             ? alliance === 'Red'
@@ -1719,6 +1667,22 @@ export default function MatchScoutV4View() {
                         {alliance} first
                       </button>
                     ))}
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <button
+                    type="button"
+                    data-testid="first-shift-fms-auto"
+                    disabled={!fmsAutoFirstShiftAlliance}
+                    onClick={() => applyFirstShiftAlliance(fmsAutoFirstShiftAlliance)}
+                    className="admin-g2-sm border border-cyan-300/25 bg-cyan-300/10 px-4 py-3 text-sm font-black text-cyan-50 hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
+                  >
+                    Use FMS/Auto First Shift
+                  </button>
+                  <div className="text-xs font-bold text-slate-400">
+                    {fmsAutoFirstShiftAlliance
+                      ? `FMS/Auto suggests ${fmsAutoFirstShiftAlliance} starts first.`
+                      : 'FMS/Auto first-shift data is not available yet.'}
                   </div>
                 </div>
                 <div data-testid="first-shift-current" className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
@@ -1757,7 +1721,7 @@ export default function MatchScoutV4View() {
                     entry={entry}
                     isActive={entry.index === activeShiftIndex}
                     opponentTeamOptions={opponentTeamOptions}
-                    onActivate={() => setActiveShiftIndex(entry.index)}
+                    onActivate={() => activateShift(entry.index)}
                     onActionToggle={action => toggleShiftAction(entry, action)}
                     onAddScore={delta => addShiftScoreAction(entry, delta)}
                     onUndoScore={() => undoShiftScoreAction(entry)}

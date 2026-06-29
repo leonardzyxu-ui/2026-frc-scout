@@ -39,6 +39,9 @@ const normalizeRole = (value: unknown): MatchScoutingV4Role =>
 const normalizeShiftOwner = (value: unknown): MatchScoutingV4ShiftOwner =>
   value === 'own' || value === 'opponent' ? value : 'own';
 
+const normalizeShiftPhase = (value: unknown) =>
+  value === 'transition' || value === 'endgame' ? value : 'teleop';
+
 const normalizeShiftRole = (value: unknown): MatchScoutingV4ShiftRole =>
   value === 'offense' || value === 'defense' || value === 'stockpile' || value === 'inactive' || value === 'mixed'
     ? value
@@ -120,6 +123,7 @@ const normalizeShiftEntry = (
   return {
     id: raw.id || `shift-${fallbackIndex + 1}`,
     index: toNonNegativeInt(raw.index ?? fallbackIndex),
+    phase: normalizeShiftPhase(raw.phase),
     shiftAlliance: normalizeAlliance(raw.shiftAlliance),
     owner: normalizeShiftOwner(raw.owner),
     role,

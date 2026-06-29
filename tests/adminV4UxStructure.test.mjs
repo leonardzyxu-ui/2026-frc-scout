@@ -1211,6 +1211,10 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.doesNotMatch(matchScoutSource, /Scout Slot/);
   assert.doesNotMatch(matchScoutSource, /SCOUT_ASSIGNMENTS/);
   assert.match(matchScoutSource, /Red\/Blue First Alliance Shift/);
+  assert.match(matchScoutSource, /Use FMS\/Auto First Shift/);
+  assert.match(matchScoutSource, /inferFirstShiftAllianceFromFmsAuto/);
+  assert.match(matchScoutSource, /shouldRollSubmitShift/);
+  assert.match(matchScoutSource, /getShiftPhaseLabel/);
   assert.match(matchScoutSource, /Current first shift/);
   assert.match(matchScoutSource, /teleopFirstShiftAlliance/);
   assert.match(matchScoutSource, /data-testid="first-shift-panel"/);

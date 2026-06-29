@@ -121,6 +121,7 @@ const canonicalizeMatchV4 = (record: MatchScoutingV4) => ({
   shiftBreakdown: (record.shiftBreakdown || []).map(entry => ({
     id: normalizeString(entry.id),
     index: entry.index ?? 0,
+    phase: entry.phase || 'teleop',
     shiftAlliance: entry.shiftAlliance || '',
     owner: entry.owner,
     role: entry.role,

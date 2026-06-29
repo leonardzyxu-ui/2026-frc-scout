@@ -64,8 +64,8 @@ Status: living decomposition. The pasted file is treated as source material, not
 14. `Partial` - Reversible first-shift metadata.
     Evidence: Match Scout V4 First Teleop Shift Red/Blue/Clear control and browser QA. Missing: live correction delivery to scouts.
 
-15. `Partial` - Full active/inactive alternating teleop-shift UI.
-    Evidence: Match Scout V4 has Auto Shift, red/blue first toggle, ordered colored shift cards, no per-shift submit button, and editable history. Missing: transition/endgame phase handling, Auto/FMS-derived first active side, rolling submitted-card behavior, and no-loss remapping when the timeline changes after entries exist.
+15. `Done` - Full active/inactive alternating teleop-shift UI.
+    Evidence: Match Scout V4 has Auto Shift, Red/Blue first toggle, an FMS/Auto first-shift inference button, ordered colored shift cards with Teleop/Transition/Endgame phase labels, no per-shift submit button, rolling submitted-card behavior when moving forward, and no-loss alliance-ordinal remapping when the timeline changes after entries exist.
 
 16. `Done` - Per-shift action input.
     Evidence: Match Scout V4 supports multi-select Offense/Defense/Stockpile, opponent/inactive shifts do not expose offense counters, and defense target selection now supports multiple defended teams.
@@ -146,9 +146,8 @@ Status: living decomposition. The pasted file is treated as source material, not
 
 ## Current Highest-Value Missing Slices
 
-1. Finish the full shift-entry UI inside Match Scout V4: transition/endgame phases, Auto/FMS first active side, rolling shift cards, and no-loss timeline remapping.
-2. Build the mirrored shift strategy preview page.
-3. Split and document browser-cache JSON export schema and direct local-file export path.
+1. Build the mirrored shift strategy preview page.
+2. Split and document browser-cache JSON export schema and direct local-file export path.
 
 ## Logic Invariants From Red-Team
 

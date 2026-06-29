@@ -152,6 +152,7 @@ export type MatchScoutingV4SubstituteScoutName = '' | 'Substitute 1' | 'Substitu
 export type MatchScoutingV4Role = '' | 'Offense' | 'Defense' | 'Mixed' | 'Support' | 'Disabled';
 export type MatchScoutingV4ShiftRole = 'offense' | 'defense' | 'stockpile' | 'inactive' | 'mixed';
 export type MatchScoutingV4ShiftOwner = 'own' | 'opponent';
+export type MatchScoutingV4ShiftPhase = 'teleop' | 'transition' | 'endgame';
 export type MatchScoutingV4ShiftAction = 'offense' | 'defense' | 'stockpile';
 
 export interface MatchScoutingV4ScoreAction {
@@ -169,6 +170,7 @@ export interface MatchScoutingV4DefenseAssignment {
 export interface MatchScoutingV4ShiftEntry {
   id: string;
   index: number;
+  phase?: MatchScoutingV4ShiftPhase;
   shiftAlliance: MatchScoutingV3Alliance;
   owner: MatchScoutingV4ShiftOwner;
   role: MatchScoutingV4ShiftRole;
