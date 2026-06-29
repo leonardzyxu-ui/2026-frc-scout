@@ -1,5 +1,6 @@
 # Scouting Task Queue (Completed)
 
+- [x] Run a fresh 2026 Silicon Valley agentic replay as 254 after the latest strategy-preview/PowerScout changes and verify required artifacts, score consistency, no-future-leakage, scout coverage, model typecheck, and PowerScout build/run.
 - [x] Make every Explore Shifts per-team shift panel/card the same visual length in the web strategy preview and PowerScout Mac app, even when defense text is longer.
 - [x] Build `PowerScout`, Powerhouse's native SwiftUI macOS scouting app.
 - [x] Use `codex-conductor` swarm coordination without wasting strong models on simple checks.
