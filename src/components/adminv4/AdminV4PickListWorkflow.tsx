@@ -462,7 +462,7 @@ export function AdminV4PickListWorkflow({
                   className="mt-2 w-full font-mono text-lg"
                 />
                 <p className="mt-3 text-xs font-semibold text-slate-400">
-                  Early seeds favor floor and reliability. Lower seeds look harder at peak and upset value.
+                  Early seeds favor floor and function confidence. Lower seeds look harder at peak and upset value.
                 </p>
               </div>
               <div className="grid grid-cols-4 gap-2">

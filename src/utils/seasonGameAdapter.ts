@@ -9,14 +9,19 @@ export interface GameRankingPointBreakdown {
   totalRp: number;
   winRp: number;
   towerRp: number;
+  traversalRp: number;
   energizedRp: number;
   superchargedRp: number;
 }
 
+export type Rebuilt2026EventTier = 'regional-district' | 'district-championship' | 'first-championship';
+
 export interface SeasonGameAdapter {
   season: number;
   label: string;
+  eventTier: Rebuilt2026EventTier;
   towerRpThreshold: number;
+  traversalRpThreshold: number;
   energizedRpThreshold: number;
   superchargedRpThreshold: number;
   winRp: number;
@@ -24,11 +29,38 @@ export interface SeasonGameAdapter {
   calculateRankingPoints: (isWinner: boolean, bonusMetrics: GameBonusMetrics | null) => GameRankingPointBreakdown;
 }
 
-const REBUILT_2026_RP_RULES = {
-  winRp: 3,
-  towerRpThreshold: 50,
-  energizedRpThreshold: 100,
-  superchargedRpThreshold: 360
+export const REBUILT_2026_RP_THRESHOLDS: Record<Rebuilt2026EventTier, {
+  traversalRpThreshold: number;
+  energizedRpThreshold: number;
+  superchargedRpThreshold: number;
+}> = {
+  'regional-district': {
+    traversalRpThreshold: 50,
+    energizedRpThreshold: 100,
+    superchargedRpThreshold: 360
+  },
+  'district-championship': {
+    traversalRpThreshold: 50,
+    energizedRpThreshold: 240,
+    superchargedRpThreshold: 360
+  },
+  'first-championship': {
+    traversalRpThreshold: 50,
+    energizedRpThreshold: 360,
+    superchargedRpThreshold: 500
+  }
+};
+
+const REBUILT_2026_WIN_RP = 3;
+
+export const getRebuilt2026RpThresholdsForEventTier = (eventTier: Rebuilt2026EventTier = 'regional-district') =>
+  REBUILT_2026_RP_THRESHOLDS[eventTier] || REBUILT_2026_RP_THRESHOLDS['regional-district'];
+
+export const inferRebuilt2026EventTier = (value: string): Rebuilt2026EventTier => {
+  const normalized = value.toLowerCase();
+  if (/first championship|championship division|einstein|cmp|cmptx|cmpmi/.test(normalized)) return 'first-championship';
+  if (/district championship|dcmp|state championship|district cmp/.test(normalized)) return 'district-championship';
+  return 'regional-district';
 };
 
 const firstNumeric = (
@@ -44,13 +76,17 @@ const firstNumeric = (
   return null;
 };
 
-export const rebuilt2026GameAdapter: SeasonGameAdapter = {
+export const createRebuilt2026GameAdapter = (eventTier: Rebuilt2026EventTier = 'regional-district'): SeasonGameAdapter => {
+  const thresholds = getRebuilt2026RpThresholdsForEventTier(eventTier);
+  return {
   season: 2026,
-  label: 'REBUILT 2026 simplified RP model',
-  towerRpThreshold: REBUILT_2026_RP_RULES.towerRpThreshold,
-  energizedRpThreshold: REBUILT_2026_RP_RULES.energizedRpThreshold,
-  superchargedRpThreshold: REBUILT_2026_RP_RULES.superchargedRpThreshold,
-  winRp: REBUILT_2026_RP_RULES.winRp,
+  label: `REBUILT 2026 ${eventTier} RP model`,
+  eventTier,
+  towerRpThreshold: thresholds.traversalRpThreshold,
+  traversalRpThreshold: thresholds.traversalRpThreshold,
+  energizedRpThreshold: thresholds.energizedRpThreshold,
+  superchargedRpThreshold: thresholds.superchargedRpThreshold,
+  winRp: REBUILT_2026_WIN_RP,
   getBonusMetricsFromBreakdown: breakdown => {
     const towerMetric =
       firstNumeric(breakdown, [
@@ -81,16 +117,21 @@ export const rebuilt2026GameAdapter: SeasonGameAdapter = {
     };
   },
   calculateRankingPoints: (isWinner, bonusMetrics) => {
-    const winRp = isWinner ? REBUILT_2026_RP_RULES.winRp : 0;
-    const towerRp = bonusMetrics && bonusMetrics.towerMetric >= REBUILT_2026_RP_RULES.towerRpThreshold ? 1 : 0;
-    const energizedRp = bonusMetrics && bonusMetrics.fuelMetric >= REBUILT_2026_RP_RULES.energizedRpThreshold ? 1 : 0;
-    const superchargedRp = bonusMetrics && bonusMetrics.fuelMetric >= REBUILT_2026_RP_RULES.superchargedRpThreshold ? 1 : 0;
+    const winRp = isWinner ? REBUILT_2026_WIN_RP : 0;
+    const traversalMetric = bonusMetrics?.towerMetric ?? 0;
+    const traversalRp = bonusMetrics && traversalMetric >= thresholds.traversalRpThreshold ? 1 : 0;
+    const energizedRp = bonusMetrics && bonusMetrics.fuelMetric >= thresholds.energizedRpThreshold ? 1 : 0;
+    const superchargedRp = bonusMetrics && bonusMetrics.fuelMetric >= thresholds.superchargedRpThreshold ? 1 : 0;
     return {
-      totalRp: winRp + towerRp + energizedRp + superchargedRp,
+      totalRp: winRp + traversalRp + energizedRp + superchargedRp,
       winRp,
-      towerRp,
+      towerRp: traversalRp,
+      traversalRp,
       energizedRp,
       superchargedRp
     };
   }
 };
+};
+
+export const rebuilt2026GameAdapter: SeasonGameAdapter = createRebuilt2026GameAdapter();

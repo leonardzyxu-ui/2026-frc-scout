@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeMatchScoutingV4 } from '../src/utils/matchScoutingV4.ts';
+import { deriveShiftActionCredits } from '../src/utils/shiftActionWeights.ts';
 
 test('Match Scout V4 normalization preserves and sanitizes shift-aware fields', () => {
   const normalized = normalizeMatchScoutingV4({
@@ -96,6 +97,36 @@ test('Match Scout V4 rejects scout numbers outside the locked device range', () 
   assert.equal(normalizeMatchScoutingV4({ matchKey: 'qm1', scoutNumber: 99 }).scoutNumber, 99);
   assert.equal(normalizeMatchScoutingV4({ matchKey: 'qm1', scoutNumber: 100 }).scoutNumber, null);
   assert.equal(normalizeMatchScoutingV4({ matchKey: 'qm1', scoutNumber: 0 }).scoutNumber, null);
+});
+
+test('Match Scout V4 derives shift credits from the shared configurable weight contract', () => {
+  assert.deepEqual(deriveShiftActionCredits(['defense', 'stockpile']), {
+    defenseShiftCredit: 0.5,
+    stockpileShiftCredit: 0.5
+  });
+  assert.deepEqual(deriveShiftActionCredits(['offense', 'defense']), {
+    defenseShiftCredit: 0.1,
+    stockpileShiftCredit: 0
+  });
+
+  const normalized = normalizeMatchScoutingV4({
+    matchKey: 'qm3',
+    shiftBreakdown: [
+      { actions: ['defense', 'stockpile'], owner: 'opponent', shiftAlliance: 'Blue' },
+      { actions: ['offense', 'defense'], owner: 'own', shiftAlliance: 'Red', ballsScored: 9 }
+    ]
+  }, {
+    shiftActionCreditWeights: {
+      defenseStockpileDefenseCredit: 0.35,
+      defenseStockpileStockpileCredit: 0.65,
+      defenseDuringOffenseCredit: 0.2
+    }
+  });
+
+  assert.equal(normalized.shiftBreakdown?.[0].defenseShiftCredit, 0.35);
+  assert.equal(normalized.shiftBreakdown?.[0].stockpileShiftCredit, 0.65);
+  assert.equal(normalized.shiftBreakdown?.[1].defenseShiftCredit, 0.2);
+  assert.equal(normalized.shiftBreakdown?.[1].stockpileShiftCredit, 0);
 });
 
 test('Match Scout V4 normalizes PowerCoin bet snapshots with scout-number identity', () => {

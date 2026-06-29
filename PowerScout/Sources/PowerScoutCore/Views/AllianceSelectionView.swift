@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AllianceSelectionView: View {
     private let steps = [
-        ("Before selection", "Export the latest Forecast Ledger, freeze the current pick list, and mark teams with reliability, role, and compatibility concerns."),
+        ("Before selection", "Export the latest Forecast Ledger, freeze the current pick list, and mark teams with function-confidence, role, and compatibility concerns."),
         ("During selection", "Enter Taken, Declined, Unavailable, or Our Pick immediately after every public pick so the next recommendation is honest."),
         ("When deciding", "Prefer role fit plus trust over raw ceiling. Use blocker choices only when denying an opponent clearly outweighs our own fit."),
         ("After each change", "Re-check expected range, defense impact, tail risk, and whether the remaining teams match our alliance’s missing job.")

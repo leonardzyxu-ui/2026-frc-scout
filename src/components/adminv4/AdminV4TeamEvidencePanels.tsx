@@ -348,11 +348,14 @@ export function TeamPerformanceProfilePanel({
           </div>
         </div>
         <MetricField label="Contribution" value={formatMetricValue(profile.contribution)} />
+        <MetricField label="Non-Defense Point Count" value={formatMetricValue(profile.nonDefensePointCount)} />
         <MetricField label="Peak" value={formatMetricValue(profile.peakScore)} />
         <MetricField label="Floor" value={formatMetricValue(profile.floorScore)} />
         <MetricField label="Floor Non Zero" value={formatMetricValue(profile.floorNonZeroScore)} />
         <MetricField label="Ceiling" value={formatMetricValue(profile.ceilingScore)} />
         <MetricField label="Contribution Deviation" value={formatMetricValue(profile.contributionDeviation)} />
+        <MetricField label="Non-Defense Deviation" value={formatMetricValue(profile.nonDefensePointDeviation)} />
+        <MetricField label="Non-Defense Source" value={`${profile.nonDefenseBaselineSource.replaceAll('-', ' ')} (${profile.nonDefenseSampleCount})`} />
         <MetricField label="Projected" value={formatMetricValue(profile.projectedNextScore)} />
         <MetricField label="Defense" value={formatMetricValue(profile.defense)} />
         <MetricField label="Defense Deviation" value={formatMetricValue(profile.defenseDeviation)} />

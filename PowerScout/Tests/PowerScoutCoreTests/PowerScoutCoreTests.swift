@@ -13,7 +13,7 @@ func pitScoutClaimsAreDiscountedUntilMatchEvidenceConfirmsThem() {
 func matchScoutLaneFocusesOnLiveInformationOthersCannotGet() {
     let edgeTitles = PowerScoutKnowledgeBase.matchScoutEdges.map(\.title)
     let matchScore = PowerScoutKnowledgeBase.systemScores.first { $0.lane == .matchScout }
-    #expect(edgeTitles.contains("Traffic cycle time"))
+    #expect(edgeTitles.contains("Traffic under pressure"))
     #expect(edgeTitles.contains("Pit-claim contradictions"))
     #expect(matchScore?.verdict.localizedCaseInsensitiveContains("overload") == true)
     #expect(matchScore?.nextMove.localizedCaseInsensitiveContains("minimal") == true)

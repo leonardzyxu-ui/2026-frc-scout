@@ -1,6 +1,7 @@
 import { combineIndependentStdDevs } from './shiftMetricContract.ts';
 
 export type ShiftStrategyRole = 'offense' | 'defense' | 'stockpile';
+export type ShiftStrategyObjective = 'point-difference' | 'qualification-rp' | 'variance-gamble' | 'alliance-selection';
 
 export interface ShiftStrategyTeamInput {
   teamNumber: string;
@@ -8,6 +9,8 @@ export interface ShiftStrategyTeamInput {
   contributionDeviation: number;
   defense: number;
   defenseDeviation: number;
+  traversal?: number;
+  traversalDeviation?: number;
 }
 
 export interface ShiftStrategyAssignment {
@@ -21,12 +24,19 @@ export interface ShiftAllianceRolePlan {
   label: string;
   assignments: ShiftStrategyAssignment[];
   offenseMean: number;
+  traversalMean: number;
   rawDefenseMean: number;
   saturatedDefenseMean: number;
   pointDifferenceMean: number;
   pointDifferenceDeviation: number;
   offenseCostMean: number;
   stockpileMultiplier: number;
+  traversalProbability: number;
+  energizedProbability: number;
+  superchargedProbability: number;
+  qualificationUtility: number;
+  varianceGambleUtility: number;
+  allianceSelectionUtility: number;
   saturationWarning: string | null;
 }
 
@@ -43,6 +53,8 @@ export interface ShiftMatchStrategyResult {
   blueWinProbability: number;
   redEnergizedProbability: number;
   blueEnergizedProbability: number;
+  redTraversalProbability: number;
+  blueTraversalProbability: number;
   redSuperchargedProbability: number;
   blueSuperchargedProbability: number;
   warnings: string[];
@@ -53,7 +65,12 @@ export interface ShiftStrategyOptions {
   stockpileDeviationScale?: number;
   defenseDuringOwnShiftCredit?: number;
   energizedThreshold?: number;
+  traversalThreshold?: number;
   superchargedThreshold?: number;
+  strategyObjective?: ShiftStrategyObjective;
+  rpUtilityWeight?: number;
+  varianceGambleWeight?: number;
+  trailingBy?: number;
 }
 
 const DEFAULT_OPTIONS = {
@@ -61,7 +78,12 @@ const DEFAULT_OPTIONS = {
   stockpileDeviationScale: 0.5,
   defenseDuringOwnShiftCredit: 0.1,
   energizedThreshold: 100,
-  superchargedThreshold: 360
+  traversalThreshold: 50,
+  superchargedThreshold: 360,
+  strategyObjective: 'point-difference' as ShiftStrategyObjective,
+  rpUtilityWeight: 40,
+  varianceGambleWeight: 0.75,
+  trailingBy: 0
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -97,6 +119,40 @@ const formatPlanLabel = (assignments: ShiftStrategyAssignment[]) =>
     .map(assignment => `${assignment.teamNumber} ${assignment.role}`)
     .join(', ');
 
+const scorePlanForObjective = (
+  plan: ShiftAllianceRolePlan,
+  options: Required<Pick<typeof DEFAULT_OPTIONS, 'strategyObjective' | 'rpUtilityWeight' | 'varianceGambleWeight' | 'trailingBy'>>
+) => {
+  switch (options.strategyObjective) {
+    case 'qualification-rp':
+      return plan.pointDifferenceMean + (plan.energizedProbability + plan.superchargedProbability) * options.rpUtilityWeight;
+    case 'variance-gamble':
+      return options.trailingBy > 0
+        ? plan.pointDifferenceMean + plan.pointDifferenceDeviation * options.varianceGambleWeight
+        : plan.pointDifferenceMean;
+    case 'alliance-selection':
+    case 'point-difference':
+    default:
+      return plan.allianceSelectionUtility;
+  }
+};
+
+export const selectAllianceRolePlan = (
+  plans: ShiftAllianceRolePlan[],
+  options: ShiftStrategyOptions = {}
+) => {
+  const mergedOptions = { ...DEFAULT_OPTIONS, ...options };
+  return [...plans].sort((left, right) => {
+    const scoreDelta = scorePlanForObjective(right, mergedOptions) - scorePlanForObjective(left, mergedOptions);
+    if (scoreDelta !== 0) return scoreDelta;
+    return (
+      right.pointDifferenceMean - left.pointDifferenceMean ||
+      right.offenseMean - left.offenseMean ||
+      left.pointDifferenceDeviation - right.pointDifferenceDeviation
+    );
+  })[0] ?? null;
+};
+
 export const enumerateAllianceRolePlans = (
   teams: ShiftStrategyTeamInput[],
   opponentAvailableOffense: number,
@@ -114,6 +170,7 @@ export const enumerateAllianceRolePlans = (
         combo[index] === 'offense' ? sum + Math.max(0, team.contribution) : sum
       ), 0);
       const offenseMean = offenseBase * stockpileMultiplier;
+      const traversalMean = teams.reduce((sum, team) => sum + Math.max(0, team.traversal ?? 0), 0);
       const rawDefenseMean = teams.reduce((sum, team, index) => {
         if (combo[index] === 'defense') return sum + Math.max(0, team.defense);
         return sum;
@@ -148,21 +205,42 @@ export const enumerateAllianceRolePlans = (
           deviation: Math.max(0, team.contributionDeviation)
         };
       });
+      const pointDifferenceDeviation = combineIndependentStdDevs(assignments.map(assignment => assignment.deviation));
+      const traversalDeviation = combineIndependentStdDevs(teams.map(team => Math.max(0, team.traversalDeviation ?? 0)));
+      const traversalProbability = probabilityAtLeast(traversalMean, traversalDeviation, mergedOptions.traversalThreshold);
+      const energizedProbability = probabilityAtLeast(offenseMean, pointDifferenceDeviation, mergedOptions.energizedThreshold);
+      const superchargedProbability = probabilityAtLeast(offenseMean, pointDifferenceDeviation, mergedOptions.superchargedThreshold);
+      const qualificationUtility = offenseMean
+        + saturatedDefenseMean
+        + (traversalProbability + energizedProbability + superchargedProbability) * mergedOptions.rpUtilityWeight;
+      const varianceGambleUtility = offenseMean
+        + saturatedDefenseMean
+        + (Math.max(0, mergedOptions.trailingBy) > 0
+          ? pointDifferenceDeviation * mergedOptions.varianceGambleWeight
+          : 0);
 
       return {
         label: formatPlanLabel(assignments),
         assignments,
         offenseMean,
+        traversalMean,
         rawDefenseMean,
         saturatedDefenseMean,
         pointDifferenceMean: offenseMean + saturatedDefenseMean,
-        pointDifferenceDeviation: combineIndependentStdDevs(assignments.map(assignment => assignment.deviation)),
+        pointDifferenceDeviation,
         offenseCostMean: Math.max(0, allOffenseMean - offenseMean),
         stockpileMultiplier,
+        traversalProbability,
+        energizedProbability,
+        superchargedProbability,
+        qualificationUtility,
+        varianceGambleUtility,
+        allianceSelectionUtility: offenseMean + saturatedDefenseMean,
         saturationWarning
       };
     })
     .sort((left, right) =>
+      scorePlanForObjective(right, { ...DEFAULT_OPTIONS, ...options }) - scorePlanForObjective(left, { ...DEFAULT_OPTIONS, ...options }) ||
       right.pointDifferenceMean - left.pointDifferenceMean ||
       right.offenseMean - left.offenseMean ||
       left.pointDifferenceDeviation - right.pointDifferenceDeviation
@@ -179,8 +257,8 @@ export const compareAllianceStrategies = (
   const blueAvailableOffense = blueTeams.reduce((sum, team) => sum + Math.max(0, team.contribution), 0);
   const redPlans = enumerateAllianceRolePlans(redTeams, blueAvailableOffense, mergedOptions);
   const bluePlans = enumerateAllianceRolePlans(blueTeams, redAvailableOffense, mergedOptions);
-  const redBestPlan = redPlans[0]!;
-  const blueBestPlan = bluePlans[0]!;
+  const redBestPlan = selectAllianceRolePlan(redPlans, mergedOptions)!;
+  const blueBestPlan = selectAllianceRolePlan(bluePlans, mergedOptions)!;
   const expectedRedScore = Math.max(0, redBestPlan.offenseMean - blueBestPlan.saturatedDefenseMean);
   const expectedBlueScore = Math.max(0, blueBestPlan.offenseMean - redBestPlan.saturatedDefenseMean);
   const expectedMargin = redBestPlan.pointDifferenceMean - blueBestPlan.pointDifferenceMean;
@@ -205,6 +283,8 @@ export const compareAllianceStrategies = (
     blueWinProbability: 1 - redWinProbability,
     redEnergizedProbability: probabilityAtLeast(expectedRedScore, redBestPlan.pointDifferenceDeviation, mergedOptions.energizedThreshold),
     blueEnergizedProbability: probabilityAtLeast(expectedBlueScore, blueBestPlan.pointDifferenceDeviation, mergedOptions.energizedThreshold),
+    redTraversalProbability: redBestPlan.traversalProbability,
+    blueTraversalProbability: blueBestPlan.traversalProbability,
     redSuperchargedProbability: probabilityAtLeast(expectedRedScore, redBestPlan.pointDifferenceDeviation, mergedOptions.superchargedThreshold),
     blueSuperchargedProbability: probabilityAtLeast(expectedBlueScore, blueBestPlan.pointDifferenceDeviation, mergedOptions.superchargedThreshold),
     warnings: [redBestPlan.saturationWarning, blueBestPlan.saturationWarning].filter((warning): warning is string => !!warning)

@@ -53,6 +53,10 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 | SyncCartographer | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The local-first sync implementation spans web browser cache, Firebase/admin code, and native PowerScout; a read-only map can run while the conductor starts implementation. | 2026-06-29T05:37:39+00:00 |
 | Aristotle | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The local-first sync implementation spans web browser cache, Firebase/admin code, and native PowerScout; a read-only map can run while the conductor starts implementation. | 2026-06-29T05:38:08+00:00 |
 | Aristotle | SYNC-CART-002 | Explorer | gpt-5.4-mini / medium | close | read-only | completed |  | 2026-06-29T05:45:59+00:00 |
+| Helmholtz | PROMPT-MIN-UX-001 | Explorer / requirements decoder | gpt-5.4 / high | launch | read-only | launched | Leo explicitly requested exactly two gpt-5.4 high agents to decipher this prompt; the UI requirements are broad and benefit from independent reading. | 2026-06-29T05:57:40+00:00 |
+| Singer | PROMPT-MIN-LOGIC-001 | Explorer / logic decoder | gpt-5.4 / high | launch | read-only | launched | Leo explicitly requested exactly two gpt-5.4 high agents; shift logic, sync, reversibility, and manual constraints need independent checking. | 2026-06-29T05:57:40+00:00 |
+| Singer | PROMPT-MIN-LOGIC-001 | Explorer / logic decoder | gpt-5.4 / high | close | read-only | completed |  | 2026-06-29T06:02:15+00:00 |
+| Helmholtz | PROMPT-MIN-UX-001 | Explorer / requirements decoder | gpt-5.4 / high | close | read-only | completed |  | 2026-06-29T06:03:10+00:00 |
 
 ## Integration Notes
 

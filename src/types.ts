@@ -517,6 +517,10 @@ export interface TeamPerformanceProfile {
   standardDeviation: number;
   contribution: number;
   contributionDeviation: number;
+  nonDefensePointCount: number;
+  nonDefensePointDeviation: number;
+  nonDefenseSampleCount: number;
+  nonDefenseBaselineSource: 'undefended-shifts' | 'undefended-match-totals' | 'observed-total-fallback' | 'public-rating-fallback' | 'none';
   floorScore: number;
   ceilingScore: number;
   floorNonZeroScore: number | null;
@@ -601,6 +605,7 @@ export interface StrategyAllianceRpPath {
   projectedRp: number;
   winRp: number;
   towerRp: number;
+  traversalRp: number;
   energizedRp: number;
   superchargedRp: number;
   towerMetric: number;
@@ -627,6 +632,12 @@ export interface StrategyMatchPlan {
   blueDefenseSwing: number;
   bestRedPlan: string;
   bestBluePlan: string;
+  shiftEngineObjective?: 'point-difference' | 'qualification-rp' | 'variance-gamble' | 'alliance-selection';
+  shiftEngineRedPlan?: string;
+  shiftEngineBluePlan?: string;
+  shiftEngineExpectedMargin?: number;
+  shiftEngineRedWinProbability?: number;
+  shiftEngineBlueWinProbability?: number;
   redRoleOptions: StrategyRoleOption[];
   blueRoleOptions: StrategyRoleOption[];
   predictedWinner: 'Red' | 'Blue' | 'Tie';

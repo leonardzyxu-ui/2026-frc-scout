@@ -447,7 +447,7 @@ export const describeScoutEvidenceAdminTaskDecisionUse = (
     case 'matchScout':
       return {
         title: 'Match Evidence Returned',
-        summary: `Feeds actual scoring, repeatability, role, reliability, and notes for this robot.${roleText}`,
+        summary: `Feeds actual scoring, repeatability, role, function confidence, and notes for this robot.${roleText}`,
         modelEffect: 'Updates expected value, floor, ceiling, volatility, scout confidence, and future-match forecasts.',
         feeds: ['Now', 'Teams', 'Matches', 'Pick List', 'Visualize']
       };

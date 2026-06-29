@@ -398,7 +398,7 @@ public enum PowerScoutKnowledgeBase {
             score: 86,
             verdict: "Strongest current lane, but at overload risk.",
             risk: "One scout can see enormous detail in one match, but asking for everything lowers data quality.",
-            nextMove: "Keep match scout minimal: live behavior, pressure, reliability, role, defense, fouls, and contradiction checks."
+            nextMove: "Keep match scout minimal: live behavior, pressure, function confidence, role, defense, fouls, and contradiction checks."
         )
     ]
 
@@ -420,7 +420,7 @@ public enum PowerScoutKnowledgeBase {
         ScoutDataNeed(
             lane: .preScout,
             title: "Pit priority list",
-            detail: "Which teams need a photo, mechanism check, reliability question, auto question, or claim verification first.",
+            detail: "Which teams need a photo, mechanism check, function-confidence question, auto question, or claim verification first.",
             trust: .derived,
             workload: "Before pit opens"
         ),
@@ -434,14 +434,14 @@ public enum PowerScoutKnowledgeBase {
         ScoutDataNeed(
             lane: .pitScout,
             title: "Claimed scoring and defense",
-            detail: "Self-reported points contributed, denied points, cycle claims, auto modes, and preferred role.",
+            detail: "Self-reported points contributed, denied points, flow claims, auto modes, and preferred role.",
             trust: .claimed,
             workload: "Pit interview, discounted"
         ),
         ScoutDataNeed(
             lane: .pitScout,
             title: "Verification tasks",
-            detail: "Specific questions match scouts must confirm: claimed auto, claimed defense value, claimed cycle ceiling, or reliability.",
+            detail: "Specific questions match scouts must confirm: claimed auto, claimed defense value, claimed ceiling, or function confidence.",
             trust: .claimed,
             workload: "Pit-to-match handoff"
         ),
@@ -469,7 +469,7 @@ public enum PowerScoutKnowledgeBase {
     ]
 
     public static let matchScoutEdges: [MatchScoutEdge] = [
-        MatchScoutEdge("Traffic cycle time", "Public box scores do not explain how a robot moves through real congestion."),
+        MatchScoutEdge("Traffic under pressure", "Public box scores do not explain how a robot moves through real congestion."),
         MatchScoutEdge("Driver decision quality", "A good driver changes the value of the same mechanism under playoff pressure."),
         MatchScoutEdge("Defense value and damage", "Denied points are hard to infer from official scores; a live scout can see who caused the miss."),
         MatchScoutEdge("Failure modes", "The exact way a robot fails matters for pick risk and is rarely visible in clean stat tables."),

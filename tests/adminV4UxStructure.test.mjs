@@ -789,6 +789,7 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
     'defenseMetric',
     'defenseImpact',
     'floorNonZero',
+    'nonDefensePointCount',
     'contributionDeviation',
     'defenseDeviation',
     'tbaRank',
@@ -851,6 +852,16 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
   assert.doesNotMatch(adminSource, /function SimulatorTeamTable/);
   assert.doesNotMatch(adminSource, /function PlayoffMatchCard/);
   assert.doesNotMatch(adminSource, /function SimulatorAllianceCard/);
+});
+
+test('Admin V4 strategy plan exposes the shift role simulation engine', () => {
+  const strategyPanelSource = readFileSync('src/components/adminv4/AdminV4StrategyPlanPanel.tsx', 'utf8');
+  const strategyBrainSource = readFileSync('src/utils/strategyBrain.ts', 'utf8');
+
+  assert.match(strategyBrainSource, /compareAllianceStrategies/);
+  assert.match(strategyPanelSource, /Shift Role Simulation/);
+  assert.match(strategyPanelSource, /shiftEngineRedPlan/);
+  assert.match(strategyPanelSource, /qualification-rp/);
 });
 
 test('Admin V4 primitives are active and not sidebar-era placeholders', () => {

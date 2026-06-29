@@ -15,6 +15,8 @@ import type {
 } from '../types.ts';
 import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3, toNonNegativeInt } from './matchScoutingV3.ts';
 import { normalizeTeamNumber } from './keys.ts';
+import { deriveShiftActionCredits } from './shiftActionWeights.ts';
+import type { ShiftActionCreditWeights } from './shiftActionWeights.ts';
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 
@@ -67,18 +69,26 @@ const deriveShiftRole = (actions: MatchScoutingV4ShiftAction[]): MatchScoutingV4
   return 'inactive';
 };
 
-const deriveStockpileShiftCredit = (actions: MatchScoutingV4ShiftAction[], rawValue: unknown) => {
+export interface NormalizeMatchScoutingV4Options {
+  shiftActionCreditWeights?: Partial<ShiftActionCreditWeights>;
+}
+
+const deriveStockpileShiftCredit = (
+  actions: MatchScoutingV4ShiftAction[],
+  rawValue: unknown,
+  weights: Partial<ShiftActionCreditWeights> = {}
+) => {
   if (Number.isFinite(rawValue)) return Math.max(0, Number(rawValue));
-  if (!actions.includes('stockpile')) return 0;
-  return actions.includes('defense') ? 0.5 : 1;
+  return deriveShiftActionCredits(actions, weights).stockpileShiftCredit;
 };
 
-const deriveDefenseShiftCredit = (actions: MatchScoutingV4ShiftAction[], rawValue: unknown) => {
+const deriveDefenseShiftCredit = (
+  actions: MatchScoutingV4ShiftAction[],
+  rawValue: unknown,
+  weights: Partial<ShiftActionCreditWeights> = {}
+) => {
   if (Number.isFinite(rawValue)) return Math.max(0, Number(rawValue));
-  if (!actions.includes('defense')) return 0;
-  if (actions.includes('stockpile')) return 0.5;
-  if (actions.includes('offense')) return 0.1;
-  return 1;
+  return deriveShiftActionCredits(actions, weights).defenseShiftCredit;
 };
 
 const normalizeDefenseAssignment = (raw: Partial<MatchScoutingV4DefenseAssignment> = {}): MatchScoutingV4DefenseAssignment => ({
@@ -99,9 +109,14 @@ const normalizeScoreAction = (raw: Partial<MatchScoutingV4ScoreAction> = {}): Ma
   };
 };
 
-const normalizeShiftEntry = (raw: Partial<MatchScoutingV4ShiftEntry> = {}, fallbackIndex: number): MatchScoutingV4ShiftEntry => {
+const normalizeShiftEntry = (
+  raw: Partial<MatchScoutingV4ShiftEntry> = {},
+  fallbackIndex: number,
+  options: NormalizeMatchScoutingV4Options = {}
+): MatchScoutingV4ShiftEntry => {
   const actions = normalizeShiftActions(raw);
   const role = deriveShiftRole(actions);
+  const weights = options.shiftActionCreditWeights ?? {};
   return {
     id: raw.id || `shift-${fallbackIndex + 1}`,
     index: toNonNegativeInt(raw.index ?? fallbackIndex),
@@ -113,8 +128,8 @@ const normalizeShiftEntry = (raw: Partial<MatchScoutingV4ShiftEntry> = {}, fallb
     scoreActions: actions.includes('offense') && Array.isArray(raw.scoreActions)
       ? raw.scoreActions.map(action => normalizeScoreAction(action)).filter((action): action is MatchScoutingV4ScoreAction => Boolean(action))
       : [],
-    stockpileShiftCredit: deriveStockpileShiftCredit(actions, raw.stockpileShiftCredit),
-    defenseShiftCredit: deriveDefenseShiftCredit(actions, raw.defenseShiftCredit),
+    stockpileShiftCredit: deriveStockpileShiftCredit(actions, raw.stockpileShiftCredit, weights),
+    defenseShiftCredit: deriveDefenseShiftCredit(actions, raw.defenseShiftCredit, weights),
     defendedTeams: actions.includes('defense') && Array.isArray(raw.defendedTeams)
       ? raw.defendedTeams.map(assignment => normalizeDefenseAssignment(assignment)).filter(assignment => assignment.targetTeamNumber)
       : [],
@@ -193,12 +208,15 @@ export const isMatchScoutingV4 = (value: unknown): value is MatchScoutingV4 =>
   typeof (value as Partial<MatchScoutingV4>).matchKey === 'string' &&
   typeof (value as Partial<MatchScoutingV4>).teamNumber === 'string';
 
-export const normalizeMatchScoutingV4 = (raw: Partial<MatchScoutingV4>): MatchScoutingV4 => {
+export const normalizeMatchScoutingV4 = (
+  raw: Partial<MatchScoutingV4>,
+  options: NormalizeMatchScoutingV4Options = {}
+): MatchScoutingV4 => {
   const matchType = raw.matchType || parseMatchTypeV3(raw.matchKey || initialMatchScoutingV4.matchKey);
   const matchNumber = Math.max(1, raw.matchNumber ?? parseMatchNumberV3(raw.matchKey || 'qm1'));
   const autoPoints = toNonNegativeInt(raw.autoPoints ?? 0);
   const shiftBreakdown = Array.isArray(raw.shiftBreakdown)
-    ? raw.shiftBreakdown.map((entry, index) => normalizeShiftEntry(entry, index))
+    ? raw.shiftBreakdown.map((entry, index) => normalizeShiftEntry(entry, index, options))
     : [];
   const shiftTeleopPoints = shiftBreakdown.reduce((sum, entry) => sum + toNonNegativeInt(entry.ballsScored), 0);
   const teleopPoints = toNonNegativeInt(raw.teleopPoints ?? shiftTeleopPoints);

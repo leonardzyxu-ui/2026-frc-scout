@@ -9,6 +9,8 @@ export interface AllianceContributionReconciliationRow extends AllianceContribut
 
 export interface AllianceContributionReconciliation {
   officialTotal: number;
+  robotOfficialTotal: number;
+  nonRobotPoints: number;
   rawTotal: number;
   scaleFactor: number;
   rows: AllianceContributionReconciliationRow[];
@@ -62,6 +64,16 @@ export interface FirstShiftCorrectionNotice {
   severity: 'action_required';
 }
 
+export interface FirstShiftAuthorityResolution {
+  matchKey: string;
+  authoritativeAlliance: 'Red' | 'Blue' | null;
+  source: 'admin-override' | 'unanimous-scouts' | 'majority-provisional' | 'pending-correction';
+  counts: Record<'Red' | 'Blue', number>;
+  needsScoutCorrection: boolean;
+  versionBumpRequired: boolean;
+  reason: string;
+}
+
 const uniqueCleanNames = (names: string[]) =>
   Array.from(new Set(names.map(name => name.trim()).filter(Boolean)));
 
@@ -70,9 +82,12 @@ const normalizeFirstShiftAlliance = (value: unknown): 'Red' | 'Blue' | '' =>
 
 export const reconcileAllianceContributions = (
   rows: AllianceContributionInput[],
-  officialTotal: number
+  officialTotal: number,
+  options: { nonRobotPoints?: number } = {}
 ): AllianceContributionReconciliation => {
   const cleanOfficialTotal = Math.max(0, Number.isFinite(officialTotal) ? officialTotal : 0);
+  const nonRobotPoints = Math.max(0, Math.min(cleanOfficialTotal, Number.isFinite(options.nonRobotPoints) ? options.nonRobotPoints ?? 0 : 0));
+  const robotOfficialTotal = Math.max(0, cleanOfficialTotal - nonRobotPoints);
   const cleanRows = rows.map(row => ({
     teamNumber: row.teamNumber,
     rawContribution: Math.max(0, Number.isFinite(row.rawContribution) ? row.rawContribution : 0)
@@ -81,33 +96,41 @@ export const reconcileAllianceContributions = (
   const warnings: string[] = [];
 
   if (rawTotal <= 0) {
-    if (cleanOfficialTotal > 0) {
+    if (robotOfficialTotal > 0) {
       warnings.push('Official total is positive but scouts recorded no allocatable contribution.');
     }
     return {
       officialTotal: cleanOfficialTotal,
+      robotOfficialTotal,
+      nonRobotPoints,
       rawTotal,
       scaleFactor: 0,
       rows: cleanRows.map(row => ({ ...row, adjustedContribution: 0 })),
-      unallocatedPoints: cleanOfficialTotal,
+      unallocatedPoints: robotOfficialTotal + nonRobotPoints,
       warnings
     };
   }
 
-  const scaleFactor = cleanOfficialTotal / rawTotal;
+  if (nonRobotPoints > 0) {
+    warnings.push(`${nonRobotPoints.toFixed(1)} official points were held outside robot contribution scaling.`);
+  }
+
+  const scaleFactor = robotOfficialTotal / rawTotal;
   if (Math.abs(scaleFactor - 1) > 0.08) {
     warnings.push(`Scout total was scaled by ${scaleFactor.toFixed(3)} to match the official alliance total.`);
   }
 
   return {
     officialTotal: cleanOfficialTotal,
+    robotOfficialTotal,
+    nonRobotPoints,
     rawTotal,
     scaleFactor,
     rows: cleanRows.map(row => ({
       ...row,
       adjustedContribution: row.rawContribution * scaleFactor
     })),
-    unallocatedPoints: 0,
+    unallocatedPoints: nonRobotPoints,
     warnings
   };
 };
@@ -211,5 +234,65 @@ export const buildFirstShiftCorrectionNotice = ({
     consensus: consensus.consensus,
     counts: consensus.counts,
     severity: 'action_required'
+  };
+};
+
+export const resolveFirstShiftAuthority = ({
+  matchKey,
+  reports,
+  adminOverride = ''
+}: {
+  matchKey: string;
+  reports: FirstShiftScoutReport[];
+  adminOverride?: 'Red' | 'Blue' | '';
+}): FirstShiftAuthorityResolution => {
+  const cleanMatchKey = matchKey.trim().toUpperCase() || 'THIS MATCH';
+  const override = normalizeFirstShiftAlliance(adminOverride);
+  const consensus = detectFirstShiftConsensus(reports);
+
+  if (override) {
+    return {
+      matchKey: cleanMatchKey,
+      authoritativeAlliance: override,
+      source: 'admin-override',
+      counts: consensus.counts,
+      needsScoutCorrection: false,
+      versionBumpRequired: true,
+      reason: `Head scout override set ${override} as the authoritative first teleop shift.`
+    };
+  }
+
+  if (consensus.consensus && !consensus.needsScoutCorrection) {
+    return {
+      matchKey: cleanMatchKey,
+      authoritativeAlliance: consensus.consensus,
+      source: 'unanimous-scouts',
+      counts: consensus.counts,
+      needsScoutCorrection: false,
+      versionBumpRequired: false,
+      reason: `All reporting scouts agree ${consensus.consensus} started the first teleop shift.`
+    };
+  }
+
+  if (consensus.consensus) {
+    return {
+      matchKey: cleanMatchKey,
+      authoritativeAlliance: consensus.consensus,
+      source: 'majority-provisional',
+      counts: consensus.counts,
+      needsScoutCorrection: true,
+      versionBumpRequired: true,
+      reason: `Using provisional ${consensus.consensus} majority while match scouts re-confirm the first teleop shift.`
+    };
+  }
+
+  return {
+    matchKey: cleanMatchKey,
+    authoritativeAlliance: null,
+    source: 'pending-correction',
+    counts: consensus.counts,
+    needsScoutCorrection: true,
+    versionBumpRequired: false,
+    reason: 'No authoritative first teleop shift can be selected until scouts or the head scout resolve the conflict.'
   };
 };

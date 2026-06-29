@@ -10,6 +10,12 @@ Status: living decomposition. The pasted file is treated as source material, not
 - `Missing`: not yet implemented.
 - `Blocked`: needs external approval/input or infrastructure.
 
+## Decoder Synthesis Added 2026-06-29
+
+- Helmholtz (`PROMPT-MIN-UX-001`, `gpt-5.4`, high) decoded the scout setup/home/settings/history/shift-form UX. Report: `codex_agent_reports/prompt-min-ux-001-helmholtz.md`.
+- Singer (`PROMPT-MIN-LOGIC-001`, `gpt-5.4`, high) decoded the shift data model, rules, reversibility, sync, RP, and logic-hole requirements. Report: `codex_agent_reports/prompt-min-logic-001-singer.md`.
+- Combined correction: setup/home/settings are largely implemented, but the shift UI should be treated as a first slice, not fully complete. Remaining gaps are multi-target defense editing, true active/inactive game-phase progression, authoritative first-shift correction, and heavier edge-case tests.
+
 ## Metrics And Naming
 
 1. `Done` - Rename PPC-facing language to Contribution.
@@ -41,14 +47,14 @@ Status: living decomposition. The pasted file is treated as source material, not
 9. `Done` - Cap defense by opponent available offense.
    Evidence: defense saturation logic and tests in `src/utils/shiftStrategyEngine.ts`.
 
-10. `Partial` - Estimate win probability and ranking-point probabilities.
-    Evidence: `redWinProbability`, `blueWinProbability`, `Energized`, `Supercharged` outputs. Missing: event-tier threshold adapter and Traversal modeling. Official source anchor: `docs/official-rules-anchor-2026-06-29.md`.
+10. `Done` - Estimate win probability and ranking-point probabilities.
+    Evidence: `redWinProbability`, `blueWinProbability`, Traversal, Energized, and Supercharged outputs. `seasonGameAdapter.ts` now supports Regional/District, District Championship, and FIRST Championship thresholds from `docs/official-rules-anchor-2026-06-29.md`.
 
-11. `Missing` - Variance-aware smart-gamble selector.
-    Done criteria: when trailing, strategy can explicitly compare lower-mean/higher-variance plans and label the risk/reward.
+11. `Done` - Variance-aware smart-gamble selector.
+    Evidence: `selectAllianceRolePlan()` supports `variance-gamble`, and tests prove it can choose a lower-mean higher-variance plan when trailing.
 
-12. `Partial` - Ranking-point incentives should influence plan choice.
-    Evidence: threshold probabilities exist. Missing: objective function still primarily sorts by point-difference mean; RP probabilities are not yet a configurable optimizer term.
+12. `Done` - Ranking-point incentives should influence plan choice.
+    Evidence: `selectAllianceRolePlan()` supports `qualification-rp`, while `alliance-selection` and default `point-difference` preserve pure margin selection. Tests prove RP threshold safety can beat pure point-difference when configured.
 
 ## Match Scout Shift UI
 
@@ -58,31 +64,31 @@ Status: living decomposition. The pasted file is treated as source material, not
 14. `Partial` - Reversible first-shift metadata.
     Evidence: Match Scout V4 First Teleop Shift Red/Blue/Clear control and browser QA. Missing: live correction delivery to scouts.
 
-15. `Missing` - Full active/inactive alternating teleop-shift UI.
-    Done criteria: scrollable form with red/blue side lanes, rolling submitted shift cards, no irreversible disabled history, alternating active side.
+15. `Partial` - Full active/inactive alternating teleop-shift UI.
+    Evidence: Match Scout V4 has Auto Shift, red/blue first toggle, ordered colored shift cards, no per-shift submit button, and editable history. Missing: transition/endgame phase handling, Auto/FMS-derived first active side, rolling submitted-card behavior, and no-loss remapping when the timeline changes after entries exist.
 
-16. `Missing` - Per-shift action input.
-    Done criteria: offense shift can score/defend/stockpile; inactive/opponent shift can defend/stockpile; scout can select defended team(s).
+16. `Partial` - Per-shift action input.
+    Evidence: Match Scout V4 supports multi-select Offense/Defense/Stockpile, and opponent/inactive shifts do not expose offense counters. Missing: multi-target defended-team editing; current UI is single-target even though the data model supports an array.
 
-17. `Missing` - Defense share slider UI.
-    Done criteria: per defended target, scout can assign 0-100% defensive credit and edit before submit.
+17. `Partial` - Defense share slider UI.
+    Evidence: current shift card has a defense target and share slider. Missing: per-target sliders for multiple defended teams in one shift.
 
-18. `Missing` - Stockpile/defense shift weighting UI and aggregation.
-    Done criteria: stockpile shift, 0.5/0.5 split, and 0.1 defense-during-own-shift rule are captured and configurable.
+18. `Done` - Stockpile/defense shift weighting UI and aggregation.
+    Evidence: current summary applies stockpile credit and defense credit through `shiftActionWeights.ts`, including default 0.5/0.5 and 0.1 behaviors, optional normalization-time custom weights, and focused tests for support-not-direct-points plus custom weight regression.
 
 ## Reconciliation And Data Integrity
 
 19. `Done` - Proportional official-score reconciliation utility.
-    Evidence: `reconcileAllianceContributions()` and tests.
+    Evidence: `reconcileAllianceContributions()` and tests. The utility now supports a `nonRobotPoints` bucket so penalty or other non-robot official points do not inflate robot Contribution.
 
 20. `Done` - Normalize multi-defender percentage claims to 100%.
     Evidence: `normalizeDefenseShares()` and tests.
 
-21. `Partial` - First-shift disagreement detection and targeted correction payload.
-    Evidence: `detectFirstShiftConsensus()`, `buildFirstShiftCorrectionNotice()`, and V4 adapter in `src/utils/shiftReconciliation.ts`. Missing: live delivery channel.
+21. `Done` - First-shift disagreement detection, authority rule, and targeted local correction payload.
+    Evidence: `detectFirstShiftConsensus()`, `resolveFirstShiftAuthority()`, `buildFirstShiftCorrectionNotice()`, V4 adapter in `src/utils/shiftReconciliation.ts`, first-shift-to-pager conversion in `src/utils/scoutRelayPager.ts`, and Match Scout local pager inbox in `src/views/MatchScoutV4View.tsx`. Missing for later: network relay transport behind the same pager contract.
 
-22. `Missing` - Non-Defense Point Count with fallback.
-    Done criteria: compute average offense-shift points where the team was not defended, with standard deviation, but never require undefended samples to exist; fall back to a latent offensive prior for always-defended teams.
+22. `Done` - Non-Defense Point Count with fallback.
+    Evidence: `TeamPerformanceProfile` now exposes `nonDefensePointCount`, `nonDefensePointDeviation`, `nonDefenseSampleCount`, and `nonDefenseBaselineSource`; `buildTeamPerformanceProfiles()` uses undefended own-offense shifts first, then fallback sources. Tests: `tests/strategyBrainProfiles.test.mjs`.
 
 23. `Partial` - Variable scout count handling.
     Evidence: Match Scout V4 locks `scoutNumber` + `scoutName` per browser device; Admin V4 focus planner accepts numbered rosters, sorts by scout number, and optimizes arbitrary scout counts for same-team continuity. Missing: per-match correction/notification routing should use actual assignment plan at runtime.
@@ -109,8 +115,8 @@ Status: living decomposition. The pasted file is treated as source material, not
 28. `Partial` - Surface strategy metrics in PowerScout.
     Evidence: PowerScout knowledge base, Reports, Alliance Selection views. Missing: live data import/export parity and full strategy execution from real Admin exports.
 
-29. `Partial` - Connect `compareAllianceStrategies()` into Admin V4.
-    Evidence: strategy engine exists. Missing: direct visible Admin V4 strategy consumer that uses offense/defense/stockpile role plans from the new engine.
+29. `Done` - Connect `compareAllianceStrategies()` into Admin V4.
+    Evidence: `buildStrategyMatchPlans()` feeds the shift role engine into `StrategyMatchPlan`, and `AdminV4StrategyPlanPanel` now exposes Shift Role Simulation with objective, margin, Red win probability, and Red/Blue best role plans.
 
 30. `Partial` - Mirrored strategy preview page.
     Done criteria: a page that looks like the scrollable scout form, but shows predicted opponent shift behavior and our recommended response plan.
@@ -126,11 +132,11 @@ Status: living decomposition. The pasted file is treated as source material, not
 33. `Partial` - Simulate redesigned shift system.
     Evidence: shift metrics appear in artifacts and V4 rows. Missing: full per-shift scout UI data is not yet generated/consumed end-to-end.
 
-34. `Done` - Multi-agent prompt deciphering started.
-    Evidence: agents Noether, Godel, Descartes, Pauli, Sartre, and Poincare active/completed in `codex_swarm.md`.
+34. `Done` - Multi-agent prompt deciphering synthesized.
+    Evidence: earlier agents Noether, Godel, Descartes, Pauli, Sartre, and Poincare plus the two requested `gpt-5.4` high agents Helmholtz and Singer are recorded in `codex_swarm.md` and `codex_agent_reports/`; this document reflects their combined corrections.
 
 35. `Partial` - Logic safeties and edge-case tests.
-    Evidence: reconciliation, saturation, first-shift adapter, normalization tests. Missing: stockpile double-counting, non-defense point-count fallback, official-score zero/penalty cases, variable scout count notifications, and live notification tests.
+    Evidence: reconciliation, saturation, first-shift adapter, authority resolution, normalization tests, non-defense fallback tests, stockpile-not-direct-points test, official zero/penalty reconciliation tests, and arbitrary scout count tests. Missing: live notification tests and end-to-end browser timeline tests.
 
 36. `Done` - Latest game manual/rules anchor.
     Evidence: `codex_agent_reports/dpr-rules-research-001.md` and `docs/official-rules-anchor-2026-06-29.md`.
@@ -140,15 +146,10 @@ Status: living decomposition. The pasted file is treated as source material, not
 
 ## Current Highest-Value Missing Slices
 
-1. Implement Non-Defense Point Count and deviation from shift entries, including always-defended fallback.
-2. Build the full shift-entry UI inside Match Scout V4.
-3. Add stockpile/defense weighted aggregation with a non-additive support rule.
-4. Connect first-shift correction payload to a real local notification/queue surface with an authority/adjudication rule.
-5. Make strategy optimizer optionally RP-aware and variance-gamble-aware.
-6. Finish the scout-facing rename sweep: no old PPC/PPA/reliability language in new decision surfaces.
-7. Connect `compareAllianceStrategies()` into Admin V4 strategy screens.
-8. Build the mirrored shift strategy preview page.
-9. Split and document browser-cache JSON export schema and direct local-file export path.
+1. Finish the full shift-entry UI inside Match Scout V4: transition/endgame phases, Auto/FMS first active side, rolling shift cards, and no-loss timeline remapping.
+2. Add multi-target defense editing with per-target sliders.
+3. Build the mirrored shift strategy preview page.
+4. Split and document browser-cache JSON export schema and direct local-file export path.
 
 ## Logic Invariants From Red-Team
 
@@ -159,4 +160,4 @@ Status: living decomposition. The pasted file is treated as source material, not
 - Defender shares for one defended event must sum to exactly 1 after normalization, including all-zero claims.
 - Stockpile support should not be directly summed into points if partner scoring already reflects the result.
 - Extra defense after saturation has zero marginal value.
-- RP thresholds and weights should be driven by a rule-set adapter, not hardcoded in scattered logic.
+- RP thresholds and weights should be driven by a rule-set adapter, not hardcoded in scattered logic. Current implementation: `src/utils/seasonGameAdapter.ts`.

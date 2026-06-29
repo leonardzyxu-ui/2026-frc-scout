@@ -179,10 +179,10 @@ const buildUncertainty = (
   }
   if (profile && profile.reliability < 0.45) {
     score += 25;
-    reasons.push('Scout reliability is low.');
+    reasons.push('Robot function confidence is low.');
   } else if (profile && profile.reliability < 0.7) {
     score += 12;
-    reasons.push('Scout reliability is still settling.');
+    reasons.push('Robot function confidence is still settling.');
   }
   if (scoutConfidence < 0.35) {
     score += 15;
@@ -220,7 +220,7 @@ const buildTailRisk = (profile: TeamPerformanceProfile | undefined): PpaInsight[
   }
   if (profile.reliability < 0.55) {
     score += 15;
-    reasons.push('Reliability is not stable enough to trust the ceiling alone.');
+    reasons.push('Function confidence is not stable enough to trust the ceiling alone.');
   }
 
   const level = levelFromScore(score);

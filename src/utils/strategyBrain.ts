@@ -18,6 +18,8 @@ import {
 import { calculateLegacyOprRatings, TBAMatch } from './mathEngine';
 import { TeamHistoricalAverageRow } from './adminV4Analytics';
 import { rebuilt2026GameAdapter } from './seasonGameAdapter';
+import { buildNonDefenseBaseline } from './nonDefenseBaseline';
+import { compareAllianceStrategies } from './shiftStrategyEngine';
 
 type BacktestMetadata = Pick<ModelBacktestResult, 'eligibleForPromotion' | 'supportsTeamRatings' | 'leakageRisk' | 'uncertaintyNote'>;
 
@@ -999,9 +1001,9 @@ export const buildTeamPerformanceProfiles = ({
   const ppcLookup = Object.fromEntries(ppcRows.map(row => [row.teamNumber, row.avgTotalMatchPoints]));
 
   return Array.from(teams).map(teamNumber => {
+    const teamV4Records = v4Records.filter(record => record.teamNumber === teamNumber);
     const scores = [
-      ...v4Records
-        .filter(record => record.teamNumber === teamNumber)
+      ...teamV4Records
         .map(record => ({ matchKey: record.matchKey, matchNumber: record.matchNumber, score: record.totalMatchPoints, reliability: record.reliabilityScore })),
       ...v3Records
         .filter(record => record.teamNumber === teamNumber)
@@ -1020,6 +1022,14 @@ export const buildTeamPerformanceProfiles = ({
     const ceilingScore = percentile(rawScores, 0.8);
     const floorNonZeroScore = rawScores.filter(score => score > 0).sort((left, right) => left - right)[0] ?? null;
     const contribution = ppcLookup[teamNumber] ?? averageScore;
+    const publicRatingFallback = ppaRatings[teamNumber] ?? ppcLookup[teamNumber] ?? epaRatings[teamNumber] ?? oprRatings[teamNumber] ?? null;
+    const nonDefenseBaseline = buildNonDefenseBaseline({
+      records: teamV4Records,
+      observedTotals: rawScores,
+      publicRatingFallback
+    });
+    const nonDefensePointCount = mean(nonDefenseBaseline.samples);
+    const nonDefensePointDeviation = stddev(nonDefenseBaseline.samples);
     const defense = defenseImpactLookup[teamNumber] ?? null;
     const volatility = averageScore === 0 ? 0 : deviation / Math.max(1, averageScore);
     const consistencyIndex = scores.length === 0
@@ -1067,6 +1077,10 @@ export const buildTeamPerformanceProfiles = ({
       standardDeviation: deviation,
       contribution,
       contributionDeviation: deviation,
+      nonDefensePointCount,
+      nonDefensePointDeviation,
+      nonDefenseSampleCount: nonDefenseBaseline.samples.length,
+      nonDefenseBaselineSource: nonDefenseBaseline.source,
       floorScore,
       ceilingScore,
       floorNonZeroScore,
@@ -1400,6 +1414,24 @@ export const buildStrategyMatchPlans = (
 
       const redRoleOptions = buildRoleOptions('Red', redTeams, baselineRedScore, baselineBlueScore);
       const blueRoleOptions = buildRoleOptions('Blue', blueTeams, baselineBlueScore, baselineRedScore);
+      const shiftEngineObjective = isQualification ? 'qualification-rp' as const : 'alliance-selection' as const;
+      const shiftEngineResult = compareAllianceStrategies(
+        redTeams.map(team => ({
+          teamNumber: team,
+          contribution: Math.max(0, ratings[team] ?? 0),
+          contributionDeviation: 0,
+          defense: Math.max(0, defenseImpactLookup[team] ?? 0),
+          defenseDeviation: 0
+        })),
+        blueTeams.map(team => ({
+          teamNumber: team,
+          contribution: Math.max(0, ratings[team] ?? 0),
+          contributionDeviation: 0,
+          defense: Math.max(0, defenseImpactLookup[team] ?? 0),
+          defenseDeviation: 0
+        })),
+        { strategyObjective: shiftEngineObjective }
+      );
       const bestRedOption = redRoleOptions[0]!;
       const bestBlueOption = blueRoleOptions[0]!;
       const redDefenseSwing = bestRedOption.defenseValue - bestRedOption.offenseCost;
@@ -1424,6 +1456,7 @@ export const buildStrategyMatchPlans = (
             projectedRp: 0,
             winRp: 0,
             towerRp: 0,
+            traversalRp: 0,
             energizedRp: 0,
             superchargedRp: 0,
             towerMetric: 0,
@@ -1452,6 +1485,7 @@ export const buildStrategyMatchPlans = (
           projectedRp: rpBreakdown.totalRp,
           winRp: rpBreakdown.winRp,
           towerRp: rpBreakdown.towerRp,
+          traversalRp: rpBreakdown.traversalRp,
           energizedRp: rpBreakdown.energizedRp,
           superchargedRp: rpBreakdown.superchargedRp,
           towerMetric: projectedTowerMetric,
@@ -1489,6 +1523,12 @@ export const buildStrategyMatchPlans = (
         blueDefenseSwing,
         bestRedPlan,
         bestBluePlan,
+        shiftEngineObjective,
+        shiftEngineRedPlan: shiftEngineResult.redBestPlan.label,
+        shiftEngineBluePlan: shiftEngineResult.blueBestPlan.label,
+        shiftEngineExpectedMargin: shiftEngineResult.expectedMargin,
+        shiftEngineRedWinProbability: shiftEngineResult.redWinProbability,
+        shiftEngineBlueWinProbability: shiftEngineResult.blueWinProbability,
         redRoleOptions,
         blueRoleOptions,
         predictedWinner,

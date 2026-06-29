@@ -20,7 +20,7 @@ function StrategyRpPathCard({ path }: { path: StrategyAllianceRpPath }) {
       <div className="mt-3 grid grid-cols-2 gap-2">
         <MetricField label="Projected RP" value={formatMetricValue(path.projectedRp, 1)} />
         <MetricField label="Win RP" value={formatMetricValue(path.winRp, 1)} />
-        <MetricField label="Tower RP" value={formatMetricValue(path.towerRp, 1)} />
+        <MetricField label="Traversal RP" value={formatMetricValue(path.traversalRp ?? path.towerRp, 1)} />
         <MetricField label="Bonus RP" value={formatMetricValue(path.energizedRp + path.superchargedRp, 1)} />
       </div>
       <p className="mt-3 text-xs font-semibold text-slate-400">{path.note}</p>
@@ -101,6 +101,26 @@ export default function AdminV4StrategyPlanPanel({
         <StrategyRoleOptionList title="Red Role Options" options={plan.redRoleOptions} accentClass="text-red-100" />
         <StrategyRoleOptionList title="Blue Role Options" options={plan.blueRoleOptions} accentClass="text-blue-100" />
       </div>
+      {plan.shiftEngineRedPlan && plan.shiftEngineBluePlan && (
+        <div className="admin-g2-sm mt-4 border border-emerald-400/25 bg-emerald-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-black text-emerald-100">Shift Role Simulation</div>
+              <p className="mt-1 text-xs font-semibold text-emerald-50/70">
+                {plan.shiftEngineObjective === 'qualification-rp' ? 'Qualification objective: margin plus RP path protection.' : 'Playoff objective: maximize point-difference contribution.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <MetricField label="Margin" value={formatSignedMetric(plan.shiftEngineExpectedMargin, 1)} />
+              <MetricField label="Red Win" value={formatPercentMetric(plan.shiftEngineRedWinProbability, 0)} />
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            <MetricField label="Red Best Roles" value={plan.shiftEngineRedPlan} />
+            <MetricField label="Blue Best Roles" value={plan.shiftEngineBluePlan} />
+          </div>
+        </div>
+      )}
       <div className="mt-4 grid gap-4 xl:grid-cols-2">
         <StrategyRpPathCard path={plan.redRpPath} />
         <StrategyRpPathCard path={plan.blueRpPath} />

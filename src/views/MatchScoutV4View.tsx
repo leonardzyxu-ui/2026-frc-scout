@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { AlertTriangle, Download, RotateCcw, Save, Trophy } from 'lucide-react';
+import { AlertTriangle, Bell, Download, RotateCcw, Save, Trophy, X } from 'lucide-react';
 import {
   MatchScoutingV3Alliance,
   MatchScoutingV4,
@@ -17,6 +17,7 @@ import {
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventState';
 import { buildMatchKeyV4, normalizeMatchScoutingV4 } from '../utils/matchScoutingV4';
+import { deriveShiftActionCredits } from '../utils/shiftActionWeights';
 import {
   getScoutArchiveIdentity,
   renameScoutArchiveIdentity,
@@ -39,6 +40,12 @@ import {
   normalizePowerCoinAmount,
   toStoredPowerCoinBet
 } from '../utils/scoutPowerCoins';
+import {
+  readScoutPagerInbox,
+  removeScoutPagerInboxMessage,
+  shouldDeliverScoutPagerMessage,
+  type ScoutPagerMessage
+} from '../utils/scoutRelayPager';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
@@ -68,7 +75,7 @@ const MATCH_SCOUT_STEPS: Array<{
     key: 'risk',
     label: 'Floor Risk',
     question: 'Can strategy trust the ceiling?',
-    output: 'reliability, failures, and tail risk'
+    output: 'function confidence, failures, and tail risk'
   },
   {
     key: 'handoff',
@@ -157,18 +164,6 @@ const deriveActionSummaryLabel = (entry: MatchScoutingV4ShiftEntry) => {
   return actions.length ? actions.map(getShiftActionLabel).join(' + ') : 'Inactive';
 };
 
-const deriveStockpileCreditForView = (actions: MatchScoutingV4ShiftAction[]) => {
-  if (!actions.includes('stockpile')) return 0;
-  return actions.includes('defense') ? 0.5 : 1;
-};
-
-const deriveDefenseCreditForView = (actions: MatchScoutingV4ShiftAction[]) => {
-  if (!actions.includes('defense')) return 0;
-  if (actions.includes('stockpile')) return 0.5;
-  if (actions.includes('offense')) return 0.1;
-  return 1;
-};
-
 const createDefenseAssignment = (targetTeamNumber = ''): MatchScoutingV4DefenseAssignment => ({
   targetTeamNumber,
   claimedSharePercent: targetTeamNumber ? 100 : 0,
@@ -204,8 +199,7 @@ const buildTimelineEntries = (
       actions: allowedActions,
       ballsScored: allowedActions.includes('offense') ? ballsScored : 0,
       scoreActions: allowedActions.includes('offense') ? scoreActions : [],
-      stockpileShiftCredit: deriveStockpileCreditForView(allowedActions),
-      defenseShiftCredit: deriveDefenseCreditForView(allowedActions),
+      ...deriveShiftActionCredits(allowedActions),
       defendedTeams: allowedActions.includes('defense') ? existing?.defendedTeams || [] : [],
       notes: existing?.notes || '',
       status: existing?.status || 'draft',
@@ -724,6 +718,7 @@ export default function MatchScoutV4View() {
   const [teamWarning, setTeamWarning] = useState('');
   const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
   const [teamManuallyEdited, setTeamManuallyEdited] = useState(false);
+  const [pagerMessages, setPagerMessages] = useState<ScoutPagerMessage[]>([]);
 
   const normalizedData = useMemo(() => normalizeMatchScoutingV4(data), [data]);
   const currentMatchKey = useMemo(
@@ -749,6 +744,24 @@ export default function MatchScoutV4View() {
       .filter(Boolean)
       .slice(0, 3);
   }, [currentScheduleMatch, manualOpponents, normalizedData.alliance]);
+  const refreshPagerInbox = () => {
+    setPagerMessages(
+      readScoutPagerInbox()
+        .filter(message => shouldDeliverScoutPagerMessage(message, { scoutName: archiveUsername, scoutNumber: archiveScoutNumber }))
+        .slice(0, 3)
+    );
+  };
+  useEffect(() => {
+    refreshPagerInbox();
+    window.addEventListener('storage', refreshPagerInbox);
+    window.addEventListener('scout-pager-inbox-updated', refreshPagerInbox);
+    const interval = window.setInterval(refreshPagerInbox, 5000);
+    return () => {
+      window.removeEventListener('storage', refreshPagerInbox);
+      window.removeEventListener('scout-pager-inbox-updated', refreshPagerInbox);
+      window.clearInterval(interval);
+    };
+  }, [archiveScoutNumber, archiveUsername]);
   useEffect(() => {
     let cancelled = false;
     const hydrate = async () => {
@@ -1030,6 +1043,7 @@ export default function MatchScoutV4View() {
         ? mergedActions
         : mergedActions.filter(action => action !== 'offense');
       const nextRole = deriveShiftRoleForView(nextActions);
+      const defaultCredits = deriveShiftActionCredits(nextActions);
       const nextEntry = {
         ...entry,
         ...patch,
@@ -1037,8 +1051,8 @@ export default function MatchScoutV4View() {
         role: nextRole,
         ballsScored: nextActions.includes('offense') ? patch.ballsScored ?? entry.ballsScored : 0,
         scoreActions: nextActions.includes('offense') ? patch.scoreActions ?? entry.scoreActions : [],
-        stockpileShiftCredit: patch.stockpileShiftCredit ?? deriveStockpileCreditForView(nextActions),
-        defenseShiftCredit: patch.defenseShiftCredit ?? deriveDefenseCreditForView(nextActions),
+        stockpileShiftCredit: patch.stockpileShiftCredit ?? defaultCredits.stockpileShiftCredit,
+        defenseShiftCredit: patch.defenseShiftCredit ?? defaultCredits.defenseShiftCredit,
         defendedTeams: nextActions.includes('defense') ? patch.defendedTeams ?? entry.defendedTeams : [],
         status: patch.status || entry.status || 'draft'
       } satisfies MatchScoutingV4ShiftEntry;
@@ -1575,6 +1589,31 @@ export default function MatchScoutV4View() {
                 {statusMessage}
               </div>
             )}
+            {pagerMessages.length > 0 && (
+              <div data-testid="scout-pager-inbox" className="mt-4 space-y-2">
+                {pagerMessages.map(message => (
+                  <div key={message.id} className="admin-g2-sm flex items-start gap-3 border border-yellow-300/45 bg-yellow-300/10 px-4 py-3 text-sm text-yellow-50">
+                    <Bell className="mt-0.5 h-4 w-4 shrink-0 text-yellow-200" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black">{message.title}</div>
+                      <div className="mt-1 font-semibold text-yellow-100/85">{message.body}</div>
+                      <div className="mt-1 text-xs font-black uppercase tracking-wider text-yellow-200/70">No reply needed here. Follow the prompt and keep scouting.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        removeScoutPagerInboxMessage(message.id);
+                        refreshPagerInbox();
+                      }}
+                      className="admin-g2-sm border border-yellow-300/25 bg-yellow-300/10 p-2 text-yellow-100 hover:bg-yellow-300/20"
+                      aria-label={`Dismiss ${message.title}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </StepFrame>
 
           {canOpenForm && (
@@ -1719,7 +1758,7 @@ export default function MatchScoutV4View() {
                       <input type="number" min={0} value={normalizedData.techFouls} onChange={event => updateData({ techFouls: Number(event.target.value) })} className={`${inputClass} font-mono font-bold focus:border-rose-400`} />
                     </label>
                     <label className="space-y-2 md:col-span-2">
-                      <span className={fieldLabelClass}>Reliability: {(normalizedData.reliabilityScore * 100).toFixed(0)}%</span>
+                      <span className={fieldLabelClass}>Robot Function Confidence: {(normalizedData.reliabilityScore * 100).toFixed(0)}%</span>
                       <input type="range" min={0} max={1} step={0.0001} value={normalizedData.reliabilityScore} onChange={event => updateData({ reliabilityScore: Number(event.target.value) })} className="w-full accent-rose-400" />
                     </label>
                   </div>

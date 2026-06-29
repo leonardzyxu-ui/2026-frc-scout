@@ -98,7 +98,7 @@ struct ScoutLaneView: View {
         case .pitScout:
             "Objective robot facts are valuable. Self-reported scoring and defense value are leads, not truth, until real match evidence confirms them."
         case .matchScout:
-            "One scout in one match can see a lot, but cannot capture everything well. Match scout should verify real capability, behavior under pressure, reliability, and contradictions."
+            "One scout in one match can see a lot, but cannot capture everything well. Match scout should verify real capability, behavior under pressure, function confidence, and contradictions."
         }
     }
 

@@ -5,7 +5,8 @@ import {
   buildFirstShiftReportsFromMatchScoutingV4,
   detectFirstShiftConsensus,
   normalizeDefenseShares,
-  reconcileAllianceContributions
+  reconcileAllianceContributions,
+  resolveFirstShiftAuthority
 } from '../src/utils/shiftReconciliation.ts';
 
 test('official score reconciliation preserves contribution ratios', () => {
@@ -16,6 +17,8 @@ test('official score reconciliation preserves contribution ratios', () => {
   ], 150);
 
   assert.equal(reconciliation.rawTotal, 100);
+  assert.equal(reconciliation.robotOfficialTotal, 150);
+  assert.equal(reconciliation.nonRobotPoints, 0);
   assert.equal(reconciliation.scaleFactor, 1.5);
   assert.deepEqual(
     reconciliation.rows.map(row => row.adjustedContribution),
@@ -32,6 +35,33 @@ test('official score reconciliation flags unallocated official points', () => {
   assert.match(reconciliation.warnings.join(' '), /no allocatable contribution/i);
 });
 
+test('official score reconciliation can zero out robot contribution without leaking points', () => {
+  const reconciliation = reconcileAllianceContributions([
+    { teamNumber: '254', rawContribution: 40 },
+    { teamNumber: '1678', rawContribution: 60 }
+  ], 0);
+
+  assert.equal(reconciliation.officialTotal, 0);
+  assert.equal(reconciliation.robotOfficialTotal, 0);
+  assert.equal(reconciliation.scaleFactor, 0);
+  assert.deepEqual(reconciliation.rows.map(row => row.adjustedContribution), [0, 0]);
+});
+
+test('official score reconciliation holds penalty or non-robot points outside contribution scaling', () => {
+  const reconciliation = reconcileAllianceContributions([
+    { teamNumber: '254', rawContribution: 40 },
+    { teamNumber: '1678', rawContribution: 60 }
+  ], 130, { nonRobotPoints: 30 });
+
+  assert.equal(reconciliation.officialTotal, 130);
+  assert.equal(reconciliation.robotOfficialTotal, 100);
+  assert.equal(reconciliation.nonRobotPoints, 30);
+  assert.equal(reconciliation.scaleFactor, 1);
+  assert.deepEqual(reconciliation.rows.map(row => row.adjustedContribution), [40, 60]);
+  assert.equal(reconciliation.unallocatedPoints, 30);
+  assert.match(reconciliation.warnings.join(' '), /outside robot contribution scaling/i);
+});
+
 test('defense share normalization preserves ratio when scouts do not sum to 100', () => {
   const normalization = normalizeDefenseShares('1678', [
     { defenderTeamNumber: '254', targetTeamNumber: '1678', claimedSharePercent: 60 },
@@ -41,6 +71,18 @@ test('defense share normalization preserves ratio when scouts do not sum to 100'
   assert.equal(Math.round(normalization.rows[0].normalizedSharePercent), 43);
   assert.equal(Math.round(normalization.rows[1].normalizedSharePercent), 57);
   assert.match(normalization.warnings.join(' '), /normalized to 100/i);
+});
+
+test('defense share normalization splits all-zero defender shares evenly', () => {
+  const normalization = normalizeDefenseShares('1678', [
+    { defenderTeamNumber: '254', targetTeamNumber: '1678', claimedSharePercent: 0 },
+    { defenderTeamNumber: '971', targetTeamNumber: '1678', claimedSharePercent: 0 },
+    { defenderTeamNumber: '604', targetTeamNumber: '1678', claimedSharePercent: 0 }
+  ]);
+
+  assert.equal(normalization.rawTotalPercent, 0);
+  assert.deepEqual(normalization.rows.map(row => Math.round(row.normalizedSharePercent)), [33, 33, 33]);
+  assert.match(normalization.warnings.join(' '), /split evenly/i);
 });
 
 test('first-shift consensus detects scout disagreement for match-specific notification', () => {
@@ -72,6 +114,23 @@ test('first-shift correction notice targets only scouts assigned to that match',
   assert.deepEqual(notice.targetScoutNames, ['Scout A', 'Scout B', 'Scout C', 'Scout D', 'Scout E', 'Scout F']);
   assert.match(notice.message, /Red 2 \/ Blue 1/);
   assert.deepEqual(notice.options, ['Red', 'Blue']);
+});
+
+test('first-shift correction notice supports arbitrary scout counts', () => {
+  const assignedScoutNames = Array.from({ length: 15 }, (_, index) => `Scout ${index + 1}`);
+  const notice = buildFirstShiftCorrectionNotice({
+    matchKey: 'qm15',
+    reports: assignedScoutNames.map((scoutName, index) => ({
+      scoutName,
+      firstShiftAlliance: index % 3 === 0 ? 'Blue' : 'Red'
+    })),
+    assignedScoutNames
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.targetScoutNames.length, 15);
+  assert.equal(notice.counts.Red, 10);
+  assert.equal(notice.counts.Blue, 5);
 });
 
 test('first-shift correction notice is not created when scouts agree', () => {
@@ -106,4 +165,59 @@ test('Match Scout V4 first-shift metadata feeds the correction workflow', () => 
   assert.equal(notice.consensus, 'Red');
   assert.deepEqual(notice.targetScoutNames, ['Scout A', 'Scout B', 'Scout C']);
   assert.match(notice.message, /QM14/);
+});
+
+test('first-shift authority accepts unanimous scout reports without version bump', () => {
+  const resolution = resolveFirstShiftAuthority({
+    matchKey: 'qm16',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Blue' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Blue' }
+    ]
+  });
+
+  assert.equal(resolution.authoritativeAlliance, 'Blue');
+  assert.equal(resolution.source, 'unanimous-scouts');
+  assert.equal(resolution.needsScoutCorrection, false);
+  assert.equal(resolution.versionBumpRequired, false);
+});
+
+test('first-shift authority uses majority as provisional until correction converges', () => {
+  const resolution = resolveFirstShiftAuthority({
+    matchKey: 'qm17',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Red' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Red' },
+      { scoutName: 'Scout C', firstShiftAlliance: 'Blue' }
+    ]
+  });
+
+  assert.equal(resolution.authoritativeAlliance, 'Red');
+  assert.equal(resolution.source, 'majority-provisional');
+  assert.equal(resolution.needsScoutCorrection, true);
+  assert.equal(resolution.versionBumpRequired, true);
+});
+
+test('first-shift authority leaves ties pending unless head scout overrides', () => {
+  const tied = resolveFirstShiftAuthority({
+    matchKey: 'qm18',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Red' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Blue' }
+    ]
+  });
+  const overridden = resolveFirstShiftAuthority({
+    matchKey: 'qm18',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Red' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Blue' }
+    ],
+    adminOverride: 'Blue'
+  });
+
+  assert.equal(tied.authoritativeAlliance, null);
+  assert.equal(tied.source, 'pending-correction');
+  assert.equal(overridden.authoritativeAlliance, 'Blue');
+  assert.equal(overridden.source, 'admin-override');
+  assert.equal(overridden.versionBumpRequired, true);
 });

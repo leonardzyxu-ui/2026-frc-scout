@@ -41,7 +41,7 @@ struct SystemAuditView: View {
                     LazyVGrid(columns: auditColumns, spacing: 12) {
                         laneRule("Pre Scout", "Move public research, priors, team history, video notes, and pit priorities before the event.")
                         laneRule("Pit Scout", "Trust observed mechanisms and specs. Discount claimed points contributed or denied until match proof exists.")
-                        laneRule("Match Scout", "Collect feasible live truth: role, cycle behavior, pressure, reliability, defense, fouls, and contradictions.")
+                        laneRule("Match Scout", "Collect feasible live truth: role, pressure, function confidence, defense, fouls, and contradictions.")
                     }
                 }
             }
