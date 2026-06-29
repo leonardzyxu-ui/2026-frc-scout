@@ -3,6 +3,7 @@ import SwiftUI
 struct NextMatchDashboardView: View {
     let snapshot: NextMatchDashboardSnapshot
     @State private var showsShifts = true
+    private let shiftInstructionCardHeight: CGFloat = 108
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -255,21 +256,25 @@ struct NextMatchDashboardView: View {
                         Text("Shift \(instruction.shift) · \(instruction.shiftAlliance)")
                             .font(.caption2.weight(.heavy))
                             .tracking(1.2)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                         Spacer()
                         Text(instruction.state.uppercased())
                             .font(.caption2.weight(.heavy))
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(Color.black.opacity(0.25), in: Capsule())
+                            .lineLimit(1)
                     }
                     .foregroundStyle(.secondary)
                     Text(instruction.instruction)
-                        .font(.callout.weight(.heavy))
+                        .font((instruction.instruction.count > 24 ? Font.subheadline : Font.callout).weight(.heavy))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.82)
+                        .minimumScaleFactor(0.78)
+                        .frame(height: 42, alignment: .center)
                 }
-                .frame(maxWidth: .infinity, minHeight: 82, maxHeight: 82, alignment: .topLeading)
                 .padding(12)
+                .frame(maxWidth: .infinity, minHeight: shiftInstructionCardHeight, maxHeight: shiftInstructionCardHeight, alignment: .topLeading)
                 .background(cardFill(for: instruction, column: column), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)

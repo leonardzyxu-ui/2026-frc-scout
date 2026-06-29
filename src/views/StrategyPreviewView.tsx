@@ -36,6 +36,8 @@ const formatPoints = (value: number) => Math.max(0, Math.round(value));
 
 const previewPanelClass = 'admin-g2-lg rounded-[2rem] border border-slate-700/70 bg-slate-900/72 shadow-2xl shadow-slate-950/25';
 const previewTileClass = 'admin-g2 rounded-[1.75rem] border border-slate-700/70 bg-slate-950/55';
+const shiftCardClass = 'flex h-32 shrink-0 flex-col justify-between overflow-hidden rounded-[1.35rem] border px-3 py-3';
+const shiftActionTextClass = 'mt-2 flex h-11 items-center overflow-hidden text-sm font-black leading-[1.2]';
 
 function AllianceSplitReadout({
   value,
@@ -198,24 +200,28 @@ function StrategyTeamColumn({
         <div className="mt-1 text-xs font-bold text-slate-400">{roleLabels[assignment.role]} plan</div>
       </div>
       <div className="mt-3 space-y-2">
-        {timelineEntries.map(entry => (
-          <section
-            key={`${team.teamNumber}-${entry.id}`}
-            className={`flex h-28 flex-col justify-between rounded-[1.35rem] border px-3 py-3 ${getShiftCardTone(entry.shiftAlliance, alliance)}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
-                Shift {entry.index + 1} · {entry.shiftAlliance}
+        {timelineEntries.map(entry => {
+          const actionText = describeShiftAction(assignment, alliance, entry.shiftAlliance, opponentTeams);
+          const actionIsLong = actionText.length > 24;
+          return (
+            <section
+              key={`${team.teamNumber}-${entry.id}`}
+              className={`${shiftCardClass} ${getShiftCardTone(entry.shiftAlliance, alliance)}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="truncate text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
+                  Shift {entry.index + 1} · {entry.shiftAlliance}
+                </div>
+                <div className="shrink-0 rounded-full bg-slate-950/45 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] opacity-80">
+                  {entry.shiftAlliance === alliance ? 'Active' : 'Other'}
+                </div>
               </div>
-              <div className="rounded-full bg-slate-950/45 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] opacity-80">
-                {entry.shiftAlliance === alliance ? 'Active' : 'Other'}
+              <div className={`${shiftActionTextClass} ${actionIsLong ? 'text-[13px]' : ''}`}>
+                {actionText}
               </div>
-            </div>
-            <div className="mt-2 min-h-10 overflow-hidden text-sm font-black leading-snug">
-              {describeShiftAction(assignment, alliance, entry.shiftAlliance, opponentTeams)}
-            </div>
-          </section>
-        ))}
+            </section>
+          );
+        })}
       </div>
     </article>
   );

@@ -1,5 +1,6 @@
 # Scouting Task Queue (Completed)
 
+- [x] Make every Explore Shifts per-team shift panel/card the same visual length in the web strategy preview and PowerScout Mac app, even when defense text is longer.
 - [x] Build `PowerScout`, Powerhouse's native SwiftUI macOS scouting app.
 - [x] Use `codex-conductor` swarm coordination without wasting strong models on simple checks.
 - [x] Tell Leo the exact specs of every subagent when created or closed.
