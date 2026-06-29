@@ -162,4 +162,6 @@
 - [x] Clean up dead `DashboardView` dependencies after removing the old bottom workspace/readiness chunk.
 - [x] Replace demo-only next-match strategy data with live/local source paths for `/strategy-preview` and PowerScout, with explicit fallback notices plus stale-event, corrupt-JSON, and newest-snapshot regression coverage.
 - [x] Diagnose the Render scouting relay failure, verify `scouting-relay` locally, and update the setup guide to use `codex/adminv4-snapshot-20260620` until the relay folder exists on `main`.
+- [x] Seed Sanya pre-scout from Leo's two official Sanya source files: parsed 47 PDF entries, transcribed visible temporary-team JPG rows, created an Admin V4 `2026SANYA` Pre Scout cache import pack, and documented exact import steps.
+- [x] Run and integrate a first-pass Sanya prescout agent sweep: rows 1-24 public intel, rows 25-47 public intel plus temp-number conflicts, public stats availability, and a consolidated machine-readable prescout index.
 ---
