@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildFirstShiftCorrectionNotice,
   detectFirstShiftConsensus,
   normalizeDefenseShares,
   reconcileAllianceContributions
@@ -51,4 +52,35 @@ test('first-shift consensus detects scout disagreement for match-specific notifi
   assert.equal(consensus.consensus, 'Red');
   assert.equal(consensus.needsScoutCorrection, true);
   assert.deepEqual(consensus.affectedScouts, ['Scout A', 'Scout B', 'Scout C']);
+});
+
+test('first-shift correction notice targets only scouts assigned to that match', () => {
+  const notice = buildFirstShiftCorrectionNotice({
+    matchKey: 'qm12',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Red' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Blue' },
+      { scoutName: 'Scout C', firstShiftAlliance: 'Red' }
+    ],
+    assignedScoutNames: ['Scout A', 'Scout B', 'Scout C', 'Scout D', 'Scout E', 'Scout F']
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.matchKey, 'QM12');
+  assert.equal(notice.severity, 'action_required');
+  assert.deepEqual(notice.targetScoutNames, ['Scout A', 'Scout B', 'Scout C', 'Scout D', 'Scout E', 'Scout F']);
+  assert.match(notice.message, /Red 2 \/ Blue 1/);
+  assert.deepEqual(notice.options, ['Red', 'Blue']);
+});
+
+test('first-shift correction notice is not created when scouts agree', () => {
+  const notice = buildFirstShiftCorrectionNotice({
+    matchKey: 'qm13',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: 'Blue' },
+      { scoutName: 'Scout B', firstShiftAlliance: 'Blue' }
+    ]
+  });
+
+  assert.equal(notice, null);
 });

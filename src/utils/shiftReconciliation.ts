@@ -33,6 +33,32 @@ export interface DefenseShareNormalization {
   warnings: string[];
 }
 
+export interface FirstShiftScoutReport {
+  scoutName: string;
+  firstShiftAlliance: 'Red' | 'Blue' | '';
+}
+
+export interface FirstShiftConsensus {
+  consensus: 'Red' | 'Blue' | null;
+  counts: Record<'Red' | 'Blue', number>;
+  needsScoutCorrection: boolean;
+  affectedScouts: string[];
+}
+
+export interface FirstShiftCorrectionNotice {
+  matchKey: string;
+  targetScoutNames: string[];
+  question: string;
+  message: string;
+  options: Array<'Red' | 'Blue'>;
+  consensus: 'Red' | 'Blue' | null;
+  counts: Record<'Red' | 'Blue', number>;
+  severity: 'action_required';
+}
+
+const uniqueCleanNames = (names: string[]) =>
+  Array.from(new Set(names.map(name => name.trim()).filter(Boolean)));
+
 export const reconcileAllianceContributions = (
   rows: AllianceContributionInput[],
   officialTotal: number
@@ -120,7 +146,7 @@ export const normalizeDefenseShares = (
   };
 };
 
-export const detectFirstShiftConsensus = (reports: Array<{ scoutName: string; firstShiftAlliance: 'Red' | 'Blue' | '' }>) => {
+export const detectFirstShiftConsensus = (reports: FirstShiftScoutReport[]): FirstShiftConsensus => {
   const counts = reports.reduce<Record<'Red' | 'Blue', number>>((acc, report) => {
     if (report.firstShiftAlliance === 'Red' || report.firstShiftAlliance === 'Blue') {
       acc[report.firstShiftAlliance] += 1;
@@ -137,6 +163,36 @@ export const detectFirstShiftConsensus = (reports: Array<{ scoutName: string; fi
     consensus,
     counts,
     needsScoutCorrection: !consensus || (counts.Red > 0 && counts.Blue > 0),
-    affectedScouts: reports.map(report => report.scoutName)
+    affectedScouts: uniqueCleanNames(reports.map(report => report.scoutName))
+  };
+};
+
+export const buildFirstShiftCorrectionNotice = ({
+  matchKey,
+  reports,
+  assignedScoutNames = []
+}: {
+  matchKey: string;
+  reports: FirstShiftScoutReport[];
+  assignedScoutNames?: string[];
+}): FirstShiftCorrectionNotice | null => {
+  const consensus = detectFirstShiftConsensus(reports);
+  if (!consensus.needsScoutCorrection) return null;
+
+  const targetScoutNames = uniqueCleanNames(assignedScoutNames).length
+    ? uniqueCleanNames(assignedScoutNames)
+    : consensus.affectedScouts;
+  const cleanMatchKey = matchKey.trim().toUpperCase() || 'THIS MATCH';
+  const countText = `Red ${consensus.counts.Red} / Blue ${consensus.counts.Blue}`;
+
+  return {
+    matchKey: cleanMatchKey,
+    targetScoutNames,
+    question: 'Which alliance started the first teleop shift?',
+    message: `First-shift reports disagree for ${cleanMatchKey} (${countText}). Confirm the starting alliance so the shift timeline can be repaired.`,
+    options: ['Red', 'Blue'],
+    consensus: consensus.consensus,
+    counts: consensus.counts,
+    severity: 'action_required'
   };
 };

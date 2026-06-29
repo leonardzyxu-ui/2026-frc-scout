@@ -60,6 +60,7 @@
 - [x] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
 - [x] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
 - [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
+- [x] Add a match-scoped first-shift correction notice payload for the future scout notification channel.
 - [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
 - [x] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
 - [x] Add browser-cache export support for detailed JSON with export time and scout metadata.
