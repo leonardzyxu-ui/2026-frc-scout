@@ -1,13 +1,17 @@
-import {
+import { initialMatchScoutingV4 } from '../types.ts';
+import type {
   MatchScoutingV3Alliance,
   MatchScoutingV3MatchType,
   MatchScoutingV4,
+  MatchScoutingV4DefenseAssignment,
   MatchScoutingV4Role,
-  MatchScoutingV4SubstituteScoutName,
-  initialMatchScoutingV4
-} from '../types';
-import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3, toNonNegativeInt } from './matchScoutingV3';
-import { normalizeTeamNumber } from './keys';
+  MatchScoutingV4ShiftEntry,
+  MatchScoutingV4ShiftOwner,
+  MatchScoutingV4ShiftRole,
+  MatchScoutingV4SubstituteScoutName
+} from '../types.ts';
+import { buildMatchKeyV3, parseMatchNumberV3, parseMatchTypeV3, sanitizeEventKeyV3, toNonNegativeInt } from './matchScoutingV3.ts';
+import { normalizeTeamNumber } from './keys.ts';
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
 
@@ -21,6 +25,49 @@ const normalizeRole = (value: unknown): MatchScoutingV4Role =>
   value === 'Offense' || value === 'Defense' || value === 'Mixed' || value === 'Support' || value === 'Disabled'
     ? value
     : '';
+
+const normalizeShiftOwner = (value: unknown): MatchScoutingV4ShiftOwner =>
+  value === 'own' || value === 'opponent' ? value : 'own';
+
+const normalizeShiftRole = (value: unknown): MatchScoutingV4ShiftRole =>
+  value === 'offense' || value === 'defense' || value === 'stockpile' || value === 'inactive' || value === 'mixed'
+    ? value
+    : 'inactive';
+
+const normalizeDefenseAssignment = (raw: Partial<MatchScoutingV4DefenseAssignment> = {}): MatchScoutingV4DefenseAssignment => ({
+  targetTeamNumber: normalizeTeamNumber(raw.targetTeamNumber),
+  claimedSharePercent: Math.max(0, Math.min(100, Number.isFinite(raw.claimedSharePercent) ? Number(raw.claimedSharePercent) : 0)),
+  normalizedSharePercent: raw.normalizedSharePercent == null
+    ? undefined
+    : Math.max(0, Math.min(100, Number.isFinite(raw.normalizedSharePercent) ? Number(raw.normalizedSharePercent) : 0)),
+  notes: raw.notes || ''
+});
+
+const normalizeShiftEntry = (raw: Partial<MatchScoutingV4ShiftEntry> = {}, fallbackIndex: number): MatchScoutingV4ShiftEntry => ({
+  id: raw.id || `shift-${fallbackIndex + 1}`,
+  index: toNonNegativeInt(raw.index ?? fallbackIndex),
+  owner: normalizeShiftOwner(raw.owner),
+  role: normalizeShiftRole(raw.role),
+  ballsScored: toNonNegativeInt(raw.ballsScored ?? 0),
+  stockpileShiftCredit: Math.max(0, Number.isFinite(raw.stockpileShiftCredit) ? Number(raw.stockpileShiftCredit) : 0),
+  defenseShiftCredit: Math.max(0, Number.isFinite(raw.defenseShiftCredit) ? Number(raw.defenseShiftCredit) : 0),
+  defendedTeams: Array.isArray(raw.defendedTeams)
+    ? raw.defendedTeams.map(assignment => normalizeDefenseAssignment(assignment)).filter(assignment => assignment.targetTeamNumber)
+    : [],
+  notes: raw.notes || '',
+  submittedAt: raw.submittedAt && Number.isFinite(raw.submittedAt) ? Number(raw.submittedAt) : undefined
+});
+
+const normalizeOfficialReconciliation = (raw: MatchScoutingV4['officialReconciliation']) => raw
+  ? {
+      officialAllianceFuelPoints: toNonNegativeInt(raw.officialAllianceFuelPoints),
+      rawAllianceFuelPoints: toNonNegativeInt(raw.rawAllianceFuelPoints),
+      scaleFactor: Number.isFinite(raw.scaleFactor) ? Number(raw.scaleFactor) : 0,
+      adjustedTeamFuelPoints: Math.max(0, Number.isFinite(raw.adjustedTeamFuelPoints) ? Number(raw.adjustedTeamFuelPoints) : 0),
+      warnings: Array.isArray(raw.warnings) ? raw.warnings.map(String).filter(Boolean) : [],
+      reconciledAt: raw.reconciledAt && Number.isFinite(raw.reconciledAt) ? Number(raw.reconciledAt) : Date.now()
+    }
+  : undefined;
 
 export const calculateTotalMatchPointsV4 = (
   autoPoints: number,
@@ -86,7 +133,17 @@ export const normalizeMatchScoutingV4 = (raw: Partial<MatchScoutingV4>): MatchSc
     reliabilityScore: Number(clamp01(raw.reliabilityScore ?? 1).toFixed(4)),
 
     notes: raw.notes || '',
-    strategyNotes: raw.strategyNotes || ''
+    strategyNotes: raw.strategyNotes || '',
+
+    teleopFirstShiftAlliance: normalizeAlliance(raw.teleopFirstShiftAlliance),
+    shiftBreakdown: Array.isArray(raw.shiftBreakdown)
+      ? raw.shiftBreakdown.map((entry, index) => normalizeShiftEntry(entry, index))
+      : [],
+    defenseAssignments: Array.isArray(raw.defenseAssignments)
+      ? raw.defenseAssignments.map(assignment => normalizeDefenseAssignment(assignment)).filter(assignment => assignment.targetTeamNumber)
+      : [],
+    officialReconciliation: normalizeOfficialReconciliation(raw.officialReconciliation),
+    shiftAuditFlags: Array.isArray(raw.shiftAuditFlags) ? raw.shiftAuditFlags.map(String).filter(Boolean) : []
   };
 };
 
