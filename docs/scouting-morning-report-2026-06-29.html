@@ -293,6 +293,19 @@
     </section>
 
     <section class="section">
+      <h2>Live readiness</h2>
+      <ul>
+        <li>Official Firebase site: <span class="green">READY</span>, 23 live checks passed through the configured ClashX proxy.</li>
+        <li>Admin V4: <span class="green">HTTP 200</span> at <code>https://scout-rebuilt-2026.web.app/adminv4</code>.</li>
+        <li>Admin V2 prediction graph: <span class="green">HTTP 200</span> at <code>https://scout-rebuilt-2026.web.app/adminv2/prediction-vs-actual</code>.</li>
+        <li>Latest CI: <span class="green">success</span>, run <code>28308454758</code>.</li>
+        <li>DirectChat mainland backup relay: <span class="green">HTTP 200</span>, service <code>directchat-relay</code>.</li>
+        <li>Cloudflare DirectChat global/VPN relay: <span class="green">HTTP 200</span>, service <code>directchat-relay</code>.</li>
+        <li>The Button primary relay: <span class="red">timed out after retry</span>; do not trust it as the first live path until deployment is repaired.</li>
+      </ul>
+    </section>
+
+    <section class="section">
       <h2>Important assumptions</h2>
       <ul>
         <li>Total alliance uncertainty uses independent standard deviations: <code>sqrt(j^2 + k^2 + l^2)</code>.</li>
@@ -307,6 +320,7 @@
       <ul>
         <li><span class="red">Blocked:</span> editing <code>/Users/leoxu/.codex/AGENTS.md</code> needs a fresh direct secret-code reply because the file is protected by local safety rules.</li>
         <li><span class="red">Blocked:</span> no push/deploy was done overnight because the active rule says no push/deploy without fresh direct authorization.</li>
+        <li><span class="red">Blocked:</span> The Button primary relay timed out in the final live check; DirectChat and Cloudflare DirectChat are healthy fallbacks.</li>
         <li><span class="cyan">Next slice:</span> live scout-specific notifications for first-shift disagreement and the full animated Match Scout shift form.</li>
       </ul>
     </section>

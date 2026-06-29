@@ -78,11 +78,22 @@ Passed locally:
 - `swift test` in `PowerScout`
 - Full score-consistent Silicon Valley agentic replay
 
+Live readiness through the configured ClashX proxy:
+
+- Official Firebase site: READY, 23 live checks passed.
+- Admin V4: HTTP 200 at `https://scout-rebuilt-2026.web.app/adminv4`.
+- Admin V2 prediction graph: HTTP 200 at `https://scout-rebuilt-2026.web.app/adminv2/prediction-vs-actual`.
+- Latest CI: success, run `28308454758`.
+- Mainland backup relay, DirectChat: HTTP 200, service `directchat-relay`.
+- Global/VPN relay, Cloudflare DirectChat: HTTP 200, service `directchat-relay`.
+- Primary relay, The Button: timed out after retry, so it should not be trusted as the first live path until the deployment is repaired.
+
 Checkpoint commits already made:
 
 - `9f784b8` Add shift strategy core checkpoint
 - `e80f2e6` Surface contribution strategy metrics
 - `c5aa7ed` Add scout archive export metadata
+- `8061e63` Add June 29 scouting morning report
 
 ## Assumptions Made
 
@@ -95,10 +106,10 @@ Checkpoint commits already made:
 
 - I did not edit `/Users/leoxu/.codex/AGENTS.md`; that file is protected by local safety rules and needs a fresh direct secret-code reply after the specific action is requested.
 - I did not push or deploy overnight. The active overnight rule says no push/deploy without fresh direct authorization.
+- The Button primary relay timed out during the final live check. DirectChat and Cloudflare DirectChat are healthy fallbacks.
 - Full match-scoped scout notification delivery for first-shift disagreement is designed in the schema/audit layer, but not wired to a live push channel yet.
 - DPR research is strong enough for a safe implementation stance, but should stay labeled as contextual until we validate it across more real events.
 
 ## Business Bottom Line
 
 PowerScout is now closer to a real head-scout command center. It does not just ask "who is good?" It can begin answering "what role should each robot play, how risky is that plan, what ranking-point upside do we have, and which scout data should we trust?"
-
