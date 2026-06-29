@@ -2,6 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { MatchScoutingV3Alliance } from '../types';
 import { buildMatchScoutTimelineEntries } from '../utils/matchScoutTimeline';
+import { loadAdminV4Settings } from '../utils/adminV4Settings';
+import {
+  loadStrategyPreviewSnapshot,
+  type StrategyPreviewSnapshot
+} from '../utils/strategyPreviewSnapshot';
 import {
   compareAllianceStrategies,
   type ShiftAllianceRolePlan,
@@ -10,29 +15,19 @@ import {
   type ShiftStrategyTeamInput
 } from '../utils/shiftStrategyEngine';
 
-const redTeams: ShiftStrategyTeamInput[] = [
-  { teamNumber: '254', contribution: 82, contributionDeviation: 11, defense: 24, defenseDeviation: 7, traversal: 8, traversalDeviation: 3 },
-  { teamNumber: '1678', contribution: 64, contributionDeviation: 14, defense: 19, defenseDeviation: 8, traversal: 6, traversalDeviation: 4 },
-  { teamNumber: '971', contribution: 48, contributionDeviation: 18, defense: 58, defenseDeviation: 12, traversal: 5, traversalDeviation: 4 }
-];
-
-const blueTeams: ShiftStrategyTeamInput[] = [
-  { teamNumber: '1323', contribution: 78, contributionDeviation: 13, defense: 21, defenseDeviation: 8, traversal: 7, traversalDeviation: 3 },
-  { teamNumber: '4414', contribution: 58, contributionDeviation: 15, defense: 27, defenseDeviation: 9, traversal: 5, traversalDeviation: 4 },
-  { teamNumber: '5940', contribution: 43, contributionDeviation: 16, defense: 52, defenseDeviation: 12, traversal: 4, traversalDeviation: 4 }
-];
-
 const roleLabels: Record<ShiftStrategyRole, string> = {
   offense: 'Score',
   defense: 'Defend',
   stockpile: 'Stockpile'
 };
 
-const getAllianceTeams = (alliance: MatchScoutingV3Alliance) => alliance === 'Red' ? redTeams : blueTeams;
-
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 const formatSigned = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 const formatPoints = (value: number) => Math.max(0, Math.round(value));
+const formatSavedAt = (value: number) => {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : 'unknown time';
+};
 
 const previewPanelClass = 'admin-g2-lg rounded-[2rem] border border-slate-700/70 bg-slate-900/72 shadow-2xl shadow-slate-950/25';
 const previewTileClass = 'admin-g2 rounded-[1.75rem] border border-slate-700/70 bg-slate-950/55';
@@ -43,12 +38,14 @@ function AllianceSplitReadout({
   value,
   label,
   source,
+  statusLabel,
   redLabel = 'Red',
   blueLabel = 'Blue'
 }: {
   value: MatchScoutingV3Alliance;
   label: string;
   source: string;
+  statusLabel: string;
   redLabel?: string;
   blueLabel?: string;
 }) {
@@ -61,7 +58,7 @@ function AllianceSplitReadout({
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
         <div className="rounded-full border border-white/10 bg-slate-950/55 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
-          Guessed
+          {statusLabel}
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-full border border-white/10 bg-slate-950/70 p-1">
@@ -98,7 +95,17 @@ function MetricTile({ label, value, tone }: { label: string; value: string; tone
   );
 }
 
-function ProjectedScoreFaceoff({ redScore, blueScore }: { redScore: number; blueScore: number }) {
+function ProjectedScoreFaceoff({
+  redScore,
+  blueScore,
+  redTeams,
+  blueTeams
+}: {
+  redScore: number;
+  blueScore: number;
+  redTeams: ShiftStrategyTeamInput[];
+  blueTeams: ShiftStrategyTeamInput[];
+}) {
   const redTeamNumbers = redTeams.map(team => team.teamNumber);
   const blueTeamNumbers = blueTeams.map(team => team.teamNumber);
   const teamPillClass = "rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-xs font-black tracking-[0.14em] text-slate-200";
@@ -230,11 +237,15 @@ function StrategyTeamColumn({
 function ShiftExplorer({
   ourAlliance,
   firstShiftAlliance,
+  redTeams,
+  blueTeams,
   redPlan,
   bluePlan
 }: {
   ourAlliance: MatchScoutingV3Alliance;
   firstShiftAlliance: MatchScoutingV3Alliance;
+  redTeams: ShiftStrategyTeamInput[];
+  blueTeams: ShiftStrategyTeamInput[];
   redPlan: ShiftAllianceRolePlan;
   bluePlan: ShiftAllianceRolePlan;
 }) {
@@ -276,19 +287,46 @@ function ShiftExplorer({
   );
 }
 
-const guessedNextMatch: {
-  ourAlliance: MatchScoutingV3Alliance;
-  firstShiftAlliance: MatchScoutingV3Alliance;
-} = {
-  ourAlliance: 'Blue',
-  firstShiftAlliance: 'Red'
-};
+function SnapshotSourceNotice({
+  snapshot,
+  fallbackReason
+}: {
+  snapshot: StrategyPreviewSnapshot;
+  fallbackReason: string | null;
+}) {
+  const isFallback = snapshot.source === 'fallback-demo';
+  return (
+    <section className={`mt-5 rounded-[1.35rem] border px-4 py-3 text-sm font-bold ${
+      isFallback
+        ? 'border-amber-300/35 bg-amber-300/10 text-amber-100'
+        : 'border-emerald-300/25 bg-emerald-300/10 text-emerald-100'
+    }`}>
+      {isFallback
+        ? `Fallback demo data. ${fallbackReason || 'Open Admin V4 Matches to publish the next real plan.'}`
+        : `Live local strategy snapshot from Admin V4: ${snapshot.matchKey} saved ${formatSavedAt(snapshot.savedAt)} with ${snapshot.modelName}.`}
+    </section>
+  );
+}
 
 export default function StrategyPreviewView() {
   const [isExplorerOpen, setIsExplorerOpen] = useState(true);
-  const { ourAlliance, firstShiftAlliance } = guessedNextMatch;
+  const expectedEventKey = useMemo(() => loadAdminV4Settings().eventKey, []);
+  const { snapshot, fallbackReason } = useMemo(
+    () => loadStrategyPreviewSnapshot(undefined, { expectedEventKey }),
+    [expectedEventKey]
+  );
+  const { ourAlliance, firstShiftAlliance, redTeams, blueTeams } = snapshot;
+  const isLiveSnapshot = snapshot.source === 'admin-v4-local-plan';
+  const sourceBadge = isLiveSnapshot ? 'Admin V4 local plan' : 'Demo fallback';
 
-  const result = useMemo(() => compareAllianceStrategies(redTeams, blueTeams, { strategyObjective: 'qualification-rp' }), []);
+  const result = useMemo(
+    () => compareAllianceStrategies(
+      redTeams,
+      blueTeams,
+      { strategyObjective: snapshot.matchType === 'Qualification' ? 'qualification-rp' : 'alliance-selection' }
+    ),
+    [blueTeams, redTeams, snapshot.matchType]
+  );
   const ourWinProbability = ourAlliance === 'Red' ? result.redWinProbability : result.blueWinProbability;
   const expectedMargin = ourAlliance === 'Red' ? result.expectedMargin : -result.expectedMargin;
 
@@ -319,19 +357,27 @@ export default function StrategyPreviewView() {
             <MetricTile label="Our Margin" value={formatSigned(expectedMargin)} tone="margin" />
           </div>
 
-          <ProjectedScoreFaceoff redScore={result.expectedRedScore} blueScore={result.expectedBlueScore} />
+          <ProjectedScoreFaceoff
+            redScore={result.expectedRedScore}
+            blueScore={result.expectedBlueScore}
+            redTeams={redTeams}
+            blueTeams={blueTeams}
+          />
+          <SnapshotSourceNotice snapshot={snapshot} fallbackReason={fallbackReason} />
         </header>
 
         <section className="mt-5 grid gap-4 lg:grid-cols-2">
           <AllianceSplitReadout
             value={ourAlliance}
             label="Our Alliance"
-            source="Inferred from the next scheduled match."
+            statusLabel={sourceBadge}
+            source={isLiveSnapshot ? `${snapshot.eventKey} ${snapshot.matchKey}` : 'No real next-match plan has been published yet.'}
           />
           <AllianceSplitReadout
             value={firstShiftAlliance}
             label="First Alliance Shift"
-            source="Guessed from autonomous edge; scouts can correct after the match starts."
+            statusLabel={sourceBadge}
+            source={isLiveSnapshot ? `Projected from model baseline: ${snapshot.modelName}` : 'Fallback fixture uses Red as the first shift.'}
             redLabel="Red first"
             blueLabel="Blue first"
           />
@@ -341,6 +387,8 @@ export default function StrategyPreviewView() {
           <ShiftExplorer
             ourAlliance={ourAlliance}
             firstShiftAlliance={firstShiftAlliance}
+            redTeams={redTeams}
+            blueTeams={blueTeams}
             redPlan={result.redBestPlan}
             bluePlan={result.blueBestPlan}
           />

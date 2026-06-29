@@ -160,4 +160,5 @@
 - [x] Remove the old bottom workspace/readiness chunk from the PowerScout Next Match Dashboard so the dashboard only shows match-decision content.
 - [x] Find Leo's existing Cloudflare Worker relay project in the Developer folders and report the exact path, config, and safe deploy/check commands without exposing secrets.
 - [x] Clean up dead `DashboardView` dependencies after removing the old bottom workspace/readiness chunk.
+- [x] Replace demo-only next-match strategy data with live/local source paths for `/strategy-preview` and PowerScout, with explicit fallback notices plus stale-event, corrupt-JSON, and newest-snapshot regression coverage.
 ---

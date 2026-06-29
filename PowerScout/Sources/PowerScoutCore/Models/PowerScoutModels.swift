@@ -242,7 +242,7 @@ public struct DriverBriefingOutput: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct NextMatchShiftInstruction: Identifiable, Hashable, Sendable {
+public struct NextMatchShiftInstruction: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let shift: Int
     public let shiftAlliance: String
@@ -256,9 +256,26 @@ public struct NextMatchShiftInstruction: Identifiable, Hashable, Sendable {
         self.state = state
         self.instruction = instruction
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case shift
+        case shiftAlliance
+        case state
+        case instruction
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        shift = try container.decode(Int.self, forKey: .shift)
+        shiftAlliance = try container.decode(String.self, forKey: .shiftAlliance)
+        state = try container.decode(String.self, forKey: .state)
+        instruction = try container.decode(String.self, forKey: .instruction)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? "\(shift)-\(shiftAlliance)-\(instruction)"
+    }
 }
 
-public struct NextMatchTeamShiftColumn: Identifiable, Hashable, Sendable {
+public struct NextMatchTeamShiftColumn: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public let teamNumber: String
     public let alliance: String
@@ -272,10 +289,30 @@ public struct NextMatchTeamShiftColumn: Identifiable, Hashable, Sendable {
         self.planLabel = planLabel
         self.instructions = instructions
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case teamNumber
+        case alliance
+        case planLabel
+        case instructions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        teamNumber = try container.decode(String.self, forKey: .teamNumber)
+        alliance = try container.decode(String.self, forKey: .alliance)
+        planLabel = try container.decode(String.self, forKey: .planLabel)
+        instructions = try container.decode([NextMatchShiftInstruction].self, forKey: .instructions)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? "\(alliance)-\(teamNumber)"
+    }
 }
 
-public struct NextMatchDashboardSnapshot: Identifiable, Hashable, Sendable {
-    public let id = "next-match-dashboard"
+public struct NextMatchDashboardSnapshot: Identifiable, Codable, Hashable, Sendable {
+    public let id: String
+    public let source: String
+    public let sourceDetail: String
+    public let savedAt: Date?
     public let ourAlliance: String
     public let firstShiftAlliance: String
     public let winProbabilityPercent: Int
@@ -299,8 +336,16 @@ public struct NextMatchDashboardSnapshot: Identifiable, Hashable, Sendable {
         blueTeamNumbers: [String],
         ourContribution: Double,
         opponentContribution: Double,
-        columns: [NextMatchTeamShiftColumn]
+        columns: [NextMatchTeamShiftColumn],
+        id: String = "next-match-dashboard",
+        source: String = "fallback-demo",
+        sourceDetail: String = "Bundled fallback plan. Load a local next-match-dashboard.json snapshot for the current Admin V4 plan.",
+        savedAt: Date? = nil
     ) {
+        self.id = id
+        self.source = source
+        self.sourceDetail = sourceDetail
+        self.savedAt = savedAt
         self.ourAlliance = ourAlliance
         self.firstShiftAlliance = firstShiftAlliance
         self.winProbabilityPercent = winProbabilityPercent
@@ -312,6 +357,43 @@ public struct NextMatchDashboardSnapshot: Identifiable, Hashable, Sendable {
         self.ourContribution = ourContribution
         self.opponentContribution = opponentContribution
         self.columns = columns
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case source
+        case sourceDetail
+        case savedAt
+        case ourAlliance
+        case firstShiftAlliance
+        case winProbabilityPercent
+        case expectedMargin
+        case projectedRedScore
+        case projectedBlueScore
+        case redTeamNumbers
+        case blueTeamNumbers
+        case ourContribution
+        case opponentContribution
+        case columns
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? "next-match-dashboard"
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? "local-json"
+        sourceDetail = try container.decodeIfPresent(String.self, forKey: .sourceDetail) ?? "Loaded from a local PowerScout next-match-dashboard.json snapshot."
+        savedAt = try container.decodeIfPresent(Date.self, forKey: .savedAt)
+        ourAlliance = try container.decode(String.self, forKey: .ourAlliance)
+        firstShiftAlliance = try container.decode(String.self, forKey: .firstShiftAlliance)
+        winProbabilityPercent = try container.decode(Int.self, forKey: .winProbabilityPercent)
+        expectedMargin = try container.decode(Double.self, forKey: .expectedMargin)
+        projectedRedScore = try container.decode(Int.self, forKey: .projectedRedScore)
+        projectedBlueScore = try container.decode(Int.self, forKey: .projectedBlueScore)
+        redTeamNumbers = try container.decode([String].self, forKey: .redTeamNumbers)
+        blueTeamNumbers = try container.decode([String].self, forKey: .blueTeamNumbers)
+        ourContribution = try container.decode(Double.self, forKey: .ourContribution)
+        opponentContribution = try container.decode(Double.self, forKey: .opponentContribution)
+        columns = try container.decode([NextMatchTeamShiftColumn].self, forKey: .columns)
     }
 }
 
@@ -501,7 +583,9 @@ public enum PowerScoutKnowledgeBase {
             nextMatchColumn(team: "1323", alliance: "Blue", role: "Score plan", ownAction: "Score 78 Points", otherAction: "Stockpile Fuel"),
             nextMatchColumn(team: "4414", alliance: "Blue", role: "Score plan", ownAction: "Score 58 Points", otherAction: "Stockpile Fuel"),
             nextMatchColumn(team: "5940", alliance: "Blue", role: "Defend plan", ownAction: "Defend Team 254 + Team 1678", otherAction: "Defend Team 254 + Team 1678")
-        ]
+        ],
+        source: "fallback-demo",
+        sourceDetail: "Bundled fallback demo. Run Admin V4 or export a next-match-dashboard.json snapshot to replace this with the real next match."
     )
 
     public static let walletSnapshot = PowerCoinWalletSnapshot(

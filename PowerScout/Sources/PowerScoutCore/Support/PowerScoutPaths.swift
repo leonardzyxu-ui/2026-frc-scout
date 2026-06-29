@@ -38,6 +38,10 @@ public enum PowerScoutPaths {
         repoRoot.appendingPathComponent("output/powerscout/post-match-refresh/latest.json")
     }
 
+    public static func nextMatchDashboardSnapshotURL(repoRoot: URL) -> URL {
+        repoRoot.appendingPathComponent("output/powerscout/next-match-dashboard.json")
+    }
+
     public static func pptScreenshotURL(repoRoot: URL) -> URL {
         repoRoot.appendingPathComponent("output/playwright/scouting-ppt-background-analytics.png")
     }

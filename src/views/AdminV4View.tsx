@@ -227,6 +227,11 @@ import { isMatchScoutingV3, mapLegacyMatchScoutingToV3 } from '../utils/matchSco
 import { isMatchScoutingV4 } from '../utils/matchScoutingV4';
 import { formatStrategyWinConditionForAlliance } from '../utils/adminV4StrategyCopy';
 import {
+  buildStrategyPreviewSnapshotFromPlan,
+  clearStrategyPreviewSnapshot,
+  saveStrategyPreviewSnapshot
+} from '../utils/strategyPreviewSnapshot';
+import {
   backtestTimeAwareModels,
   buildAverageBlendLookup,
   buildAlliancePickRecommendations,
@@ -2066,6 +2071,35 @@ export default function AdminV4View() {
     () => adminV4StrategyMatchPlans.find(plan => plan.matchKey === selectedMatchKey) || null,
     [adminV4StrategyMatchPlans, selectedMatchKey]
   );
+  useEffect(() => {
+    const firstOwnTeamPlan = ownTeamNumber
+      ? adminV4StrategyMatchPlans.find(plan => [...plan.redTeams, ...plan.blueTeams].includes(ownTeamNumber))
+      : null;
+    const plan = selectedStrategyMatchPlan || firstOwnTeamPlan || adminV4StrategyMatchPlans[0] || null;
+    if (!plan) {
+      clearStrategyPreviewSnapshot();
+      return;
+    }
+    try {
+      saveStrategyPreviewSnapshot(buildStrategyPreviewSnapshotFromPlan(plan, {
+        eventKey,
+        ownTeamNumber,
+        ratings: activeMetricRatings,
+        defenseImpactLookup: adminV4DefenseImpactLookup,
+        deviationLookup: adminV4StrategyDeviationLookup
+      }));
+    } catch (error) {
+      console.warn('Failed to publish local strategy preview snapshot', error);
+    }
+  }, [
+    activeMetricRatings,
+    adminV4DefenseImpactLookup,
+    adminV4StrategyDeviationLookup,
+    adminV4StrategyMatchPlans,
+    eventKey,
+    ownTeamNumber,
+    selectedStrategyMatchPlan
+  ]);
   const modelFeaturesByTeam = useMemo(() => {
     const ppcByTeam = Object.fromEntries(teamAverages.map(row => [row.teamNumber, row]));
     const defenseMetricBuckets = new Map<string, MatchDefenseScoutingV1[]>();

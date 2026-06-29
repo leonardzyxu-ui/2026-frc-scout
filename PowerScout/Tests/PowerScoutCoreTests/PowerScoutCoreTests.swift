@@ -93,6 +93,8 @@ func relayDispatchCandidatesKeepCloudflareAsGlobalBackup() {
 func nextMatchDashboardMirrorsStrategyPreview() {
     let dashboard = PowerScoutKnowledgeBase.nextMatchDashboard
     #expect(PowerScoutKnowledgeBase.nextMatchDashboardMetricLabels == ["Our Win Prob", "Our Margin"])
+    #expect(dashboard.source == "fallback-demo")
+    #expect(dashboard.sourceDetail.localizedCaseInsensitiveContains("fallback demo") == true)
     #expect(dashboard.ourAlliance == "Blue")
     #expect(dashboard.firstShiftAlliance == "Red")
     #expect(dashboard.projectedRedScore == 94)
@@ -104,6 +106,99 @@ func nextMatchDashboardMirrorsStrategyPreview() {
 }
 
 @Test
+func powerScoutFallsBackWhenNextMatchDashboardSnapshotIsMissing() {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-next-match-missing-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = NextMatchDashboardStore(applicationSupportRoot: root)
+
+    let result = store.loadSnapshotOrFallback(repoRoot: repoRoot)
+
+    #expect(result.loadedFromLocalJSON == false)
+    #expect(result.snapshot.source == "fallback-demo")
+    #expect(result.message.localizedCaseInsensitiveContains("No local next-match dashboard JSON exists yet") == true)
+}
+
+@Test
+func powerScoutLoadsLocalNextMatchDashboardSnapshot() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-next-match-local-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = NextMatchDashboardStore(applicationSupportRoot: root)
+    let snapshot = NextMatchDashboardSnapshot(
+        ourAlliance: "Red",
+        firstShiftAlliance: "Blue",
+        winProbabilityPercent: 67,
+        expectedMargin: 18,
+        projectedRedScore: 142,
+        projectedBlueScore: 124,
+        redTeamNumbers: ["254", "971", "604"],
+        blueTeamNumbers: ["1678", "1323", "4414"],
+        ourContribution: 215,
+        opponentContribution: 197,
+        columns: [
+            NextMatchTeamShiftColumn(
+                teamNumber: "254",
+                alliance: "Red",
+                planLabel: "Score plan",
+                instructions: [
+                    NextMatchShiftInstruction(shift: 1, shiftAlliance: "Blue", state: "Other", instruction: "Stockpile Fuel"),
+                    NextMatchShiftInstruction(shift: 2, shiftAlliance: "Red", state: "Active", instruction: "Score 82 Points")
+                ]
+            )
+        ],
+        source: "admin-v4-local-plan",
+        sourceDetail: "Loaded from Admin V4 local strategy snapshot.",
+        savedAt: Date(timeIntervalSince1970: 2_000)
+    )
+
+    try store.saveSnapshot(snapshot)
+    let result = try store.loadSnapshot(repoRoot: repoRoot)
+
+    #expect(result.loadedFromLocalJSON)
+    #expect(result.loadedURL == store.applicationSupportURL)
+    #expect(result.snapshot.source == "admin-v4-local-plan")
+    #expect(result.snapshot.projectedRedScore == 142)
+    #expect(result.snapshot.columns.first?.instructions.last?.instruction == "Score 82 Points")
+}
+
+@Test
+func powerScoutSkipsCorruptApplicationSupportSnapshotAndLoadsRepoSnapshot() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-next-match-corrupt-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = NextMatchDashboardStore(applicationSupportRoot: root)
+    let repoURL = PowerScoutPaths.nextMatchDashboardSnapshotURL(repoRoot: repoRoot)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: repoURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("{ definitely-not-json".utf8).write(to: store.applicationSupportURL)
+    try encodeDashboardSnapshot(makeNextMatchDashboardSnapshot(projectedRedScore: 166, savedAt: Date(timeIntervalSince1970: 3_000))).write(to: repoURL)
+
+    let result = try store.loadSnapshot(repoRoot: repoRoot)
+
+    #expect(result.loadedURL == repoURL)
+    #expect(result.snapshot.projectedRedScore == 166)
+    #expect(result.message.localizedCaseInsensitiveContains("Ignored unreadable") == true)
+}
+
+@Test
+func powerScoutLoadsFreshestValidNextMatchDashboardSnapshot() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-next-match-freshest-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = NextMatchDashboardStore(applicationSupportRoot: root)
+    let repoURL = PowerScoutPaths.nextMatchDashboardSnapshotURL(repoRoot: repoRoot)
+    try store.saveSnapshot(makeNextMatchDashboardSnapshot(projectedRedScore: 111, savedAt: Date(timeIntervalSince1970: 1_000)))
+    try FileManager.default.createDirectory(at: repoURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try encodeDashboardSnapshot(makeNextMatchDashboardSnapshot(projectedRedScore: 188, savedAt: Date(timeIntervalSince1970: 4_000))).write(to: repoURL)
+
+    let result = try store.loadSnapshot(repoRoot: repoRoot)
+
+    #expect(result.loadedURL == repoURL)
+    #expect(result.snapshot.projectedRedScore == 188)
+}
+
+@Test
 func historyRewardsSurfaceMirrorsPowerCoinsAndEvidence() {
     #expect(PowerScoutSection.allCases.contains(.historyRewards))
     #expect(PowerScoutKnowledgeBase.startingPowerCoinBalance == 1000)
@@ -112,6 +207,45 @@ func historyRewardsSurfaceMirrorsPowerCoinsAndEvidence() {
     #expect(PowerScoutKnowledgeBase.walletSnapshot.openStake == 120)
     #expect(PowerScoutKnowledgeBase.powerCoinHistoryRows.contains { $0.matchKey == "QM1" && $0.status == "open" })
     #expect(PowerScoutKnowledgeBase.evidenceLedgerSummaries.contains { $0.detail.localizedCaseInsensitiveContains("Scout Number first") })
+}
+
+private func makeNextMatchDashboardSnapshot(
+    projectedRedScore: Int = 142,
+    savedAt: Date = Date(timeIntervalSince1970: 2_000)
+) -> NextMatchDashboardSnapshot {
+    NextMatchDashboardSnapshot(
+        ourAlliance: "Red",
+        firstShiftAlliance: "Blue",
+        winProbabilityPercent: 67,
+        expectedMargin: 18,
+        projectedRedScore: projectedRedScore,
+        projectedBlueScore: 124,
+        redTeamNumbers: ["254", "971", "604"],
+        blueTeamNumbers: ["1678", "1323", "4414"],
+        ourContribution: 215,
+        opponentContribution: 197,
+        columns: [
+            NextMatchTeamShiftColumn(
+                teamNumber: "254",
+                alliance: "Red",
+                planLabel: "Score plan",
+                instructions: [
+                    NextMatchShiftInstruction(shift: 1, shiftAlliance: "Blue", state: "Other", instruction: "Stockpile Fuel"),
+                    NextMatchShiftInstruction(shift: 2, shiftAlliance: "Red", state: "Active", instruction: "Score 82 Points")
+                ]
+            )
+        ],
+        source: "admin-v4-local-plan",
+        sourceDetail: "Loaded from Admin V4 local strategy snapshot.",
+        savedAt: savedAt
+    )
+}
+
+private func encodeDashboardSnapshot(_ snapshot: NextMatchDashboardSnapshot) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    return try encoder.encode(snapshot)
 }
 
 @Test

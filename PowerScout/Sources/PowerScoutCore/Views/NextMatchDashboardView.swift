@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct NextMatchDashboardView: View {
-    let snapshot: NextMatchDashboardSnapshot
+    let loadResult: NextMatchDashboardLoadResult
+    let onRefresh: () -> Void
     @State private var showsShifts = true
     private let shiftInstructionCardHeight: CGFloat = 108
+    private var snapshot: NextMatchDashboardSnapshot { loadResult.snapshot }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -15,12 +17,19 @@ struct NextMatchDashboardView: View {
                         .foregroundStyle(.cyan)
                     Text("Next match dashboard")
                         .font(.system(size: 30, weight: .black))
-                    Text("Guessed from schedule and model state. Scouts correct reality in match scout; the driver team gets the current best plan.")
+                    Text(loadResult.loadedFromLocalJSON ? "Loaded from local PowerScout strategy JSON. Scouts still correct reality in match scout; the driver team gets the current best plan." : "Showing bundled fallback data until a local next-match-dashboard.json is available.")
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
+                Button(action: onRefresh) {
+                    Label("Reload Local JSON", systemImage: "arrow.clockwise")
+                        .font(.callout.weight(.bold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .clipShape(Capsule())
                 Button {
                     withAnimation(.snappy(duration: 0.22)) {
                         showsShifts.toggle()
@@ -40,6 +49,7 @@ struct NextMatchDashboardView: View {
             }
 
             projectedScoreFaceoff
+            sourceNotice
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 allianceReadout(
@@ -47,14 +57,14 @@ struct NextMatchDashboardView: View {
                     active: snapshot.ourAlliance,
                     left: "Red",
                     right: "Blue",
-                    detail: "Inferred from the next scheduled match."
+                    detail: loadResult.loadedFromLocalJSON ? snapshot.sourceDetail : "Fallback demo. Load local JSON for the actual next match."
                 )
                 allianceReadout(
                     title: "First Alliance Shift",
                     active: snapshot.firstShiftAlliance,
                     left: "Red first",
                     right: "Blue first",
-                    detail: "Guessed from autonomous edge; scouts can correct after the match starts."
+                    detail: loadResult.loadedFromLocalJSON ? "Projected by the loaded local strategy snapshot." : "Fallback fixture uses Red as the first shift."
                 )
             }
 
@@ -99,6 +109,29 @@ struct NextMatchDashboardView: View {
         )
     }
 
+    private var sourceNotice: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: loadResult.loadedFromLocalJSON ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .font(.title3.weight(.bold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(loadResult.loadedFromLocalJSON ? "Local strategy snapshot" : "Fallback demo data")
+                    .font(.callout.weight(.black))
+                Text(loadResult.loadedFromLocalJSON ? loadResult.message : "\(snapshot.sourceDetail) \(loadResult.message)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+        }
+        .foregroundStyle(loadResult.loadedFromLocalJSON ? .green : .yellow)
+        .padding(14)
+        .background((loadResult.loadedFromLocalJSON ? Color.green : Color.yellow).opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke((loadResult.loadedFromLocalJSON ? Color.green : Color.yellow).opacity(0.28), lineWidth: 1)
+        )
+    }
+
     private func metricTile(_ title: String, _ value: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
@@ -106,7 +139,8 @@ struct NextMatchDashboardView: View {
                 .tracking(2)
                 .foregroundStyle(.secondary)
             Text(value)
-                .font(.system(size: 34, weight: .black))
+                .font(.system(size: 34, weight: .heavy, design: .default))
+                .monospacedDigit()
                 .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,6 +167,7 @@ struct NextMatchDashboardView: View {
                             .foregroundStyle(.red.opacity(0.72))
                         Text("\(snapshot.projectedRedScore)")
                             .font(scoreFont)
+                            .monospacedDigit()
                             .foregroundStyle(.red)
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -149,6 +184,7 @@ struct NextMatchDashboardView: View {
                             .foregroundStyle(.cyan.opacity(0.72))
                         Text("\(snapshot.projectedBlueScore)")
                             .font(scoreFont)
+                            .monospacedDigit()
                             .foregroundStyle(.cyan)
                             .minimumScaleFactor(0.5)
                             .lineLimit(1)
@@ -181,7 +217,7 @@ struct NextMatchDashboardView: View {
     }
 
     private var scoreFont: Font {
-        .system(size: 90, weight: .black)
+        .system(size: 90, weight: .heavy, design: .default)
     }
 
     private func teamPill(_ teamNumber: String) -> some View {

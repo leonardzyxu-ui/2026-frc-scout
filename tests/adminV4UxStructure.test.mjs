@@ -886,8 +886,9 @@ test('Admin V4 strategy plan exposes the shift role simulation engine', () => {
   assert.match(strategyPreviewSource, /text-sky-300/);
   assert.match(strategyPreviewSource, /Explore Shifts/);
   assert.match(strategyPreviewSource, /AllianceSplitReadout/);
-  assert.match(strategyPreviewSource, /Guessed/);
-  assert.match(strategyPreviewSource, /Inferred from the next scheduled match/);
+  assert.match(strategyPreviewSource, /loadStrategyPreviewSnapshot/);
+  assert.match(strategyPreviewSource, /Admin V4 local plan/);
+  assert.match(strategyPreviewSource, /Demo fallback/);
   assert.doesNotMatch(strategyPreviewSource, /setOurAlliance/);
   assert.doesNotMatch(strategyPreviewSource, /setFirstShiftAlliance/);
   assert.match(strategyPreviewSource, /Per-team shift plan/);

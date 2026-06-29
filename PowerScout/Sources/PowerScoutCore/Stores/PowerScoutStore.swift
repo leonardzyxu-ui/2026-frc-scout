@@ -9,11 +9,14 @@ final class PowerScoutStore {
     var commandResult: CommandResult?
     var runningCommandTitle: String?
     var lastOpenedURL: URL?
+    var nextMatchDashboardLoadResult: NextMatchDashboardLoadResult
 
     private let runner = CommandRunner()
+    private let nextMatchDashboardStore = NextMatchDashboardStore()
 
     init(repositoryRoot: URL = PowerScoutPaths.inferredRepositoryRoot()) {
         self.repositoryRoot = repositoryRoot
+        self.nextMatchDashboardLoadResult = nextMatchDashboardStore.loadSnapshotOrFallback(repoRoot: repositoryRoot)
     }
 
     var isRunningCommand: Bool {
@@ -27,7 +30,12 @@ final class PowerScoutStore {
         Task {
             let result = await runner.run(command, in: repositoryRoot)
             commandResult = result
+            nextMatchDashboardLoadResult = nextMatchDashboardStore.loadSnapshotOrFallback(repoRoot: repositoryRoot)
             runningCommandTitle = nil
         }
+    }
+
+    func refreshNextMatchDashboardSnapshot() {
+        nextMatchDashboardLoadResult = nextMatchDashboardStore.loadSnapshotOrFallback(repoRoot: repositoryRoot)
     }
 }

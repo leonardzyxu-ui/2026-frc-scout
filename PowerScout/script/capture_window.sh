@@ -10,7 +10,7 @@ import CoreGraphics
 import Foundation
 
 let appName = CommandLine.arguments.dropFirst().first ?? "PowerScout"
-let options = CGWindowListOption(arrayLiteral: [.optionOnScreenOnly, .excludeDesktopElements])
+let options = CGWindowListOption(arrayLiteral: [.excludeDesktopElements])
 
 guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
   fputs("Unable to read visible window list.\n", stderr)
@@ -39,7 +39,7 @@ let candidates = windows.compactMap { info -> (id: UInt32, area: Double)? in
 .sorted { $0.area > $1.area }
 
 guard let windowID = candidates.first?.id else {
-  fputs("No visible \(appName) window found. Open the app window before capturing.\n", stderr)
+  fputs("No capturable \(appName) window found. Open the app window before capturing.\n", stderr)
   exit(1)
 }
 

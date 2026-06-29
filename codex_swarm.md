@@ -41,6 +41,18 @@ Find concrete code, math, or logic bugs in the PowerScout/scouting web app, Mac 
 | --- | --- | --- | --- |
 | Turing-MathModel-Retry-Leibniz | ENDQA-MATH-001R | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-175538-ENDQA-MATH-001R-Turing-MathModel-Retry-Leibniz.md | completed; found medium bug |
 | Lovelace-MacParity-Retry-Plato | ENDQA-MAC-001R | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-175552-ENDQA-MAC-001R-Lovelace-MacParity-Retry-Plato.md | completed; found medium bug |
+| Erdos-Relay-Setup-Auditor | RELAY-SETUP-AUDIT-002 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202038-RELAY-SETUP-AUDIT-002-Erdos-Relay-Setup-Auditor.md | completed |
+| Peirce-Queue-Steward | QUEUE-STEWARD-003 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202038-QUEUE-STEWARD-003-Peirce-Queue-Steward.md | completed |
+| Boyle-Mac-Dashboard-QA-Retry | MAC-DASH-QA-002R | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202038-MAC-DASH-QA-002R-Boyle-Mac-Dashboard-QA-Retry.md | completed |
+| Archimedes-Completion-Auditor | GOAL-COMPLETION-AUDIT-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202039-GOAL-COMPLETION-AUDIT-001-Archimedes-Completion-Auditor.md | errored |
+| Euler-Mini-Math-Audit | MINI-AUDIT-MATH-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202138-MINI-AUDIT-MATH-001-Euler-Mini-Math-Audit.md | completed |
+| Carson-Mini-SFT-Reports-Audit | MINI-AUDIT-SFT-REPORTS-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202139-MINI-AUDIT-SFT-REPORTS-001-Carson-Mini-SFT-Reports-Audit.md | completed |
+| Jason-Mini-UI-Audit | MINI-AUDIT-UI-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-202306-MINI-AUDIT-UI-001-Jason-Mini-UI-Audit.md | completed |
+| Ada | WEB-STRATEGY-SOURCE-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-211216-WEB-STRATEGY-SOURCE-001-Ada.md | completed |
+| Noether | MAC-STRATEGY-SOURCE-001 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-211216-MAC-STRATEGY-SOURCE-001-Noether.md | completed |
+| Epicurus | WEB-SNAPSHOT-QA-004 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-212455-WEB-SNAPSHOT-QA-004-Epicurus.md | completed |
+| Ptolemy | MAC-SNAPSHOT-QA-004 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-212455-MAC-SNAPSHOT-QA-004-Ptolemy.md | completed |
+| Hegel | STRATEGY-LOGIC-QA-004 | /Users/leoxu/Library/CloudStorage/OneDrive-YKPaoSchool上海民办包玉刚实验学校/FRC2025-26/Scouting/2026-frc-scout/codex_agent_reports/20260629-212456-STRATEGY-LOGIC-QA-004-Hegel.md | completed |
 
 ## Subagent Lifecycle
 
@@ -89,6 +101,21 @@ Find concrete code, math, or logic bugs in the PowerScout/scouting web app, Mac 
 | Boyle / Mac-Dashboard-QA-Retry | MAC-DASH-QA-002R | read-only verifier | gpt-5.3-codex-spark / high | launch | read-only; no screenshots; no file changes | launched | Previous Mac QA agent hit capacity; the task still matters and can run on Spark high safely. | 2026-06-29T12:02:44+00:00 |
 | Boyle / Mac-Dashboard-QA-Retry | MAC-DASH-QA-002R | read-only verifier | gpt-5.3-codex-spark / high | close | read-only; no screenshots; no file changes | completed; found dead dependency cleanup |  | 2026-06-29T12:06:53+00:00 |
 | Cloudflare-Worker-Finder / Linnaeus | CF-WORKER-FIND-001 | read-only explorer | gpt-5.3-codex-spark / medium | close | read-only; no file changes | closed after local search answered task |  | 2026-06-29T12:08:02+00:00 |
+| Archimedes / Completion-Auditor | GOAL-COMPLETION-AUDIT-001 | read-only verifier | gpt-5.3-codex-spark / high | launch | read-only; no file changes | launched | The goal is broad and completion should be independently checked rather than inferred from the active queue. | 2026-06-29T12:13:44+00:00 |
+| Archimedes / Completion-Auditor | GOAL-COMPLETION-AUDIT-001 | read-only verifier | gpt-5.3-codex-spark / high | close | read-only; no file changes | errored; remote compact ran out of context |  | 2026-06-29T12:17:36+00:00 |
+| Euler / Mini Math Audit | MINI-AUDIT-MATH-001 | read-only verifier | gpt-5.3-codex-spark / medium | launch | read-only; no file changes | launched | Narrow audit avoids broad-context failure while independently checking high-risk math requirements. | 2026-06-29T12:18:38+00:00 |
+| Jason / Mini UI Audit | MINI-AUDIT-UI-001 | read-only verifier | gpt-5.3-codex-spark / medium | launch | read-only; no file changes | launched | UI surface proof is separable from model proof and benefits from independent inspection. | 2026-06-29T12:18:38+00:00 |
+| Carson / Mini SFT Reports Audit | MINI-AUDIT-SFT-REPORTS-001 | read-only verifier | gpt-5.3-codex-spark / medium | launch | read-only; no file changes | launched | Documentation/report evidence is separate from code and can be independently audited. | 2026-06-29T12:18:38+00:00 |
+| Euler / Mini Math Audit | MINI-AUDIT-MATH-001 | read-only verifier | gpt-5.3-codex-spark / medium | close | read-only; no file changes | completed; math/model requirements proven with minor extra edge coverage note |  | 2026-06-29T12:21:37+00:00 |
+| Carson / Mini SFT Reports Audit | MINI-AUDIT-SFT-REPORTS-001 | read-only verifier | gpt-5.3-codex-spark / medium | close | read-only; no file changes | completed; SFT/report evidence proven, noted missing self-report recording now being fixed |  | 2026-06-29T12:21:37+00:00 |
+| Jason / Mini UI Audit | MINI-AUDIT-UI-001 | read-only verifier | gpt-5.3-codex-spark / medium | close | read-only; no file changes | completed; UI surfaces proven, live-data gaps found |  | 2026-06-29T12:23:06+00:00 |
+| Ada / Web Strategy Source Scout | WEB-STRATEGY-SOURCE-001 | Explorer | gpt-5.3-codex-spark / medium | launch | read-only | running | Find exact React integration points while the conductor works on non-overlapping Mac/source inspection. | 2026-06-29T12:31:16+00:00 |
+| Noether / PowerScout Strategy Source Scout | MAC-STRATEGY-SOURCE-001 | Explorer | gpt-5.3-codex-spark / medium | launch | read-only | running | Map PowerScout snapshot sources independently so the conductor can avoid guessing in Swift files. | 2026-06-29T12:32:04+00:00 |
+| Ada / Web Strategy Source Scout | WEB-STRATEGY-SOURCE-001 | Explorer | gpt-5.3-codex-spark / medium | close | read-only | completed |  | 2026-06-29T12:39:28+00:00 |
+| Noether / PowerScout Strategy Source Scout | MAC-STRATEGY-SOURCE-001 | Explorer | gpt-5.3-codex-spark / medium | close | read-only | completed |  | 2026-06-29T12:39:49+00:00 |
+| Epicurus | WEB-SNAPSHOT-QA-004 | Verifier / web snapshot QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Small fast verifier is enough for focused web snapshot checks. | 2026-06-29T13:11:31+00:00 |
+| Ptolemy | MAC-SNAPSHOT-QA-004 | Verifier / PowerScout snapshot QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Small fast verifier is enough for bounded Swift/local JSON QA. | 2026-06-29T13:11:31+00:00 |
+| Hegel | STRATEGY-LOGIC-QA-004 | Verifier / strategy logic QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Focused logic audit benefits from independent eyes but not a high-tier model. | 2026-06-29T13:11:32+00:00 |
 
 ## Integration Notes
 
