@@ -1366,6 +1366,7 @@ test('scouting relay health checks require the expected service identity', () =>
 
 test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
   const tbaErrorSource = readFileSync('src/utils/tbaErrors.ts', 'utf8');
+  const scoutArchiveSource = readFileSync('src/utils/scoutArchive.ts', 'utf8');
   const legacySidebarLabel = 'Admin V2 ' + 'sidebar';
   const legacyMissingMessage = `TBA API Key is missing. Save a TBA key in the ${legacySidebarLabel}.`;
   const tbaConsumerSource = [
@@ -1385,4 +1386,7 @@ test('TBA key messaging routes missing-key copy to Admin V4 Settings', () => {
   assert.equal(tbaConsumerSource.includes(legacySidebarLabel), false);
   assert.match(tbaErrorSource, /Open Admin V4 Settings > Team And Local Credentials > Clear TBA/);
   assert.match(tbaErrorSource, /upload a fresh key JSON/);
+  assert.match(scoutArchiveSource, /version: 7/);
+  assert.match(scoutArchiveSource, /contentHash: stableContentHash/);
+  assert.match(scoutArchiveSource, /maybeBundle\.version === 7/);
 });

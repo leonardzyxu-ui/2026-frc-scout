@@ -60,7 +60,7 @@ export type ScoutArchiveRecord = MatchArchiveRecord | MatchV4ArchiveRecord | Mat
 
 export interface ScoutArchiveBundle {
   format: 'rebuilt-2026-scout-archive';
-  version: 1 | 2 | 3 | 4 | 5 | 6;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   username: string;
   exportedAt: number;
   deviceId: string;
@@ -94,6 +94,7 @@ export interface ScoutArchiveBundle {
       editedByName: string;
       editedByScoutNumber?: number | null;
       editedBySurface?: 'scout' | 'admin';
+      contentHash?: string;
     }>;
   }>;
   records: ScoutArchiveRecord[];
@@ -149,6 +150,16 @@ const stableStringify = (value: unknown): string => {
   }
 
   return JSON.stringify(value) ?? 'undefined';
+};
+
+const stableContentHash = (value: unknown) => {
+  const text = stableStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 };
 
 const isSubstantiveDuplicate = (left: ScoutArchiveRecord, right: ScoutArchiveRecord) =>
@@ -733,7 +744,8 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
       syncStatus: record.syncStatus,
       editedByName: record.payload.versionMetadata?.editedByName || record.username,
       editedByScoutNumber: record.payload.versionMetadata?.editedByScoutNumber ?? record.payload.scoutNumber ?? null,
-      editedBySurface: record.payload.versionMetadata?.editedBySurface || 'scout'
+      editedBySurface: record.payload.versionMetadata?.editedBySurface || 'scout',
+      contentHash: stableContentHash(record.payload)
     });
     chains[logicalId].versions.sort((left, right) => left.version - right.version || left.updatedAt - right.updatedAt);
     return chains;
@@ -768,7 +780,7 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
 
   return {
     format: 'rebuilt-2026-scout-archive',
-    version: 6,
+    version: 7,
     username: normalizedUsername,
     exportedAt,
     deviceId: normalizedRecords[0]?.deviceId || '',
@@ -793,7 +805,7 @@ export const isScoutArchiveBundle = (value: unknown): value is ScoutArchiveBundl
   const maybeBundle = value as Partial<ScoutArchiveBundle>;
   return (
     maybeBundle.format === 'rebuilt-2026-scout-archive' &&
-    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5 || maybeBundle.version === 6) &&
+    (maybeBundle.version === 1 || maybeBundle.version === 2 || maybeBundle.version === 3 || maybeBundle.version === 4 || maybeBundle.version === 5 || maybeBundle.version === 6 || maybeBundle.version === 7) &&
     Array.isArray(maybeBundle.records)
   );
 };

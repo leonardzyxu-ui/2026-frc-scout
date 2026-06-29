@@ -127,6 +127,7 @@
 - [x] Add head-scout disqualification support for any scout's betting capability on a specific match.
 - [x] Add a native PowerScout History / Rewards read-only section that mirrors PowerCoin wallet semantics, recent bet state, evidence readouts, and web handoff buttons.
 - [ ] Treat PowerScout Mac app as the first-priority command center for every major scouting feature; mirror website-only changes into PowerScout before considering a slice complete.
+- [x] Add a local-first sync contract utility, docs, tests, and scout-archive content hashes for version-preserving conflict decisions.
 - [ ] Design and implement a local-first scouting database sync contract across PowerScout local storage, Firebase, and scout browser caches, with conflict/version preservation.
 - [ ] Add post-match real-time refresh orchestration: pull newest TBA, FIRST, Statbotics, Firebase/scout data after every match, rerun models, and surface driver-team-ready inferences immediately.
 - [ ] Add PowerScout UI for the real-time refresh pipeline, data source freshness, model rerun status, and next-match inferences.
