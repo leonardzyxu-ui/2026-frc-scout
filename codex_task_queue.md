@@ -54,19 +54,19 @@
 - [x] Run the tuning workflow until all selected variables converge or stabilize.
 - [x] Verify the tuning workflow, artifacts, and regression coverage.
 - [x] Leave GitHub sync ready, with push blocked unless Leo provides fresh direct secret-code authorization.
-- [ ] Decode Leo's scouting redesign prompt into an implementation spec and morning assumptions list.
-- [ ] Read Leo's attached statistical analysis report and translate its standard-deviation math into the scouting model design.
-- [ ] Research DPR math and latest REBUILT ranking-point rules from reliable sources.
+- [x] Decode Leo's scouting redesign prompt into an implementation spec and morning assumptions list.
+- [x] Read Leo's attached statistical analysis report and translate its standard-deviation math into the scouting model design.
+- [x] Research DPR math and latest REBUILT ranking-point rules from reliable sources.
 - [x] Rename/reframe metrics around Contribution, Floor, Ceiling, Floor Non Zero, EPA, OPR, DPR, Defense, Contribution Deviation, and Defense Deviation.
 - [x] Design and implement shift-based match scout data structures for offense, defense, stockpile, first-shift metadata, and reversible input.
 - [x] Implement post-match reconciliation logic for official offense totals and multi-defender percentage splits.
 - [x] Implement alliance role-combination strategy simulation with defense saturation, variance, win probability, and ranking-point strategy incentives.
 - [x] Surface the new metrics/strategy outputs in Admin V4 and PowerScout where feasible.
 - [x] Add browser-cache export support for detailed JSON with export time and scout metadata.
-- [ ] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
+- [x] Run synthetic full-event simulation and QA/failsafe tests against the redesigned system.
 - [x] Deliver `shift-architecture-review-001`: inspect web/Admin V4, modeling, SyntheticFullSystemTest, and PowerScout and produce a concise phased architecture report with exact file paths, migration plan, and MVP-vs-later slices.
 - [x] Maintain the 15-minute overnight watchdog/recovery loop so context loss does not stop the June 29 work.
 - [x] Add the token-budget rollover rule to current chat memory and the current recovery goal file.
 - [blocked] Add the token-budget rollover rule to `/Users/leoxu/.codex/AGENTS.md`; blocked until Leo provides a fresh direct secret-code reply because that file is protected by the local safety rules.
-- [ ] Keep local Git checkpoint commits at meaningful completed slices, without pushing/deploying during overnight constraints.
-- [ ] Prepare the June 29 8:30 AM business-style morning report with completed work, assumptions, blockers, and next actions.
+- [x] Keep local Git checkpoint commits at meaningful completed slices, without pushing/deploying during overnight constraints.
+- [x] Prepare the June 29 8:30 AM business-style morning report with completed work, assumptions, blockers, and next actions.
