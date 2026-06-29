@@ -13,6 +13,7 @@ struct DashboardView: View {
             )
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
+                statusCard("Mac Command", "PowerScout first", "Local database, official refreshes, and model reruns belong here before the website.", .cyan)
                 statusCard("Official Site", "Firebase live", "Admin V4 and legacy Admin V2 graph are the official surfaces.", .green)
                 statusCard("Relay Strategy", "3-lane backup", "Use The Button, DirectChat for mainland backup, and Cloudflare for VPN/global fallback.", .orange)
                 statusCard("Prediction Evidence", "Forecast Ledger", "Snapshot exports preserve what the model knew before matches.", .blue)
@@ -24,6 +25,9 @@ struct DashboardView: View {
                     Text("Do This First")
                         .font(.title3.weight(.bold))
                     HStack(spacing: 12) {
+                        PSActionButton(title: "Post-Match Refresh", systemImage: "bolt.horizontal.circle") {
+                            store.run(PowerScoutKnowledgeBase.postMatchRefreshCommand)
+                        }
                         PSActionButton(title: "Open Admin V4", systemImage: "rectangle.3.group") {
                             openURL(PowerScoutPaths.adminV4URL)
                         }

@@ -28,6 +28,17 @@ npm run check:competition
 
 The relays are for fast coordination, not the source of truth for match data.
 
+## Relay Pager Mode
+
+Admin-to-scout relay messages should behave like a pager, not a group chat.
+
+- Admin can ping one scout by locked scout number.
+- Admin can broadcast one message to all scouts.
+- Scouts receive an immediate notification on their device.
+- Scouts do not reply into a shared chat thread, and "send to all" must not create a group conversation.
+- Message routing should use the locked scout number as the identifier and scout name only as display text.
+- The shared web contract is `src/utils/scoutRelayPager.ts`; authenticated transport still belongs in the local Mac/relay layer so relay credentials do not enter Firebase-hosted client code.
+
 ## The Button Primary Relay
 
 Local project:

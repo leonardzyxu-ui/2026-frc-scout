@@ -20,6 +20,18 @@ export interface ScoutArchiveSyncResult {
 const toMatchPayloadV3 = (payload: MatchScoutingV2 | MatchScoutingV3) =>
   isMatchScoutingV3(payload) ? payload : mapLegacyMatchScoutingToV3(payload);
 
+const markMatchV4PayloadSubmitted = (payload: MatchScoutingV4): MatchScoutingV4 => ({
+  ...payload,
+  versionMetadata: payload.versionMetadata
+    ? {
+        ...payload.versionMetadata,
+        currentVersionSubmitted: true,
+        submissionNumber: 1,
+        submittedAt: payload.versionMetadata.submittedAt || Date.now()
+      }
+    : payload.versionMetadata
+});
+
 export const syncScoutArchiveRecordToFirebase = async (
   record: ScoutArchiveRecord
 ): Promise<ScoutArchiveSyncResult> => {
@@ -33,7 +45,7 @@ export const syncScoutArchiveRecordToFirebase = async (
     const mode = record.syncMode || 'strict';
     const writeResult =
       record.recordType === 'matchV4'
-        ? await writeMatchScoutingV4Record(record.payload as MatchScoutingV4, { mode })
+        ? await writeMatchScoutingV4Record(markMatchV4PayloadSubmitted(record.payload as MatchScoutingV4), { mode })
         : record.recordType === 'match'
           ? await writeMatchScoutingV3Record(toMatchPayloadV3(record.payload as MatchScoutingV2 | MatchScoutingV3), { mode })
           : record.recordType === 'matchDefense'

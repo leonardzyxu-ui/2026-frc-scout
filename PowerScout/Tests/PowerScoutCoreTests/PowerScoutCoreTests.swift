@@ -41,3 +41,32 @@ func strategySafetiesPreventStaticRoleAndOverDefenseLogic() {
     #expect(safetyText.localizedCaseInsensitiveContains("more points than the opponent has available"))
     #expect(safetyText.localizedCaseInsensitiveContains("normalize defender share"))
 }
+
+@Test
+func liveOpsMakesPowerScoutTheLocalCommandCenter() {
+    #expect(PowerScoutSection.allCases.contains(.liveOps))
+    #expect(PowerScoutKnowledgeBase.liveOpsSteps.first?.title == "Scout evidence lands locally first")
+    #expect(PowerScoutKnowledgeBase.liveOpsSteps.contains { $0.detail.localizedCaseInsensitiveContains("driver") })
+    #expect(PowerScoutKnowledgeBase.postMatchRefreshCommand.title == "Post-Match Refresh")
+    #expect(PowerScoutKnowledgeBase.postMatchRefreshCommand.usesProxy)
+}
+
+@Test
+func historyRewardsSurfaceMirrorsPowerCoinsAndEvidence() {
+    #expect(PowerScoutSection.allCases.contains(.historyRewards))
+    #expect(PowerScoutKnowledgeBase.startingPowerCoinBalance == 1000)
+    #expect(PowerScoutKnowledgeBase.walletSnapshot.scoutNumber == 7)
+    #expect(PowerScoutKnowledgeBase.walletSnapshot.balance == 880)
+    #expect(PowerScoutKnowledgeBase.walletSnapshot.openStake == 120)
+    #expect(PowerScoutKnowledgeBase.powerCoinHistoryRows.contains { $0.matchKey == "QM1" && $0.status == "open" })
+    #expect(PowerScoutKnowledgeBase.evidenceLedgerSummaries.contains { $0.detail.localizedCaseInsensitiveContains("Scout Number first") })
+}
+
+@Test
+func practiceMatchDataUsesFirstAndLocalScorekeeperFallback() {
+    let rules = PowerScoutKnowledgeBase.liveOpsSourceRules
+    #expect(rules.contains { $0.source == "FIRST Events API" && $0.givesUs.localizedCaseInsensitiveContains("practice") })
+    #expect(rules.contains { $0.source == "The Blue Alliance" && $0.limitation.localizedCaseInsensitiveContains("No documented practice") })
+    #expect(rules.contains { $0.source == "Statbotics" && $0.limitation.localizedCaseInsensitiveContains("No documented practice") })
+    #expect(rules.contains { $0.source == "Practice Scorekeeper" && $0.role == .localFallback })
+}

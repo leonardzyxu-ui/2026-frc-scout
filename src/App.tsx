@@ -1,6 +1,5 @@
-import { BrowserRouter, HashRouter, NavLink, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { ClipboardList, History, Home, Search, ShieldCheck, Wrench } from 'lucide-react';
 import { auth, hasFirebaseServices } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ScoutProvider } from './context/ScoutContext';
@@ -28,54 +27,9 @@ function RouteLoading({ label = 'Loading workflow...' }: { label?: string }) {
 }
 
 function ScoutShell({ isLocalMode }: { isLocalMode: boolean }) {
-  const scoutRoutes = [
-    { to: '/', label: 'Lanes', icon: <Home className="h-4 w-4" />, end: true },
-    { to: '/pre', label: 'Pre Scout', icon: <Search className="h-4 w-4" /> },
-    { to: '/pit', label: 'Pit Scout', icon: <Wrench className="h-4 w-4" /> },
-    { to: '/scout', label: 'Match Scout', icon: <ClipboardList className="h-4 w-4" /> },
-    { to: '/defense', label: 'Defense Scout', icon: <ShieldCheck className="h-4 w-4" /> },
-    { to: '/history', label: 'My Evidence', icon: <History className="h-4 w-4" /> }
-  ];
-
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-white font-sans">
-      <header className="shrink-0 overflow-hidden border-b border-slate-800 bg-slate-950/95 px-4 py-3 shadow-xl shadow-slate-950/30 md:px-6">
-        <div className="mx-auto flex min-w-0 max-w-7xl flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-300">PowerScout</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="min-w-0 text-xl font-black tracking-tight text-white md:text-2xl">Scouting Lanes</h1>
-              {isLocalMode && (
-                <span className="admin-g2-sm border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[10px] font-black uppercase text-amber-100">
-                  Local
-                </span>
-              )}
-            </div>
-          </div>
-
-          <nav className="admin-scrollbar-hidden -mx-1 flex min-w-0 max-w-full gap-2 overflow-x-auto px-1 pb-1 xl:mx-0 xl:pb-0" aria-label="Scout workflow">
-            {scoutRoutes.map(route => (
-              <NavLink
-                key={route.to}
-                to={route.to}
-                end={route.end}
-                className={({ isActive }) =>
-                  `admin-g2-sm inline-flex shrink-0 items-center gap-2 border px-3 py-2 text-sm font-black transition-colors ${
-                    isActive
-                      ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-50'
-                      : 'border-slate-800 bg-slate-900/75 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-                  }`
-                }
-              >
-                {route.icon}
-                {route.label}
-              </NavLink>
-            ))}
-          </nav>
-        </div>
-      </header>
-
-      <main className="relative min-h-0 flex-1 overflow-hidden">
+    <div className="min-h-screen bg-slate-950 text-white font-sans">
+      <main className="relative min-h-screen overflow-hidden">
         <Suspense fallback={<RouteLoading />}>
           <Routes>
             <Route path="/" element={<SetupView />} />

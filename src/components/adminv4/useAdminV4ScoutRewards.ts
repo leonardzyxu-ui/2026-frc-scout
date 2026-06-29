@@ -8,6 +8,7 @@ import {
   loadLatestScoutAssignmentPlan,
   saveScoutAssignmentPlan,
   settlePowerCoinBetsForMatch,
+  upsertPowerCoinBet,
   upsertPowerCoinLedgerEntry,
   type AdminV4AuditLogEntry
 } from '../../utils/adminV4LocalStore';
@@ -24,10 +25,9 @@ import type {
 } from './AdminV4SafetyModals';
 import { formatScoutRosterEntry, optimizeScoutAssignments, parseScoutRosterLine } from '../../utils/strategyBrain';
 import { downloadCsvFile } from '../../utils/csv';
+import { buildPowerCoinLeaderboard, formatPowerCoinScoutChoice, resolvePowerCoinScoutChoice } from '../../utils/scoutPowerCoins';
 
 export const DEFAULT_ADMIN_V4_SCOUTS: string[] = [];
-
-const STARTING_REWARD_POINTS = 1000;
 
 type AdminV4ConfirmationRequester = (details: Omit<AdminActionConfirmation, 'resolve'>) => Promise<boolean>;
 
@@ -85,38 +85,35 @@ export function useAdminV4ScoutRewards({
   }, [scoutAssignmentPlan]);
 
   const powerCoinRows = React.useMemo<AdminV4ScoutRewardRow[]>(() => {
-    const scouts = Array.from(new Set([
-      ...DEFAULT_ADMIN_V4_SCOUTS,
-      ...(scoutAssignmentPlan?.scoutNames || []),
-      ...powerCoinBets.map(bet => bet.scoutName),
-      ...powerCoinLedger.map(entry => entry.scoutName)
-    ])).filter(Boolean);
+    const rosterIdentities = [
+      ...DEFAULT_ADMIN_V4_SCOUTS.map(scoutName => ({ scoutName, scoutNumber: null })),
+      ...(scoutAssignmentPlan?.scoutRoster || []).map(scout => ({
+        scoutName: scout.scoutName,
+        scoutNumber: scout.scoutNumber
+      })),
+      ...(scoutAssignmentPlan?.scoutNames || []).map(scoutName => ({ scoutName, scoutNumber: null }))
+    ];
 
-    return scouts.map(scoutName => {
-      const normalizedScoutName = scoutName.trim().toLowerCase();
-      const scoutBets = powerCoinBets.filter(bet => bet.scoutName.trim().toLowerCase() === normalizedScoutName);
-      const scoutLedger = powerCoinLedger.filter(entry => entry.scoutName.trim().toLowerCase() === normalizedScoutName);
-      const ledgerDelta = scoutLedger.reduce((sum, entry) => sum + entry.delta, 0);
-      const pendingPoints = scoutBets.filter(bet => !bet.settledAt).reduce((sum, bet) => sum + bet.amount, 0);
-      const settledDelta = scoutBets
-        .filter(bet => bet.settledAt)
-        .reduce((sum, bet) => sum + ((bet.payout ?? 0) - bet.amount), 0);
-      return {
-        scoutName,
-        balance: STARTING_REWARD_POINTS + ledgerDelta - pendingPoints + settledDelta,
-        openBets: scoutBets.filter(bet => !bet.settledAt).length,
-        openStake: pendingPoints,
-        settledBets: scoutBets.filter(bet => bet.settledAt).length,
-        totalStaked: scoutBets.reduce((sum, bet) => sum + bet.amount, 0),
-        totalPayout: scoutBets.reduce((sum, bet) => sum + (bet.payout ?? 0), 0),
-        ledgerDelta
-      };
-    }).sort((left, right) => right.balance - left.balance || left.scoutName.localeCompare(right.scoutName));
+    return buildPowerCoinLeaderboard({
+      bets: powerCoinBets,
+      ledger: powerCoinLedger,
+      identities: rosterIdentities
+    }).map(wallet => ({
+      scoutName: wallet.scoutName,
+      scoutNumber: wallet.scoutNumber,
+      balance: wallet.balance,
+      openBets: wallet.openBets,
+      openStake: wallet.openStake,
+      settledBets: wallet.settledBets,
+      totalStaked: wallet.totalStaked,
+      totalPayout: wallet.totalPayout,
+      ledgerDelta: wallet.ledgerDelta
+    }));
   }, [powerCoinBets, powerCoinLedger, scoutAssignmentPlan]);
 
   const getOpenPowerCoinImpact = React.useCallback((matchKeys: string[]) => {
     const keySet = new Set(matchKeys);
-    const openBets = powerCoinBets.filter(bet => !bet.settledAt && keySet.has(bet.matchKey));
+    const openBets = powerCoinBets.filter(bet => !bet.settledAt && !bet.disqualified && keySet.has(bet.matchKey));
     return {
       affectedBetCount: openBets.length,
       openStake: openBets.reduce((sum, bet) => sum + bet.amount, 0)
@@ -139,7 +136,7 @@ export function useAdminV4ScoutRewards({
   }, [getOpenPowerCoinImpact]);
 
   const handleSettleAllPlayedPowerCoins = React.useCallback(async () => {
-    const openMatchKeys = new Set(powerCoinBets.filter(bet => !bet.settledAt).map(bet => bet.matchKey));
+    const openMatchKeys = new Set(powerCoinBets.filter(bet => !bet.settledAt && !bet.disqualified).map(bet => bet.matchKey));
     const playedMatchesWithOpenBets = activePredictorMatches
       .filter(match => openMatchKeys.has(match.key) && isAdminV4PlayedMatch(match))
       .sort((left, right) => left.match_number - right.match_number || left.key.localeCompare(right.key));
@@ -183,7 +180,9 @@ export function useAdminV4ScoutRewards({
   }, [eventKey, powerCoinSettlementRequest, recordAdminAudit, refreshScoutOpsState]);
 
   const handlePowerCoinAdjustment = React.useCallback(async () => {
-    const scoutName = powerCoinAdjustmentScout.trim();
+    const selectedIdentity = resolvePowerCoinScoutChoice(powerCoinAdjustmentScout, powerCoinRows);
+    const scoutName = selectedIdentity.scoutName;
+    const scoutNumber = selectedIdentity.scoutNumber ?? null;
     const delta = Math.trunc(Number(powerCoinAdjustmentAmount));
     if (!scoutName) {
       setPowerCoinStatus('Choose a scout before adding a reward adjustment.');
@@ -198,11 +197,11 @@ export function useAdminV4ScoutRewards({
       return;
     }
 
-    const currentBalance = await getPowerCoinBalance(eventKey, scoutName);
+    const currentBalance = await getPowerCoinBalance(eventKey, scoutName, scoutNumber);
     const nextBalance = currentBalance + delta;
     const confirmed = await requestAdminActionConfirmation({
       title: 'Apply Reward Adjustment',
-      message: `Apply scout reward adjustment for ${scoutName}?`,
+      message: `Apply scout reward adjustment for ${formatPowerCoinScoutChoice({ scoutName, scoutNumber })}?`,
       detail: `Current balance: ${currentBalance}. Change: ${delta > 0 ? '+' : ''}${delta}. New balance: ${nextBalance}. Reason: ${powerCoinAdjustmentReason.trim()}.`,
       confirmLabel: 'Apply Adjustment',
       tone: 'amber'
@@ -210,19 +209,21 @@ export function useAdminV4ScoutRewards({
     if (!confirmed) return;
     const createdAt = Date.now();
     await upsertPowerCoinLedgerEntry({
-      id: `${eventKey}_${scoutName.replace(/\s+/g, '_').toLowerCase()}_${createdAt}`,
+      id: `${eventKey}_${scoutNumber ? `scout${scoutNumber}` : scoutName.replace(/\s+/g, '_').toLowerCase()}_${createdAt}`,
       eventKey,
       scoutName,
+      scoutNumber,
       delta,
       reason: powerCoinAdjustmentReason.trim() || 'Admin adjustment',
       balanceAfter: nextBalance,
       createdAt
     });
     await refreshScoutOpsState();
-    setPowerCoinStatus(`${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} reward point${Math.abs(delta) === 1 ? '' : 's'} ${delta > 0 ? 'to' : 'from'} ${scoutName}.`);
+    const scoutLabel = formatPowerCoinScoutChoice({ scoutName, scoutNumber });
+    setPowerCoinStatus(`${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} reward point${Math.abs(delta) === 1 ? '' : 's'} ${delta > 0 ? 'to' : 'from'} ${scoutLabel}.`);
     await recordAdminAudit(
       'Adjusted scout reward ledger',
-      `${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} local reward point${Math.abs(delta) === 1 ? '' : 's'} ${delta > 0 ? 'to' : 'from'} ${scoutName}. Reason: ${powerCoinAdjustmentReason.trim()}.`,
+      `${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} local reward point${Math.abs(delta) === 1 ? '' : 's'} ${delta > 0 ? 'to' : 'from'} ${scoutLabel}. Reason: ${powerCoinAdjustmentReason.trim()}.`,
       'warning'
     );
   }, [
@@ -230,10 +231,43 @@ export function useAdminV4ScoutRewards({
     powerCoinAdjustmentAmount,
     powerCoinAdjustmentReason,
     powerCoinAdjustmentScout,
+    powerCoinRows,
     recordAdminAudit,
     refreshScoutOpsState,
     requestAdminActionConfirmation
   ]);
+
+  const handleDisqualifyPowerCoinBet = React.useCallback(async (betId: string, disqualified: boolean) => {
+    const bet = powerCoinBets.find(row => row.id === betId);
+    if (!bet) {
+      setPowerCoinStatus('Could not find that scout reward prediction.');
+      return;
+    }
+    const action = disqualified ? 'Disqualify' : 'Restore';
+    const completedVerb = disqualified ? 'Disqualified' : 'Restored';
+    const confirmed = await requestAdminActionConfirmation({
+      title: `${action} Reward Prediction`,
+      message: `${action} ${bet.scoutName}'s ${bet.matchKey.toUpperCase()} reward prediction?`,
+      detail: disqualified
+        ? 'This removes the bet from wallet math and settlement. The original row is preserved for audit.'
+        : 'This restores the bet into wallet math and future settlement using its original amount and side.',
+      confirmLabel: action,
+      tone: disqualified ? 'rose' : 'amber'
+    });
+    if (!confirmed) return;
+
+    const nextBet = disqualified
+      ? { ...bet, disqualified }
+      : { ...bet, disqualified, settledAt: undefined, outcome: undefined, payout: undefined };
+    await upsertPowerCoinBet(nextBet);
+    await refreshScoutOpsState();
+    setPowerCoinStatus(`${completedVerb} ${bet.scoutName}'s ${bet.matchKey.toUpperCase()} reward prediction.`);
+    await recordAdminAudit(
+      `${completedVerb} scout reward prediction`,
+      `${completedVerb} ${bet.scoutName}${bet.scoutNumber ? ` #${bet.scoutNumber}` : ''} on ${bet.matchKey.toUpperCase()} (${bet.amount} on ${bet.side}).`,
+      disqualified ? 'warning' : 'info'
+    );
+  }, [powerCoinBets, recordAdminAudit, refreshScoutOpsState, requestAdminActionConfirmation]);
 
   const handleOptimizeScouts = React.useCallback(async () => {
     const scoutRoster = scoutRosterText
@@ -304,6 +338,7 @@ export function useAdminV4ScoutRewards({
     handleExportScoutAssignmentsCsv,
     handleExportScoutCoverageGapsCsv,
     handleOptimizeScouts,
+    handleDisqualifyPowerCoinBet,
     handlePowerCoinAdjustment,
     handleSettleAllPlayedPowerCoins,
     handleSettlePowerCoins,

@@ -1,237 +1,58 @@
-# PowerScout Swarm Board
+# Codex Swarm Board
 
 ## Goal
 
-Build `PowerScout`, a native SwiftUI macOS app for Powerhouse scouting leadership, while stepping back to audit whether pre-scout, pit scout, and match scout are truly covered by the current system.
+Continue PowerScout/scouting redesign with bounded subagent support. Current focus: PowerCoin betting wallet/disqualification QA and Mac app parity inventory while the main conductor integrates web/admin changes.
 
-## Agents
+## Delegation Decision
 
-- [x] Scout system auditor (`019f0b89-f922-7d50-819e-fa5eb4bc19d5`, explorer, `gpt-5.3-codex-spark`, medium reasoning): errored from output size; main thread completed the audit in `codex_agent_reports/scout-system-audit.md`.
-- [x] macOS pattern scout (`019f0b8a-3248-7ee1-a8b5-4b7c78f63683`, explorer, `gpt-5.3-codex-spark`, medium reasoning): inspected nearby SwiftPM macOS apps/build scripts for reusable app packaging patterns.
-- [x] Logic reviewer (`019f0b94-9310-7fc0-bad0-f2f46bab679f`, explorer, `gpt-5.4-mini`, high reasoning): inspected scouting forms and PowerScout logic for missing real-world cases and overloaded form moments.
-- [x] RelayCartographer (`019f0bc2-8394-7fd3-9169-0c90ce315bec`, explorer, `gpt-5.3-codex-spark`, medium reasoning): attempted read-only search for Leo's older Cloudflare relay server, then failed from context-window exhaustion before producing a report. Closed with no file changes; main thread completed the search and wrote `codex_agent_reports/cloudflare-relay-search.md`.
-- [x] KeyJanitor (`019f0bda-d245-7bf1-8dcd-70e84a2c9c60`, worker, `gpt-5.3-codex-spark`, medium reasoning): removed the stale TBA missing-key sidebar copy, added regression coverage, and confirmed a fresh Firebase deploy is required for the live site to stop serving old bundles.
-- [x] Main Codex conductor: implemented and verified PowerScout, integrated useful findings, and kept Leo's queue updated.
+- Use subagents: True
+- Reason: Leo asked where agents are and has repeatedly requested subagents for higher quality and parallel workflow.
+- Token budget posture: Use gpt-5.4-mini medium for bounded read-only QA/exploration. Respect Leo's cap: no GPT-5.5 high/xhigh, no GPT-5.4 xhigh.
+
+## Delegation Gate Answers
+
+| Question | Answer | Notes |
+| --- | --- | --- |
+| Is the work separable from the conductor's current critical path? | TBD |  |
+| Can the subtask be explained without giving the entire context? | TBD |  |
+| Does the subtask have a clear done condition? | TBD |  |
+| If it edits code, does it have an explicit and disjoint write scope? | TBD |  |
+| Will the value exceed the coordination and token cost? | TBD |  |
+
+## Tasks
+
+| ID | Owner | Role | Model / Effort | Scope | Status | Evidence | Blocker |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+
+## Model And Token Rationale
+
+| Task | Model / Effort | Why this is enough | Why not stronger |
+| --- | --- | --- | --- |
+
+## File Ownership
+
+| Path or module | Owner | Notes |
+| --- | --- | --- |
+
+## Agent Reports
+
+| Agent | Task | Report path | Status |
+| --- | --- | --- | --- |
+
+## Subagent Lifecycle
+
+| Agent | Task | Role | Model / Effort | Event | Edit Permission | Status | Rationale | Time |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Rivet-QA | PWR-QA-001 | Verifier | gpt-5.4-mini / medium | launch | read-only | launched | Bounded QA can run in parallel with integration work and is likely to catch edge-case leaks. | 2026-06-29T04:58:33+00:00 |
+| Forge-MacParity | MAC-PARITY-001 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | The Mac app surface can be inspected independently while the main thread continues web/admin integration. | 2026-06-29T04:58:33+00:00 |
+| Forge-MacParity | MAC-PARITY-001 | Explorer | gpt-5.4-mini / medium | close | read-only | completed |  | 2026-06-29T05:04:36+00:00 |
+| Rivet-QA | PWR-QA-001 | Verifier | gpt-5.4-mini / medium | close | read-only | completed-fail |  | 2026-06-29T05:05:00+00:00 |
 
 ## Integration Notes
 
-- Keep implementation ownership in the main thread for `PowerScout/`.
-- Subagents may write only their own files under `codex_agent_reports/`.
-- Do not revert unrelated local changes.
+- Rivet-QA reported a fail on the first PowerCoin pass; conductor patched number-first adjustment selection, restore metadata clearing, restore copy, and tests.
+- Forge-MacParity found no native History/PowerCoin surface; conductor added a read-only PowerScout History / Rewards section as the first Mac parity slice.
 
-## Current Run: Synthetic Full System Test
-
-- Task id: `sft-framework-001`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: create the initial `SyntheticFullSystemTest/` framework and validation hooks.
-- Status: complete
-- Evidence: `npm run sft:validate`, `npm run sft:dry-run`, `node --test tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `cd PowerScout && swift test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
-- Blockers: none for local framework creation.
-- Safety: no credentials, no deploy, no production Firebase writes.
-- Subagents: none launched for this run.
-
-## Current Run: Full Event Replay
-
-- Task id: `sft-full-replay-001`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: implement and run a local full-length Synthetic Full System Test event replay.
-- Status: complete
-- Evidence: `npm run sft:full-replay`, `node --test tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `cd PowerScout && ./script/build_and_run.sh --verify`, and `npm test`.
-- Artifact run: `SyntheticFullSystemTest/artifacts/sft-full-2026fullsynthetic-20260628-050606-82491`.
-- Blockers: none for the local full replay. Live TBA/Statbotics refresh remains a separate secret-code-gated step.
-- Safety: no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Real Event Replay
-
-- Task id: `sft-real-replay-001`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: fetch the public The Blue Alliance page for Orlando Regional 2026, parse real teams and match results, and replay the event through synthetic scouting/prediction artifacts.
-- Status: complete
-- Evidence: `npm run sft:real-replay`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `npm test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
-- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026flor-20260628-060040-32817`.
-- Blockers: none for public-page real replay. Live authenticated API refresh remains separate and would need explicit authorization.
-- Safety: no TBA API key used, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Silicon Valley 254 Real Event Replay
-
-- Task id: `sft-real-replay-silicon-valley-254`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: replay the public TBA `2026casnv` event as `frc254`, The Cheesy Poofs, and persist checkpoint history for match predictions, future predictions, and team OPR/EPA/PPC/PPA timelines.
-- Status: complete
-- Evidence: `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs`, `npm run sft:real-replay:silicon-valley`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm run build`, `npm test`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
-- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026casnv-20260628-071936-2542026`.
-- Blockers: none for local public-page replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA page only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Agentic Silicon Valley Scout Simulation
-
-- Task id: `sft-agentic-silicon-valley-2026`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: redo `2026casnv` as an agentic scout simulation where six scout-persona agents fabricate score-consistent match observations and the scouting model analyzes those observations through the existing replay artifacts.
-- Status: complete
-- Evidence: `npm run sft:agentic-replay:silicon-valley`, `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, `npm run build`, and `cd PowerScout && ./script/build_and_run.sh --verify`.
-- Artifact run: `SyntheticFullSystemTest/artifacts/sft-real-2026casnv-20260628-090404-2542026`.
-- Catalog status: Silicon Valley is the baseline agentic replay for `2026casnv` as `frc254`, The Cheesy Poofs.
-- Blockers: none currently.
-- Safety: public TBA page only, no credentials, no production Firebase writes, no deploy.
-- Subagents:
-  - `Kant` (`019f0d69-6942-7441-ab21-65fc7abe5c86`), ScoutFormCartographer, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: inspect current scout form/model fields so fabricated rows match our system. Stronger model not used because this is bounded codebase cartography. Status: closed complete. Files changed: none. Report: `codex_agent_reports/scout-form-cartographer.md`.
-  - `Herschel` (`019f0d69-a352-7be1-947d-e1fb226e1651`), ConsistencyAuditor, explorer, `gpt-5.4-mini`, high reasoning, read-only. Purpose: audit score-consistency/no-future/artifact risks. Stronger model not used because the task is focused verification, not architecture ownership. Status: closed complete. Files changed: none. Report: `codex_agent_reports/consistency-auditor.md`.
-
-## Current Run: Agentic Event Batch Replay
-
-- Task id: `sft-agentic-batch-001`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: add a reusable agentic score-consistent replay batch runner and run additional completed past events through the scout-agent simulation.
-- Status: complete
-- Evidence: `node --check SyntheticFullSystemTest/scripts/run-agentic-event-batch.mjs`, `npm run sft:validate`, `npm run sft:agentic-replay:batch -- --event-keys 2026flor,2026mndu,2026tuis --min-matches 30`, and artifact inspection of all four agentic replay folders.
-- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` and `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json`.
-- Completed events in local agentic history: `2026casnv` as `frc254`, `2026flor`, `2026mndu`, and `2026tuis`.
-- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Agentic Event Batch Replay 2
-
-- Task id: `sft-agentic-batch-002`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: continue the active long-running replay goal by discovering completed 2026 public TBA events and running six more through the agentic score-consistent scout simulation.
-- Status: complete
-- Evidence: `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, `npm run sft:agentic-replay:batch -- --limit 0 --min-matches 30`, `npm run sft:validate`, `node --test tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and artifact-gate inspection across all 10 known agentic replay folders.
-- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 10 unique success records, and `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 10 known agentic successes.
-- Newly completed events: `2026mndu2`, `2026mnwi`, `2026okok`, `2026bcvi`, `2026gadal`, and `2026milak`.
-- All known agentic events after this run: `2026bcvi`, `2026casnv`, `2026flor`, `2026gadal`, `2026milak`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026okok`, and `2026tuis`.
-- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Agentic Event Batch Replay 3
-
-- Task id: `sft-agentic-batch-003`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: continue the active long-running replay goal with another discovered batch of completed 2026 events, while tightening the batch catalog so repeated already-replayed skips do not pollute the durable JSONL history.
-- Status: complete
-- Evidence: `node --test tests/syntheticAgenticBatchReplay.test.mjs`, `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 16 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
-- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 16 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 16 known agentic successes.
-- Newly completed events: `2026sccha`, `2026txbel`, `2026orsal`, `2026brba`, `2026cosp`, and `2026tuis2`.
-- All known agentic events after this run: `2026bcvi`, `2026brba`, `2026casnv`, `2026cosp`, `2026flor`, `2026gadal`, `2026milak`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026okok`, `2026orsal`, `2026sccha`, `2026tuis`, `2026tuis2`, and `2026txbel`.
-- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Agentic Event Batch Replay 4
-
-- Task id: `sft-agentic-batch-004`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: continue the active long-running replay goal by running another discovered batch of completed 2026 public TBA events through the agentic score-consistent scout simulation.
-- Status: complete
-- Evidence: `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 22 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
-- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 22 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 22 known agentic successes.
-- Newly completed events: `2026inmis`, `2026mabil`, `2026mefal`, `2026miche`, `2026mimtp`, and `2026nccab`.
-- All known agentic events after this run: `2026bcvi`, `2026brba`, `2026casnv`, `2026cosp`, `2026flor`, `2026gadal`, `2026inmis`, `2026mabil`, `2026mefal`, `2026miche`, `2026milak`, `2026mimtp`, `2026mndu`, `2026mndu2`, `2026mnwi`, `2026nccab`, `2026okok`, `2026orsal`, `2026sccha`, `2026tuis`, `2026tuis2`, and `2026txbel`.
-- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Agentic Event Batch Replay 5
-
-- Task id: `sft-agentic-batch-005`
-- Owner: main Codex conductor
-- Role: conductor and implementer
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: continue the active long-running replay goal with another discovered batch of completed 2026 events, and compact `latestBatch` so skipped-existing events are summarized by count instead of listed individually.
-- Status: complete
-- Evidence: `node --test tests/syntheticAgenticBatchReplay.test.mjs`, `npm run sft:agentic-replay:batch -- --limit 0 --min-matches 30`, `npm run sft:agentic-replay:batch -- --limit 6 --min-matches 30`, artifact-gate inspection across all 28 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, and `git diff --check`.
-- Catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` now has 28 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 28 known agentic successes and a compact `latestBatchSkippedExisting` count.
-- Newly completed events: `2026ncwak`, `2026njwas`, `2026pahat`, `2026vaale`, `2026wiply`, and `2026cahal`.
-- Blockers: none for local batch replay. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this run.
-
-## Current Run: Replay Goal Closure
-
-- Task id: `sft-agentic-goal-closure`
-- Owner: main Codex conductor
-- Role: conductor and verifier
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: finish the open-ended replay loop at Leo's instruction, verify the final recorded history, and close the active goal.
-- Status: complete
-- Evidence: artifact-gate inspection across all 28 known agentic replay folders, `npm run sft:validate`, `node --test tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm run typecheck`, `npm run model:typecheck`, `npm test`, `git diff --check`, and source secret scan.
-- Final catalog: `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog.jsonl` has 28 unique success records; `SyntheticFullSystemTest/artifacts/agentic-event-replay-catalog-summary.json` reports 28 known agentic successes, 0 failures, and compact latest-batch skip accounting.
-- Blockers: none. No authenticated TBA API key, Firebase write, push, or deploy was used.
-- Safety: public TBA pages only, no credentials used, no production Firebase writes, no deploy.
-- Subagents: none launched for this closure step.
-
-## Current Run: Agentic Tuning Workflow
-
-- Task id: `sft-agentic-tuning-001`
-- Owner: main Codex conductor
-- Role: conductor, implementer, and verifier
-- Model: current main Codex model
-- Reasoning effort: high
-- Scope: implement the repeatable event replay/tune/retest workflow, expose selected independent variables and dependent metrics, run a full score-consistent scout simulation, and stop only after all selected variables converged or stabilized.
-- Status: complete locally; GitHub sync is ready but not pushed because exporting changes requires fresh direct authorization.
-- Accepted tuning run: `sft-tune-2026-20260628T112002-20260628`
-- Event: `2026ilpe`, Central Illinois Regional 2026, replayed with six score-consistent scout personas and local public-page data only.
-- Result: objective loss improved from `61.293639` to `54.98116`; winner accuracy improved from `0.714` to `0.754`; Brier score improved from `0.177` to `0.165`; all selected variables converged or stabilized.
-- Final selected parameters: `priorWeight=0.55`, `liveEvidenceWeight=0.48`, `recencyHalfLifeMatches=2`, `marginConfidenceScale=63`, `scoreScaleCorrection=1`, `defenseImpactWeight=0.76`, `reliabilityWeight=18`, `scoutNoisePenalty=0.06`, `upsetSensitivity=0`.
-- Ledgers: `SyntheticFullSystemTest/tuning/tuning-ledger.md`, `SyntheticFullSystemTest/tuning/tuning-runs.jsonl`, `SyntheticFullSystemTest/tuning/event-results.csv`, `SyntheticFullSystemTest/tuning/parameter-history.csv`, and `SyntheticFullSystemTest/tuning/variable-contract.md`.
-- Evidence: `npm run sft:validate`, `node --test tests/syntheticTuningWorkflow.test.mjs tests/syntheticAgenticBatchReplay.test.mjs tests/syntheticRealEventReplay.test.mjs tests/syntheticFullEventReplay.test.mjs tests/syntheticFullSystemFramework.test.mjs`, `npm test`, `npm run typecheck`, `npm run model:typecheck`, `git diff --check`, convergence assertion on `SyntheticFullSystemTest/tuning/runs/sft-tune-2026-20260628T112002-20260628/summary.json`, and credential scan over the new tuning files.
-- Safety: public TBA pages only through proxy-aware fetch/curl path, no credentials used, no production Firebase writes, no deploy, no GitHub push.
-- Subagents: none launched for this run.
-
-## Current Run: Overnight Shift Strategy Redesign
-
-- Task id: `shift-strategy-redesign-overnight-001`
-- Owner: main Codex conductor
-- Role: conductor, implementer, and final integrator
-- Model: current main Codex model
-- Reasoning effort: high
-- Stop time: 8:30 AM on June 29, 2026 Asia/Shanghai
-- Scope: redesign the scouting metric vocabulary, add shift-aware match scouting concepts, implement official-score/defense-share reconciliation, build role-combination strategy simulation with variance and ranking-point incentives, surface useful outputs in Admin V4 and PowerScout where feasible, run SFT/QA, and prepare the morning report.
-- Status: in progress
-- Safety: overnight protocol active; no questions to Leo, no credentials, no destructive actions, no deploy/push/export outside the workspace without fresh direct authorization.
-- Subagents launched:
-  - Euclid (`019f0ed9-4d1f-73a3-8608-e87ec05bf8bc`), Scout Spec Decoder, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: translate Leo's long prompt into implementation spec. Stronger model not used because this is bounded extraction. Status: complete. Files changed: none. Report: `codex_agent_reports/scout-spec-decoder-001.md`.
-  - Avicenna (`019f0ed9-7b5a-77c1-84cb-19e0aac81954`), DPR/Rules Researcher, explorer, `gpt-5.4-mini`, high reasoning, read-only. Purpose: initial DPR/rule research. Note: Leo clarified after launch that `gpt-5.4` means full 5.4, not mini; future heavier review will use full `gpt-5.4`. Status: complete, closed. Report: `codex_agent_reports/dpr-rules-research-001.md`.
-  - Mendel (`019f0ed9-acd1-70b2-bf20-ad4ab3922ef4`), Strategy Logic Redteam, explorer/verifier, `gpt-5.4-mini`, high reasoning, read-only. Purpose: find math/scouting-logic loopholes. Note: same model clarification applies for future heavy reviewers. Status: complete, closed. Report: `codex_agent_reports/strategy-logic-redteam-001.md`.
-  - Cicero (`019f0edd-f59c-7cf0-82f3-5c54d3d96f7c`), Shift Architecture Reviewer, explorer, full `gpt-5.4`, high reasoning, read-only. Purpose: inspect web/Admin V4, modeling, SFT, and PowerScout for phased shift architecture. Status: complete, closed. Report: `codex_agent_reports/shift-architecture-review-001.md`.
-  - Archimedes (`019f10bb-f9f7-75b3-86c3-0e570af28020`), First-Shift QA Verifier, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: audit the latest Match Scout V4 first-shift UI, stable test hooks, and `matchScoutingV4` normalization changes. Stronger model not used because this is bounded QA over a small file set. Status: complete and closed. Files changed by agent: none. Report: `codex_agent_reports/first-shift-qa-verifier-001.md`. Integration response: added the V4 first-shift adapter and regression coverage.
-  - Noether (`019f10c1-887f-7361-acaf-374d63170a37`), Prompt Requirements Scribe, explorer, `gpt-5.3-codex-spark`, medium reasoning, read-only. Purpose: chunk Leo's pasted overnight prompt into concrete requirements and done criteria. Stronger model not used because this is bounded extraction. Status: complete. Files changed by agent: none. Report: `codex_agent_reports/prompt-requirements-scribe-001.md`.
-  - Godel (`019f10c1-89b2-7930-9b4d-e656e45a68b3`), Math/Model Decoder, explorer, full `gpt-5.4`, high reasoning, read-only. Purpose: extract strategy/math requirements and compare with current model files. Full 5.4 high used because the variance/strategy logic is subtle and safety-critical for match decisions. Status: active.
-  - Descartes (`019f10c1-8ad8-74d1-bf8c-4bb7e08b125d`), Shift UI Architect, explorer, full `gpt-5.4`, medium reasoning, read-only. Purpose: map active/inactive shift UI workflow, reversible controls, and scout ergonomics. Full 5.4 medium used for product-quality UI reasoning. Status: complete. Files changed by agent: none. Report: `codex_agent_reports/shift-ui-architect-prompt-001.md`.
-  - Pauli (`019f10c1-8ba7-7be1-be08-7b85068e87ed`), Logic Red-Team, explorer, `gpt-5.4-mini`, high reasoning, read-only. Purpose: find logical loopholes and invariants across scoring, defense, stockpile, notifications, and scout counts. Stronger model not used because this is focused red-team coverage. Status: complete. Files changed by agent: none. Report: `codex_agent_reports/logic-redteam-prompt-002.md`.
-  - Sartre (`019f10c1-8d18-7ba0-8a9c-ade3ba29da3b`), Implementation Mapper, explorer, `gpt-5.4-mini`, medium reasoning, read-only. Purpose: compare prompt chunks to current repo evidence and identify top missing slices. Stronger model not used because this is bounded file mapping. Status: complete. Files changed by agent: none. Report: `codex_agent_reports/implementation-mapper-prompt-001.md`.
-  - Poincare (`019f10c4-1a8d-7743-8199-475c51cc7ff3`), Cue Steward, explorer, `gpt-5.4-mini`, medium reasoning, read-only. Purpose: audit queue completeness against the pasted prompt, swarm board, and recovery notes; propose missing queue chunks as Leo continues adding requests. Stronger model not used because this is backlog hygiene, not deep architecture. Status: complete. Files changed by agent: none. Report: `codex_agent_reports/cue-steward-backlog-audit-001.md`.
+## Safety And Scope Notes
+- Both agents were read-only. No secrets were requested, printed, or written.

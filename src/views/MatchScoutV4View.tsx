@@ -1,8 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import { useLocation } from 'react-router-dom';
-import { AlertTriangle, Download, QrCode, Save, Shield, Trophy } from 'lucide-react';
-import { MatchScoutingV4, MatchScoutingV4Role, initialMatchScoutingV4 } from '../types';
+import { AlertTriangle, Download, RotateCcw, Save, Trophy } from 'lucide-react';
+import {
+  MatchScoutingV3Alliance,
+  MatchScoutingV4,
+  MatchScoutingV4DefenseAssignment,
+  MatchScoutingV4Role,
+  MatchScoutingV4ShiftAction,
+  MatchScoutingV4ShiftEntry,
+  PowerCoinBetLockReason,
+  PowerCoinBetSendStatus,
+  PowerCoinBetSide,
+  PowerCoinMatchBetSnapshot,
+  initialMatchScoutingV4
+} from '../types';
 import ScoutUsernameGate from '../components/ScoutUsernameGate';
 import { DEFAULT_EVENT_KEY, getPersistentDeviceId } from '../utils/sharedEventState';
 import { buildMatchKeyV4, normalizeMatchScoutingV4 } from '../utils/matchScoutingV4';
@@ -15,18 +26,26 @@ import {
   upsertMatchArchiveRecordV4
 } from '../utils/scoutArchive';
 import { writeMatchScoutingV4Record } from '../utils/scoutingWrites';
-import { compressMatchDataV4 } from '../utils/qrCompression';
-import { loadTbaApiKey } from '../utils/adminV4LocalStore';
+import { loadTbaApiKey, upsertPowerCoinBet } from '../utils/adminV4LocalStore';
 import { MathEngine, TBAMatch } from '../utils/mathEngine';
 import { TBA_API_KEY } from '../config';
 import { ScoutSignalHandoff } from '../components/scouting/ScoutWorkflowHeader';
 import { buildScoutEvidenceAdminTask, clearScoutTaskHandoff, getScoutTaskHandoff } from '../utils/scoutTaskHandoff';
 import { verifyScoutIdentityUnlockPassphrase } from '../utils/scoutIdentityLock';
+import {
+  buildPowerCoinBetSnapshot,
+  isPowerCoinBetSide,
+  isSubmittablePowerCoinBet,
+  normalizePowerCoinAmount,
+  toStoredPowerCoinBet
+} from '../utils/scoutPowerCoins';
 
 const DRAFT_KEY = 'match_scout_v4_draft';
 const EDIT_MODE_KEY = 'match_scout_v4_edit_mode';
-const ROLE_OPTIONS: MatchScoutingV4Role[] = ['Offense', 'Defense', 'Mixed', 'Support', 'Disabled'];
-type MatchScoutStepKey = 'setup' | 'score' | 'role' | 'risk' | 'handoff';
+const TELEOP_SHIFT_COUNT = 8;
+const SCORE_ACTION_STEPS = [1, 3, 5, 10] as const;
+const HEAD_SCOUT_SUBMIT_TIMEOUT_MS = 8000;
+type MatchScoutStepKey = 'setup' | 'score' | 'risk' | 'handoff';
 const MATCH_SCOUT_STEPS: Array<{
   key: MatchScoutStepKey;
   label: string;
@@ -42,14 +61,8 @@ const MATCH_SCOUT_STEPS: Array<{
   {
     key: 'score',
     label: 'Score Signal',
-    question: 'What points and cycles did this robot create?',
-    output: 'expected value and repeatability'
-  },
-  {
-    key: 'role',
-    label: 'Role Context',
-    question: 'Why did that number happen?',
-    output: 'scorer, defender, support, or disabled context'
+    question: 'How many points did this robot contribute?',
+    output: 'observed contribution'
   },
   {
     key: 'risk',
@@ -75,13 +88,155 @@ const fieldLabelClass = 'text-xs font-black uppercase tracking-widest text-slate
 const sanitizeScheduleEventKey = (value: string) => value.toUpperCase().replace(/\s+/g, '');
 const getShortMatchKey = (match: TBAMatch) => match.key.split('_')[1]?.toLowerCase() || '';
 const normalizeTeamKey = (teamKey: string) => teamKey.replace(/^frc/i, '');
+const canUseLocalTbaDevProxy = () =>
+  typeof window !== 'undefined' && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+
+const fetchLocalTbaSchedule = async (eventKey: string): Promise<TBAMatch[] | null> => {
+  if (!canUseLocalTbaDevProxy()) return null;
+  const response = await fetch(`/api/local-tba/event/${encodeURIComponent(eventKey)}/matches`, {
+    headers: { Accept: 'application/json' }
+  });
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) return null;
+  const payload = await response.json().catch(() => null) as { matches?: TBAMatch[]; error?: string } | TBAMatch[] | null;
+  if (!response.ok) {
+    const errorMessage = Array.isArray(payload) ? '' : payload?.error;
+    throw new Error(errorMessage || `Local TBA schedule request failed with status ${response.status}.`);
+  }
+  return Array.isArray(payload) ? payload : payload?.matches ?? null;
+};
 
 const normalizeScoutNumberForView = (value: unknown) => {
   const number = Math.trunc(Number(value));
-  return Number.isFinite(number) && number > 0 ? number : null;
+  return Number.isFinite(number) && number >= 1 && number <= 99 ? number : null;
 };
 
 const buildScoutNumberSlot = (scoutNumber: number | null) => scoutNumber ? `Scout #${scoutNumber}` : '';
+
+const getOppositeAlliance = (alliance: MatchScoutingV3Alliance): MatchScoutingV3Alliance =>
+  alliance === 'Red' ? 'Blue' : alliance === 'Blue' ? 'Red' : '';
+
+const getAllianceTone = (alliance: MatchScoutingV3Alliance) =>
+  alliance === 'Red'
+    ? 'border-red-400/45 bg-red-950/60 text-red-50'
+    : alliance === 'Blue'
+      ? 'border-blue-400/45 bg-blue-950/60 text-blue-50'
+      : 'border-slate-800 bg-slate-900/70 text-slate-50';
+
+const SHIFT_ACTIONS: MatchScoutingV4ShiftAction[] = ['offense', 'defense', 'stockpile'];
+
+const getShiftActionLabel = (action: MatchScoutingV4ShiftAction) => {
+  if (action === 'offense') return 'Offense';
+  if (action === 'defense') return 'Defense';
+  return 'Stockpile';
+};
+
+const normalizeActionsForView = (entry: Partial<MatchScoutingV4ShiftEntry>): MatchScoutingV4ShiftAction[] => {
+  const directActions = Array.isArray(entry.actions)
+    ? entry.actions.filter((action): action is MatchScoutingV4ShiftAction => SHIFT_ACTIONS.includes(action as MatchScoutingV4ShiftAction))
+    : [];
+  if (directActions.length) return Array.from(new Set(directActions));
+  if (entry.role === 'offense') return ['offense'];
+  if (entry.role === 'defense') return ['defense'];
+  if (entry.role === 'stockpile') return ['stockpile'];
+  if (entry.role === 'mixed') return ['defense', 'stockpile'];
+  return [];
+};
+
+const deriveShiftRoleForView = (actions: MatchScoutingV4ShiftAction[]): MatchScoutingV4ShiftEntry['role'] => {
+  if (actions.includes('offense') && actions.includes('defense')) return 'mixed';
+  if (actions.includes('offense')) return 'offense';
+  if (actions.includes('defense') && actions.includes('stockpile')) return 'mixed';
+  if (actions.includes('defense')) return 'defense';
+  if (actions.includes('stockpile')) return 'stockpile';
+  return 'inactive';
+};
+
+const deriveActionSummaryLabel = (entry: MatchScoutingV4ShiftEntry) => {
+  const actions = normalizeActionsForView(entry);
+  return actions.length ? actions.map(getShiftActionLabel).join(' + ') : 'Inactive';
+};
+
+const deriveStockpileCreditForView = (actions: MatchScoutingV4ShiftAction[]) => {
+  if (!actions.includes('stockpile')) return 0;
+  return actions.includes('defense') ? 0.5 : 1;
+};
+
+const deriveDefenseCreditForView = (actions: MatchScoutingV4ShiftAction[]) => {
+  if (!actions.includes('defense')) return 0;
+  if (actions.includes('stockpile')) return 0.5;
+  if (actions.includes('offense')) return 0.1;
+  return 1;
+};
+
+const createDefenseAssignment = (targetTeamNumber = ''): MatchScoutingV4DefenseAssignment => ({
+  targetTeamNumber,
+  claimedSharePercent: targetTeamNumber ? 100 : 0,
+  normalizedSharePercent: targetTeamNumber ? 100 : 0,
+  notes: ''
+});
+
+const sumScoreActions = (entry: MatchScoutingV4ShiftEntry) =>
+  (entry.scoreActions || []).reduce((sum, action) => sum + action.delta, 0);
+
+const buildTimelineEntries = (
+  entries: MatchScoutingV4ShiftEntry[] = [],
+  firstShiftAlliance: MatchScoutingV3Alliance,
+  scoutedAlliance: MatchScoutingV3Alliance
+) => {
+  const first = firstShiftAlliance || 'Red';
+  return Array.from({ length: TELEOP_SHIFT_COUNT }, (_, index) => {
+    const shiftAlliance = index % 2 === 0 ? first : getOppositeAlliance(first);
+    const existing = entries.find(entry => entry.index === index || entry.id === `teleop-shift-${index + 1}`);
+    const scoreActions = existing?.scoreActions || [];
+    const ballsScored = existing ? Math.max(existing.ballsScored || 0, sumScoreActions(existing)) : 0;
+    const owner = scoutedAlliance && shiftAlliance === scoutedAlliance ? 'own' : 'opponent';
+    const actions = normalizeActionsForView(existing || {});
+    const allowedActions = owner === 'own'
+      ? actions
+      : actions.filter(action => action !== 'offense');
+    return {
+      id: `teleop-shift-${index + 1}`,
+      index,
+      shiftAlliance,
+      owner,
+      role: deriveShiftRoleForView(allowedActions),
+      actions: allowedActions,
+      ballsScored: allowedActions.includes('offense') ? ballsScored : 0,
+      scoreActions: allowedActions.includes('offense') ? scoreActions : [],
+      stockpileShiftCredit: deriveStockpileCreditForView(allowedActions),
+      defenseShiftCredit: deriveDefenseCreditForView(allowedActions),
+      defendedTeams: allowedActions.includes('defense') ? existing?.defendedTeams || [] : [],
+      notes: existing?.notes || '',
+      status: existing?.status || 'draft',
+      submittedAt: existing?.submittedAt
+    } satisfies MatchScoutingV4ShiftEntry;
+  });
+};
+
+const deriveShiftSummary = (entries: MatchScoutingV4ShiftEntry[]) => {
+  const offenseEntries = entries.filter(entry => entry.owner === 'own' && normalizeActionsForView(entry).includes('offense'));
+  const defenseEntries = entries.filter(entry => normalizeActionsForView(entry).includes('defense'));
+  const stockpileEntries = entries.filter(entry => normalizeActionsForView(entry).includes('stockpile'));
+  const teleopPoints = offenseEntries.reduce((sum, entry) => sum + entry.ballsScored, 0);
+  const defenseAssignments = entries.flatMap(entry => entry.defendedTeams || []);
+  let rolePlayed: MatchScoutingV4Role = '';
+  if (offenseEntries.length && defenseEntries.length) rolePlayed = 'Mixed';
+  else if (offenseEntries.length) rolePlayed = 'Offense';
+  else if (defenseEntries.length) rolePlayed = 'Defense';
+  else if (stockpileEntries.length) rolePlayed = 'Support';
+  else rolePlayed = 'Disabled';
+
+  return {
+    teleopPoints,
+    rolePlayed,
+    defenseAssignments,
+    defendedTeamNumber: defenseAssignments[0]?.targetTeamNumber || '',
+    defenseIntensity: defenseAssignments.length
+      ? Math.min(1, defenseAssignments.reduce((sum, assignment) => sum + assignment.claimedSharePercent, 0) / (defenseAssignments.length * 100))
+      : 0
+  };
+};
 
 const getDefaultData = (deviceId: string, scoutName = '', scoutNumber: number | null = null) =>
   normalizeMatchScoutingV4({
@@ -209,25 +364,328 @@ const NumberCounter = ({
 
 function StepFrame({
   step,
+  dense = false,
   children
 }: {
   step: MatchScoutStepKey;
+  dense?: boolean;
   children: React.ReactNode;
 }) {
   const currentStep = MATCH_SCOUT_STEPS.find(item => item.key === step) || MATCH_SCOUT_STEPS[0]!;
   return (
-    <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-4 sm:p-5">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className={`admin-g2 border border-slate-800 bg-slate-900/70 ${dense ? 'p-3 sm:p-4' : 'p-4 sm:p-5'}`}>
+      <div className={`${dense ? 'mb-3' : 'mb-4'} flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between`}>
         <div>
           <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">{currentStep.label}</div>
-          <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">{currentStep.question}</h2>
+          <h2 className={`mt-1 font-black text-white ${dense ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'}`}>{currentStep.question}</h2>
         </div>
-        <div className="admin-g2-sm hidden border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50 sm:block">
+        <div className={`admin-g2-sm border border-cyan-400/25 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50 ${dense ? 'hidden' : 'hidden sm:block'}`}>
           Creates: {currentStep.output}
         </div>
       </div>
       {children}
     </section>
+  );
+}
+
+function PowerCoinBetPanel({
+  bet,
+  disabled,
+  onLock,
+  onUpdate
+}: {
+  bet?: PowerCoinMatchBetSnapshot;
+  disabled: boolean;
+  onLock: (reason: PowerCoinBetLockReason) => void;
+  onUpdate: (patch: Partial<Pick<PowerCoinMatchBetSnapshot, 'side' | 'amount' | 'secureMode'>>) => void;
+}) {
+  const [revealSecureSide, setRevealSecureSide] = useState(false);
+  const locked = Boolean(bet?.lockedAt);
+  const secureMode = !!bet?.secureMode;
+  const selectedSide = bet?.side || '';
+  const amount = bet?.amount || 0;
+  const secureLetter = selectedSide === 'Red' ? 'r' : selectedSide === 'Blue' ? 'b' : '';
+  const sideReady = isPowerCoinBetSide(selectedSide);
+  const amountReady = amount > 0;
+
+  return (
+    <section
+      data-testid="powercoin-bet-panel"
+      className={`admin-g2 border p-4 ${
+        locked
+          ? 'border-yellow-300 bg-slate-800/60 shadow-[0_0_0_3px_rgba(250,204,21,0.28)]'
+          : 'border-yellow-400/25 bg-yellow-500/10'
+      }`}
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-100/70">PowerCoin Bet</div>
+          <h2 className="mt-1 text-xl font-black text-white">
+            {locked ? 'Bet locked.' : 'Place your prediction before the match starts.'}
+          </h2>
+          <p className="mt-1 text-sm font-semibold text-yellow-50/70">
+            Optional. Pick a winner and amount before Start Game or your first scoring/defense action.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onLock('start_game')}
+          disabled={locked || disabled}
+          className="admin-g2-sm min-h-12 bg-emerald-400 px-6 py-3 text-base font-black text-slate-950 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+        >
+          Start Game
+        </button>
+      </div>
+
+      <div className={`mt-4 grid gap-3 lg:grid-cols-[1.25fr_180px_180px] ${locked ? 'opacity-55' : ''}`}>
+        <div className="admin-g2-sm border border-yellow-400/20 bg-slate-950/60 p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className={fieldLabelClass}>Winner Side</span>
+            <label className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-yellow-100/70">
+              <input
+                type="checkbox"
+                checked={secureMode}
+                disabled={locked || disabled}
+                onChange={event => onUpdate({ secureMode: event.target.checked })}
+                className="accent-yellow-300"
+              />
+              Secure Mode
+            </label>
+          </div>
+
+          {secureMode ? (
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input
+                aria-label="Secure bet side letter"
+                type={revealSecureSide ? 'text' : 'password'}
+                value={secureLetter}
+                disabled={locked || disabled}
+                maxLength={1}
+                onChange={event => {
+                  const letter = event.target.value.trim().toLowerCase().slice(-1);
+                  if (letter === 'r') onUpdate({ side: 'Red' });
+                  else if (letter === 'b') onUpdate({ side: 'Blue' });
+                  else onUpdate({ side: '' });
+                }}
+                className={`${inputClass} font-mono font-black tracking-[0.4em] focus:border-yellow-300`}
+                placeholder="r or b"
+              />
+              <button
+                type="button"
+                disabled={locked || disabled}
+                onPointerDown={() => setRevealSecureSide(true)}
+                onPointerUp={() => setRevealSecureSide(false)}
+                onPointerLeave={() => setRevealSecureSide(false)}
+                className="admin-g2-sm min-h-12 border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-black text-yellow-100 hover:bg-slate-800 disabled:text-slate-600"
+              >
+                Hold
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {(['Red', 'Blue'] as PowerCoinBetSide[]).map(side => (
+                <button
+                  key={side}
+                  type="button"
+                  disabled={locked || disabled}
+                  onClick={() => onUpdate({ side })}
+                  className={`admin-g2-sm min-h-12 border px-4 py-3 font-black ${
+                    selectedSide === side
+                      ? 'border-yellow-300 bg-yellow-300/20 text-yellow-50'
+                      : 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800'
+                  } disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-600`}
+                >
+                  {side}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <label className="admin-g2-sm border border-yellow-400/20 bg-slate-950/60 p-3">
+          <span className={fieldLabelClass}>Amount</span>
+          <input
+            aria-label="PowerCoin bet amount"
+            type="number"
+            min={0}
+            value={amount}
+            disabled={locked || disabled}
+            onChange={event => onUpdate({ amount: normalizePowerCoinAmount(event.target.value) })}
+            className={`${inputClass} mt-2 font-mono text-xl font-black focus:border-yellow-300`}
+          />
+        </label>
+
+        <div className="admin-g2-sm border border-yellow-400/20 bg-slate-950/60 p-3">
+          <div className={fieldLabelClass}>Status</div>
+          <div className={`mt-2 text-sm font-black ${locked ? 'text-yellow-100' : sideReady && amountReady ? 'text-emerald-200' : 'text-slate-400'}`}>
+            {locked
+              ? amountReady && sideReady
+                ? `${amount} on ${selectedSide}`
+                : 'No bet locked'
+              : sideReady && amountReady
+                ? 'Ready to lock'
+                : 'No active bet'}
+          </div>
+          <div className="mt-1 text-xs font-semibold text-slate-400">
+            {locked ? `Reason: ${bet?.lockReason || 'manual'}` : 'Locks on Start Game or first action.'}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ShiftCard({
+  entry,
+  isActive,
+  opponentTeamOptions,
+  onActivate,
+  onActionToggle,
+  onAddScore,
+  onUndoScore,
+  onDefenseChange
+}: {
+  entry: MatchScoutingV4ShiftEntry;
+  isActive: boolean;
+  opponentTeamOptions: string[];
+  onActivate: () => void;
+  onActionToggle: (action: MatchScoutingV4ShiftAction) => void;
+  onAddScore: (delta: 1 | 3 | 5 | 10) => void;
+  onUndoScore: () => void;
+  onDefenseChange: (targetTeamNumber: string, share: number) => void;
+}) {
+  const selectedActions = normalizeActionsForView(entry);
+  const actionOptions: MatchScoutingV4ShiftAction[] =
+    entry.owner === 'own' ? ['offense', 'defense', 'stockpile'] : ['defense', 'stockpile'];
+  const defenseAssignment = entry.defendedTeams[0] || createDefenseAssignment(opponentTeamOptions[0] || '');
+  const canShowCounter = isActive && entry.owner === 'own' && selectedActions.includes('offense');
+  const canShowDefense = isActive && selectedActions.includes('defense');
+  const canShowStockpile = selectedActions.includes('stockpile');
+
+  return (
+    <article
+      data-testid={`shift-card-${entry.index + 1}`}
+      className={`admin-g2 overflow-hidden border ${getAllianceTone(entry.shiftAlliance)} ${isActive ? 'ring-2 ring-white/20' : 'opacity-95'}`}
+    >
+      <button type="button" onClick={onActivate} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left">
+        <span className="min-w-0">
+          <span className="block text-xs font-black uppercase tracking-[0.22em] opacity-70">
+            Shift {entry.index + 1} · {entry.shiftAlliance || 'Unknown'} · {entry.owner === 'own' ? 'Scouted alliance' : 'Opponent alliance'}
+          </span>
+          <span className="mt-1 block text-lg font-black text-white">{deriveActionSummaryLabel(entry)}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="admin-g2-sm border border-white/10 bg-slate-950/45 px-3 py-2 font-mono text-lg font-black text-cyan-100">
+            {entry.ballsScored}
+          </span>
+          {entry.status === 'submitted' && (
+            <span className="admin-g2-sm border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-[10px] font-black uppercase text-emerald-100">
+              Submitted
+            </span>
+          )}
+        </span>
+      </button>
+
+      {isActive && (
+        <div className="border-t border-white/10 px-4 pb-4 pt-4">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {actionOptions.map(action => (
+              <button
+                key={action}
+                type="button"
+                aria-pressed={selectedActions.includes(action)}
+                onClick={() => onActionToggle(action)}
+                className={`admin-g2-sm px-3 py-3 text-sm font-black ${
+                  selectedActions.includes(action)
+                    ? 'bg-cyan-300 text-slate-950'
+                    : 'bg-slate-950/65 text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                {getShiftActionLabel(action)}
+              </button>
+            ))}
+          </div>
+
+          {canShowCounter && (
+            <section className="mt-4 border border-cyan-300/20 bg-cyan-300/10 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-cyan-100/75">Offense count</div>
+                  <div className="mt-1 text-3xl font-black text-white">{entry.ballsScored}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onUndoScore}
+                  disabled={(entry.scoreActions || []).length === 0}
+                  className="inline-flex items-center gap-2 border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-sm font-black text-amber-100 hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Undo Last
+                </button>
+              </div>
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                {SCORE_ACTION_STEPS.map(delta => (
+                  <button
+                    key={delta}
+                    type="button"
+                    onClick={() => onAddScore(delta)}
+                    className="admin-g2-sm border border-cyan-300/35 bg-cyan-300/15 px-3 py-4 text-xl font-black text-cyan-50 hover:bg-cyan-300/25 active:scale-95"
+                  >
+                    +{delta}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {canShowStockpile && (
+            <section className="mt-4 border border-violet-300/20 bg-violet-300/10 p-4">
+              <div className="text-sm font-black text-white">Stockpile</div>
+              <p className="mt-2 text-xs font-semibold leading-relaxed text-violet-50/80">
+                Stockpile only means going to the Neutral Zone and shooting balls back into the Alliance Zone. Picking up your own alliance balls and taking them there does not count. Bringing balls back and spitting them out without shooting does count.
+              </p>
+            </section>
+          )}
+
+          {canShowDefense && (
+            <section className="mt-4 border border-emerald-300/20 bg-emerald-300/10 p-4">
+              <div className="text-sm font-black text-white">Defense attribution</div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {opponentTeamOptions.length > 0 ? opponentTeamOptions.map(teamNumber => (
+                  <button
+                    key={teamNumber}
+                    type="button"
+                    onClick={() => onDefenseChange(teamNumber, defenseAssignment.claimedSharePercent || 100)}
+                    className={`admin-g2-sm px-3 py-3 font-black ${
+                      defenseAssignment.targetTeamNumber === teamNumber
+                        ? 'bg-emerald-300 text-slate-950'
+                        : 'bg-slate-950/65 text-slate-200 hover:bg-slate-800'
+                    }`}
+                  >
+                    Team {teamNumber}
+                  </button>
+                )) : (
+                  <div className="sm:col-span-3 text-xs font-semibold text-amber-100">Enter the three opposing robots above before assigning defense.</div>
+                )}
+              </div>
+              <label className="mt-4 block">
+                <span className="text-xs font-black uppercase tracking-[0.18em] text-emerald-100/75">
+                  This robot's share of denying that team: {Math.round(defenseAssignment.claimedSharePercent || 0)}%
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={defenseAssignment.claimedSharePercent || 0}
+                  onChange={event => onDefenseChange(defenseAssignment.targetTeamNumber || opponentTeamOptions[0] || '', Number(event.target.value))}
+                  className="mt-3 w-full accent-emerald-300"
+                />
+              </label>
+            </section>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -257,9 +715,11 @@ export default function MatchScoutV4View() {
   const [isUsernameResolved, setIsUsernameResolved] = useState(false);
   const [data, setData] = useState<MatchScoutingV4>(() => getDefaultData(deviceId));
   const [statusMessage, setStatusMessage] = useState('');
-  const [showQr, setShowQr] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scheduledTeams, setScheduledTeams] = useState<string[]>([]);
+  const [scheduledMatches, setScheduledMatches] = useState<TBAMatch[]>([]);
+  const [manualOpponents, setManualOpponents] = useState(['', '', '']);
+  const [activeShiftIndex, setActiveShiftIndex] = useState(0);
   const [assignmentWarning, setAssignmentWarning] = useState('');
   const [teamWarning, setTeamWarning] = useState('');
   const [isEditingExistingRecord, setIsEditingExistingRecord] = useState(false);
@@ -271,6 +731,24 @@ export default function MatchScoutV4View() {
     [normalizedData.matchNumber, normalizedData.matchType]
   );
   const canOpenForm = Boolean(normalizedData.teamNumber && archiveUsername && archiveScoutNumber && normalizedData.alliance);
+  const timelineEntries = useMemo(
+    () => buildTimelineEntries(normalizedData.shiftBreakdown || [], normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance),
+    [normalizedData.alliance, normalizedData.shiftBreakdown, normalizedData.teleopFirstShiftAlliance]
+  );
+  const currentScheduleMatch = useMemo(
+    () => scheduledMatches.find(match => getShortMatchKey(match) === currentMatchKey),
+    [currentMatchKey, scheduledMatches]
+  );
+  const opponentTeamOptions = useMemo(() => {
+    const opponentAlliance = getOppositeAlliance(normalizedData.alliance);
+    const scheduledOpponents = opponentAlliance && currentScheduleMatch
+      ? currentScheduleMatch.alliances[opponentAlliance.toLowerCase() as 'red' | 'blue'].team_keys.map(normalizeTeamKey)
+      : [];
+    return (scheduledOpponents.length ? scheduledOpponents : manualOpponents)
+      .map(team => team.replace(/[^\d]/g, ''))
+      .filter(Boolean)
+      .slice(0, 3);
+  }, [currentScheduleMatch, manualOpponents, normalizedData.alliance]);
   useEffect(() => {
     let cancelled = false;
     const hydrate = async () => {
@@ -345,17 +823,28 @@ export default function MatchScoutV4View() {
 
       const cacheKey = `match_schedule_${sanitizeScheduleEventKey(normalizedData.eventKey)}`;
       const cachedMatches = localStorage.getItem(cacheKey);
+      const applyMatches = (matches: TBAMatch[]) => {
+        const teams = new Set<string>();
+        matches.forEach(match => {
+          match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+          match.alliances.blue.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
+        });
+        setScheduledMatches(matches);
+        setScheduledTeams(Array.from(teams));
+      };
+      const refreshFromLocalDevProxy = async () => {
+        const matches = await fetchLocalTbaSchedule(normalizedData.eventKey);
+        if (!matches?.length || cancelled) return false;
+        localStorage.setItem(cacheKey, JSON.stringify(matches));
+        applyMatches(matches);
+        setAssignmentWarning('');
+        return true;
+      };
+
       if (cachedMatches) {
         try {
           const parsed = JSON.parse(cachedMatches) as TBAMatch[];
-          if (!cancelled) {
-            const teams = new Set<string>();
-            parsed.forEach(match => {
-              match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
-              match.alliances.blue.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
-            });
-            setScheduledTeams(Array.from(teams));
-          }
+          if (!cancelled) applyMatches(parsed);
         } catch (error) {
           console.error('Failed to parse cached V4 schedule', error);
         }
@@ -364,10 +853,15 @@ export default function MatchScoutV4View() {
       const localTbaApiKey = await loadTbaApiKey().catch(() => null);
       const effectiveTbaApiKey = localTbaApiKey || TBA_API_KEY;
       if (!effectiveTbaApiKey) {
+        try {
+          if (await refreshFromLocalDevProxy()) return;
+        } catch (error) {
+          console.warn('Local dev TBA schedule proxy is unavailable.', error);
+        }
         setAssignmentWarning(
           cachedMatches
-            ? 'Using cached schedule validation. Upload a local TBA key in Admin V4 Settings to refresh live schedule checks.'
-            : 'Schedule validation needs a TBA key. Upload the local API key JSON in Admin V4 Settings, or enter team/alliance manually.'
+            ? 'Using cached schedule validation. Live schedule refresh is unavailable on this device.'
+            : 'Live schedule validation is unavailable on this device. Enter team and alliance manually.'
         );
         return;
       }
@@ -377,17 +871,21 @@ export default function MatchScoutV4View() {
         const matches = await engine.fetchEventMatches(normalizedData.eventKey, { includeUnplayed: true });
         if (cancelled) return;
         localStorage.setItem(cacheKey, JSON.stringify(matches));
-
-        const teams = new Set<string>();
-        matches.forEach(match => {
-          match.alliances.red.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
-          match.alliances.blue.team_keys.forEach(teamKey => teams.add(normalizeTeamKey(teamKey)));
-        });
-        setScheduledTeams(Array.from(teams));
+        applyMatches(matches);
+        setAssignmentWarning('');
       } catch (error) {
         console.error('Failed to fetch V4 scout schedule', error);
-        if (!cancelled && !cachedMatches) {
-          setAssignmentWarning('Unable to load the live schedule. Team number and alliance can still be entered manually.');
+        try {
+          if (await refreshFromLocalDevProxy()) return;
+        } catch (proxyError) {
+          console.warn('Local dev TBA schedule proxy fallback is unavailable.', proxyError);
+        }
+        if (!cancelled) {
+          setAssignmentWarning(
+            cachedMatches
+              ? 'Using cached schedule validation. Live schedule refresh is unavailable on this device.'
+              : 'Unable to load the live schedule. Team number and alliance can still be entered manually.'
+          );
         }
       }
     };
@@ -427,6 +925,71 @@ export default function MatchScoutV4View() {
     setData(previous => normalizeMatchScoutingV4({ ...previous, ...patch }));
   };
 
+  const buildPowerCoinSnapshotForCurrentMatch = (
+    patch: Partial<Pick<PowerCoinMatchBetSnapshot, 'side' | 'amount' | 'secureMode' | 'lockedAt' | 'lockReason' | 'directSendStatus' | 'directSendError'>> = {}
+  ) =>
+    buildPowerCoinBetSnapshot({
+      base: normalizedData.powerCoinBet,
+      eventKey: normalizedData.eventKey,
+      matchKey: currentMatchKey,
+      matchNumber: normalizedData.matchNumber,
+      matchType: normalizedData.matchType,
+      scoutName: archiveUsername,
+      scoutNumber: archiveScoutNumber,
+      side: patch.side ?? normalizedData.powerCoinBet?.side ?? '',
+      amount: patch.amount ?? normalizedData.powerCoinBet?.amount ?? 0,
+      secureMode: patch.secureMode ?? normalizedData.powerCoinBet?.secureMode ?? false,
+      lockedAt: patch.lockedAt,
+      lockReason: patch.lockReason,
+      directSendStatus: patch.directSendStatus,
+      directSendError: patch.directSendError
+    });
+
+  const saveLocalPowerCoinBet = async (
+    bet: PowerCoinMatchBetSnapshot | undefined,
+    directSendStatus: PowerCoinBetSendStatus = bet?.directSendStatus || 'pending',
+    directSendError = ''
+  ) => {
+    const storedBet = bet ? toStoredPowerCoinBet(bet, directSendStatus, directSendError) : null;
+    if (!storedBet) return null;
+    await upsertPowerCoinBet(storedBet);
+    return storedBet;
+  };
+
+  const updatePowerCoinBetDraft = (patch: Partial<Pick<PowerCoinMatchBetSnapshot, 'side' | 'amount' | 'secureMode'>>) => {
+    if (normalizedData.powerCoinBet?.lockedAt) return;
+    updateData({
+      powerCoinBet: buildPowerCoinSnapshotForCurrentMatch({
+        ...patch,
+        lockedAt: null,
+        directSendStatus: 'not_attempted',
+        directSendError: ''
+      })
+    });
+  };
+
+  const lockPowerCoinBet = (reason: PowerCoinBetLockReason) => {
+    if (normalizedData.powerCoinBet?.lockedAt) return normalizedData.powerCoinBet;
+    const readyBet = Boolean(
+      normalizedData.powerCoinBet &&
+      isPowerCoinBetSide(normalizedData.powerCoinBet.side) &&
+      normalizedData.powerCoinBet.amount > 0
+    );
+    const lockedBet = buildPowerCoinSnapshotForCurrentMatch({
+      lockedAt: Date.now(),
+      lockReason: reason,
+      directSendStatus: readyBet ? 'pending' : 'not_attempted',
+      directSendError: ''
+    });
+    updateData({ powerCoinBet: lockedBet });
+    if (isSubmittablePowerCoinBet(lockedBet)) {
+      void saveLocalPowerCoinBet(lockedBet, 'pending').catch(error => {
+        console.warn('Failed to save local PowerCoin bet', error);
+      });
+    }
+    return lockedBet;
+  };
+
   const getPendingIdentity = (): ScoutArchiveIdentity => ({
     username: pendingUsername.trim(),
     scoutNumber: normalizeScoutNumberForView(pendingScoutNumber)
@@ -443,6 +1006,104 @@ export default function MatchScoutV4View() {
       assignedScoutName: identity.username,
       assignedSlot: buildScoutNumberSlot(identity.scoutNumber),
       substituteScoutName: ''
+    });
+  };
+
+  const commitShiftEntries = (nextEntries: MatchScoutingV4ShiftEntry[]) => {
+    const summary = deriveShiftSummary(nextEntries);
+    updateData({
+      shiftBreakdown: nextEntries,
+      teleopPoints: summary.teleopPoints,
+      teleopCycles: 0,
+      rolePlayed: summary.rolePlayed,
+      defenseAssignments: summary.defenseAssignments,
+      defendedTeamNumber: summary.defendedTeamNumber,
+      defenseIntensity: summary.defenseIntensity
+    });
+  };
+
+  const updateShiftEntry = (shiftIndex: number, patch: Partial<MatchScoutingV4ShiftEntry>) => {
+    const nextEntries = timelineEntries.map(entry => {
+      if (entry.index !== shiftIndex) return entry;
+      const mergedActions = normalizeActionsForView({ ...entry, ...patch });
+      const nextActions = entry.owner === 'own'
+        ? mergedActions
+        : mergedActions.filter(action => action !== 'offense');
+      const nextRole = deriveShiftRoleForView(nextActions);
+      const nextEntry = {
+        ...entry,
+        ...patch,
+        actions: nextActions,
+        role: nextRole,
+        ballsScored: nextActions.includes('offense') ? patch.ballsScored ?? entry.ballsScored : 0,
+        scoreActions: nextActions.includes('offense') ? patch.scoreActions ?? entry.scoreActions : [],
+        stockpileShiftCredit: patch.stockpileShiftCredit ?? deriveStockpileCreditForView(nextActions),
+        defenseShiftCredit: patch.defenseShiftCredit ?? deriveDefenseCreditForView(nextActions),
+        defendedTeams: nextActions.includes('defense') ? patch.defendedTeams ?? entry.defendedTeams : [],
+        status: patch.status || entry.status || 'draft'
+      } satisfies MatchScoutingV4ShiftEntry;
+      return nextEntry;
+    });
+    commitShiftEntries(nextEntries);
+  };
+
+  const toggleShiftAction = (entry: MatchScoutingV4ShiftEntry, action: MatchScoutingV4ShiftAction) => {
+    lockPowerCoinBet('gameplay_action');
+    const currentActions = normalizeActionsForView(entry);
+    const nextActions = currentActions.includes(action)
+      ? currentActions.filter(item => item !== action)
+      : [...currentActions, action];
+    const allowedActions = entry.owner === 'own'
+      ? nextActions
+      : nextActions.filter(item => item !== 'offense');
+    const defendedTeams = allowedActions.includes('defense')
+      ? entry.defendedTeams.length > 0
+        ? entry.defendedTeams
+        : [createDefenseAssignment(opponentTeamOptions[0] || '')]
+      : [];
+    updateShiftEntry(entry.index, {
+      actions: allowedActions,
+      role: deriveShiftRoleForView(allowedActions),
+      defendedTeams,
+      ballsScored: allowedActions.includes('offense') ? entry.ballsScored : 0,
+      scoreActions: allowedActions.includes('offense') ? entry.scoreActions : []
+    });
+  };
+
+  const addShiftScoreAction = (entry: MatchScoutingV4ShiftEntry, delta: 1 | 3 | 5 | 10) => {
+    if (entry.owner !== 'own') return;
+    lockPowerCoinBet('gameplay_action');
+    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'offense' as const]));
+    const scoreActions = [...(entry.scoreActions || []), { delta, at: Date.now() }];
+    updateShiftEntry(entry.index, {
+      actions,
+      role: deriveShiftRoleForView(actions),
+      scoreActions,
+      ballsScored: scoreActions.reduce((sum, action) => sum + action.delta, 0)
+    });
+  };
+
+  const undoShiftScoreAction = (entry: MatchScoutingV4ShiftEntry) => {
+    lockPowerCoinBet('gameplay_action');
+    const scoreActions = (entry.scoreActions || []).slice(0, -1);
+    updateShiftEntry(entry.index, {
+      scoreActions,
+      ballsScored: scoreActions.reduce((sum, action) => sum + action.delta, 0)
+    });
+  };
+
+  const updateShiftDefenseAssignment = (entry: MatchScoutingV4ShiftEntry, targetTeamNumber: string, claimedSharePercent: number) => {
+    lockPowerCoinBet('gameplay_action');
+    const actions = Array.from(new Set([...normalizeActionsForView(entry), 'defense' as const]));
+    updateShiftEntry(entry.index, {
+      actions,
+      role: deriveShiftRoleForView(actions),
+      defendedTeams: [{
+        targetTeamNumber,
+        claimedSharePercent,
+        normalizedSharePercent: claimedSharePercent,
+        notes: ''
+      }]
     });
   };
 
@@ -499,23 +1160,90 @@ export default function MatchScoutV4View() {
     if (!archiveScoutNumber) return 'Scout number is required.';
     if (!normalizedData.teamNumber.trim()) return 'Team number is required.';
     if (!normalizedData.alliance) return 'Alliance is required.';
-    if (!normalizedData.rolePlayed) return 'Role played is required. Choose Offense, Defense, Mixed, Support, or Disabled.';
     return '';
   };
 
-  const buildCurrentPayload = (scoutNameOverride = archiveUsername) =>
-    normalizeMatchScoutingV4({
+  const buildPowerCoinSnapshotForPayload = (
+    bet: PowerCoinMatchBetSnapshot | undefined,
+    directSendStatus?: PowerCoinMatchBetSnapshot['directSendStatus'],
+    directSendError?: string
+  ) => bet
+    ? buildPowerCoinBetSnapshot({
+        base: bet,
+        eventKey: normalizedData.eventKey,
+        matchKey: currentMatchKey,
+        matchNumber: normalizedData.matchNumber,
+        matchType: normalizedData.matchType,
+        scoutName: archiveUsername,
+        scoutNumber: archiveScoutNumber,
+        side: bet.side,
+        amount: bet.amount,
+        secureMode: bet.secureMode,
+        lockedAt: bet.lockedAt,
+        lockReason: bet.lockReason,
+        directSendStatus: directSendStatus ?? bet.directSendStatus,
+        directSendError: directSendError ?? bet.directSendError
+      })
+    : undefined;
+
+  const buildCurrentPayload = (
+    scoutNameOverride = archiveUsername,
+    currentVersionSubmitted = false,
+    options: {
+      powerCoinBet?: PowerCoinMatchBetSnapshot;
+      powerCoinSendStatus?: PowerCoinMatchBetSnapshot['directSendStatus'];
+      powerCoinSendError?: string;
+    } = {}
+  ) => {
+    const previousVersion = Math.max(1, Number(normalizedData.versionMetadata?.version || 1));
+    const nextVersion = isEditingExistingRecord ? previousVersion + 1 : previousVersion;
+    const nextMatchKey = currentMatchKey;
+    const nextShiftBreakdown = buildTimelineEntries(timelineEntries, normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance);
+    const shiftSummary = deriveShiftSummary(nextShiftBreakdown);
+    return normalizeMatchScoutingV4({
       ...normalizedData,
+      ...shiftSummary,
+      shiftBreakdown: nextShiftBreakdown,
+      autoCycles: 0,
+      teleopCycles: 0,
       scoutName: scoutNameOverride.trim(),
       scoutNumber: archiveScoutNumber,
       assignedScoutName: scoutNameOverride.trim(),
       assignedSlot: buildScoutNumberSlot(archiveScoutNumber),
       substituteScoutName: '',
-      matchKey: currentMatchKey,
+      matchKey: nextMatchKey,
       timestamp: Date.now(),
       deviceId,
-      adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff)
+      versionMetadata: {
+        logicalId: `${nextMatchKey}_${normalizedData.teamNumber || 'team'}`,
+        version: nextVersion,
+        parentVersion: isEditingExistingRecord ? previousVersion : null,
+        currentVersionSubmitted,
+        submissionNumber: currentVersionSubmitted ? 1 : 0,
+        submittedAt: currentVersionSubmitted ? Date.now() : null,
+        editedAt: Date.now(),
+        editedByName: scoutNameOverride.trim(),
+        editedByScoutNumber: archiveScoutNumber,
+        editedBySurface: 'scout'
+      },
+      editHistory: isEditingExistingRecord
+        ? [
+            ...(normalizedData.editHistory || []),
+            {
+              timestamp: Date.now(),
+              editor: scoutNameOverride.trim(),
+              changes: `Scout-side edit saved as version ${nextVersion}.`
+            }
+          ]
+        : normalizedData.editHistory || [],
+      adminTask: buildScoutEvidenceAdminTask(activeTaskHandoff),
+      powerCoinBet: buildPowerCoinSnapshotForPayload(
+        options.powerCoinBet ?? normalizedData.powerCoinBet,
+        options.powerCoinSendStatus,
+        options.powerCoinSendError
+      )
     });
+  };
 
   const resetFormAfterLocalSave = (scoutName = archiveUsername, scoutNumber = archiveScoutNumber) => {
     localStorage.removeItem(DRAFT_KEY);
@@ -523,6 +1251,41 @@ export default function MatchScoutV4View() {
     setIsEditingExistingRecord(false);
     setData(getDefaultData(deviceId, scoutName, scoutNumber));
     setTeamManuallyEdited(false);
+  };
+
+  const withHeadScoutTimeout = async <T,>(promise: Promise<T>): Promise<T> =>
+    await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Head scout submit timed out.')), HEAD_SCOUT_SUBMIT_TIMEOUT_MS);
+      })
+    ]);
+
+  const downloadJson = (filename: string, payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadCurrentJson = () => {
+    const payload = buildCurrentPayload(archiveUsername, false);
+    const filename = `${payload.scoutName || 'scout'}_${payload.eventKey}_${payload.matchKey}_${payload.teamNumber || 'team'}_v${payload.versionMetadata?.version || 1}.json`;
+    downloadJson(filename, {
+      format: 'rebuilt-2026-match-scout-v4-single-match',
+      version: 1,
+      exportedAt: Date.now(),
+      exportedAtIso: new Date().toISOString(),
+      scoutName: archiveUsername,
+      scoutNumber: archiveScoutNumber,
+      currentVersionSubmitted: payload.versionMetadata?.currentVersionSubmitted || false,
+      submissionNumber: payload.versionMetadata?.submissionNumber || 0,
+      record: payload
+    });
+    setStatusMessage('Offline JSON exported for this match only.');
   };
 
   const handleSubmit = async () => {
@@ -533,53 +1296,112 @@ export default function MatchScoutV4View() {
     }
 
     setIsSubmitting(true);
-    setStatusMessage('Saving locally first...');
+    setStatusMessage('Submitting to Head Scout...');
 
     const scoutName = archiveUsername.trim();
+    const powerCoinBetAtSubmit = normalizedData.powerCoinBet?.lockedAt
+      ? normalizedData.powerCoinBet
+      : buildPowerCoinSnapshotForCurrentMatch({
+          lockedAt: Date.now(),
+          lockReason: 'submit',
+          directSendStatus: normalizedData.powerCoinBet && isPowerCoinBetSide(normalizedData.powerCoinBet.side) && normalizedData.powerCoinBet.amount > 0
+            ? 'pending'
+            : 'not_attempted',
+          directSendError: ''
+        });
+    updateData({ powerCoinBet: powerCoinBetAtSubmit });
+    if (isSubmittablePowerCoinBet(powerCoinBetAtSubmit)) {
+      await saveLocalPowerCoinBet(powerCoinBetAtSubmit, 'pending').catch(error => {
+        console.warn('Failed to stage PowerCoin bet before submit', error);
+      });
+    }
 
     try {
       await setScoutArchiveIdentity({ username: scoutName, scoutNumber: archiveScoutNumber });
 
-      const payload = buildCurrentPayload(scoutName);
-      const archiveRecord = await upsertMatchArchiveRecordV4(payload, scoutName, 'local_submit', {
-        syncStatus: 'pending_sync',
-        syncMode: isEditingExistingRecord ? 'replace' : 'strict',
-        lastFirebaseAttemptAt: Date.now(),
-        lastFirebaseError: ''
+      const submittedPayload = buildCurrentPayload(scoutName, true, {
+        powerCoinBet: powerCoinBetAtSubmit,
+        powerCoinSendStatus: isSubmittablePowerCoinBet(powerCoinBetAtSubmit) ? 'sent' : 'not_attempted',
+        powerCoinSendError: ''
       });
-      if (activeTaskHandoff) {
-        setCompletedAdminTaskKey(taskHandoffKey);
-        clearScoutTaskHandoff('matchScout');
-      }
-
       try {
-        const writeResult = await writeMatchScoutingV4Record(payload, { mode: isEditingExistingRecord ? 'replace' : 'strict' });
+        const writeResult = await withHeadScoutTimeout(
+          writeMatchScoutingV4Record(submittedPayload, { mode: isEditingExistingRecord ? 'replace' : 'strict' })
+        );
         if (writeResult.outcome === 'conflict') {
+          const localPayload = buildCurrentPayload(scoutName, false, {
+            powerCoinBet: powerCoinBetAtSubmit,
+            powerCoinSendStatus: isSubmittablePowerCoinBet(powerCoinBetAtSubmit) ? 'failed' : 'not_attempted',
+            powerCoinSendError: writeResult.message
+          });
+          const archiveRecord = await upsertMatchArchiveRecordV4(localPayload, scoutName, 'local_submit', {
+            syncStatus: 'unsynced',
+            syncMode: isEditingExistingRecord ? 'replace' : 'strict',
+            lastFirebaseAttemptAt: Date.now(),
+            lastFirebaseError: writeResult.message
+          });
           await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
             syncStatus: 'unsynced',
             lastFirebaseAttemptAt: Date.now(),
             lastFirebaseError: writeResult.message
           });
-          resetFormAfterLocalSave(scoutName);
-          setStatusMessage(`Saved locally. Firebase conflict blocked: ${writeResult.message}`);
+          if (isSubmittablePowerCoinBet(powerCoinBetAtSubmit)) {
+            await saveLocalPowerCoinBet(powerCoinBetAtSubmit, 'failed', writeResult.message).catch(error => {
+              console.warn('Failed to mark local PowerCoin bet conflict', error);
+            });
+          }
+          resetFormAfterLocalSave(scoutName, archiveScoutNumber);
+          setStatusMessage(`Saved locally. Firebase conflict blocked: ${writeResult.message}${isSubmittablePowerCoinBet(powerCoinBetAtSubmit) ? ' PowerCoin bet saved locally for retry.' : ''}`);
           return;
         }
 
+        const archiveRecord = await upsertMatchArchiveRecordV4(submittedPayload, scoutName, 'local_submit', {
+          syncStatus: 'synced',
+          syncMode: isEditingExistingRecord ? 'replace' : 'strict',
+          lastFirebaseAttemptAt: Date.now(),
+          lastFirebaseError: ''
+        });
+        if (activeTaskHandoff) {
+          setCompletedAdminTaskKey(taskHandoffKey);
+          clearScoutTaskHandoff('matchScout');
+        }
         await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
           syncStatus: 'synced',
           lastFirebaseAttemptAt: Date.now(),
           lastFirebaseError: ''
         });
-        resetFormAfterLocalSave(scoutName);
-        setStatusMessage(`Saved locally and synced to Firebase. ${writeResult.message}`);
-      } catch (firebaseError) {
+        if (isSubmittablePowerCoinBet(powerCoinBetAtSubmit)) {
+          await saveLocalPowerCoinBet(powerCoinBetAtSubmit, 'sent').catch(error => {
+            console.warn('Failed to mark local PowerCoin bet sent', error);
+          });
+        }
+        resetFormAfterLocalSave(scoutName, archiveScoutNumber);
+        setStatusMessage(`Submitted to Head Scout. ${writeResult.message}`);
+      } catch (remoteError) {
+        const remoteErrorMessage = remoteError instanceof Error ? remoteError.message : 'Head scout submit failed.';
+        const localPayload = buildCurrentPayload(scoutName, false, {
+          powerCoinBet: powerCoinBetAtSubmit,
+          powerCoinSendStatus: isSubmittablePowerCoinBet(powerCoinBetAtSubmit) ? 'failed' : 'not_attempted',
+          powerCoinSendError: remoteErrorMessage
+        });
+        const archiveRecord = await upsertMatchArchiveRecordV4(localPayload, scoutName, 'local_submit', {
+          syncStatus: 'unsynced',
+          syncMode: isEditingExistingRecord ? 'replace' : 'strict',
+          lastFirebaseAttemptAt: Date.now(),
+          lastFirebaseError: remoteErrorMessage
+        });
         await updateScoutArchiveRecordSyncState(archiveRecord.recordId, {
           syncStatus: 'unsynced',
           lastFirebaseAttemptAt: Date.now(),
-          lastFirebaseError: firebaseError instanceof Error ? firebaseError.message : 'Firebase sync failed.'
+          lastFirebaseError: remoteErrorMessage
         });
-        resetFormAfterLocalSave(scoutName);
-        setStatusMessage('Saved locally in My History. Firebase failed, so this record is marked unsynced and remains exportable.');
+        if (isSubmittablePowerCoinBet(powerCoinBetAtSubmit)) {
+          await saveLocalPowerCoinBet(powerCoinBetAtSubmit, 'failed', remoteErrorMessage).catch(error => {
+            console.warn('Failed to mark local PowerCoin bet failed', error);
+          });
+        }
+        resetFormAfterLocalSave(scoutName, archiveScoutNumber);
+        setStatusMessage(`Saved to Local. Try re-uploading later.${isSubmittablePowerCoinBet(powerCoinBetAtSubmit) ? ' PowerCoin bet did not reach Head Scout yet.' : ''}`);
       }
     } catch (localError) {
       console.error('Failed to save V4 record locally', localError);
@@ -757,30 +1579,56 @@ export default function MatchScoutV4View() {
 
           {canOpenForm && (
             <section className="mt-6 space-y-5">
-              <div className="admin-g2 border border-emerald-400/25 bg-emerald-500/10 p-5">
-                <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-200">Live Match Capture</div>
-                <h2 className="mt-1 text-2xl font-black text-white">Score and defense can change at any time.</h2>
-                <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-emerald-50/80">
-                  Record the match in the order it actually happens. A robot can score, defend, get defended, recover, and score again without changing pages.
-                </p>
-              </div>
+              <PowerCoinBetPanel
+                bet={normalizedData.powerCoinBet}
+                disabled={isSubmitting}
+                onLock={lockPowerCoinBet}
+                onUpdate={updatePowerCoinBetDraft}
+              />
 
-              <div data-testid="first-shift-panel" className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Shift Metadata</div>
-                    <h2 className="mt-1 text-xl font-black text-white">First Teleop Shift</h2>
-                    <p className="mt-1 max-w-2xl text-sm font-semibold leading-relaxed text-slate-400">
-                      Tap which alliance started the first teleop shift. This is reversible, and a later match audit can ask this match's scouts to confirm if reports disagree.
+              <StepFrame step="score" dense>
+                <section data-testid="auto-shift-panel" className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                  <NumberCounter
+                    label="Auto Points"
+                    description="Autonomous contribution."
+                    value={normalizedData.autoPoints}
+                    onChange={value => {
+                      lockPowerCoinBet('gameplay_action');
+                      updateData({ autoPoints: value });
+                    }}
+                  />
+                  <div className="admin-g2-sm border border-slate-800 bg-slate-950/40 p-3">
+                    <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Auto Shift</div>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-400">
+                      Keep auto separate from the red/blue shift timeline.
                     </p>
                   </div>
-                  <div className="grid min-w-full grid-cols-3 gap-2 md:min-w-[22rem]">
+                </section>
+              </StepFrame>
+
+              <div data-testid="first-shift-panel" className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Teleop Timeline</div>
+                    <h2 className="mt-1 text-xl font-black text-white">Red/Blue First Alliance Shift</h2>
+                    <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+                      Default is Red. This is reversible, and the shift cards below reorder immediately so the form stays aligned with the real match.
+                    </p>
+                  </div>
+                  <div className="grid min-w-full grid-cols-2 gap-2 xl:min-w-[18rem]">
                     {(['Red', 'Blue'] as const).map(alliance => (
                       <button
                         key={alliance}
                         type="button"
                         data-testid={`first-shift-${alliance.toLowerCase()}`}
-                        onClick={() => updateData({ teleopFirstShiftAlliance: normalizedData.teleopFirstShiftAlliance === alliance ? '' : alliance })}
+                        onClick={() => {
+                          const nextEntries = buildTimelineEntries(timelineEntries, alliance, normalizedData.alliance);
+                          updateData({
+                            teleopFirstShiftAlliance: alliance,
+                            shiftBreakdown: nextEntries,
+                            ...deriveShiftSummary(nextEntries)
+                          });
+                        }}
                         className={`admin-g2-sm px-4 py-3 font-black ${
                           normalizedData.teleopFirstShiftAlliance === alliance
                             ? alliance === 'Red'
@@ -789,104 +1637,68 @@ export default function MatchScoutV4View() {
                             : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                         }`}
                       >
-                        {alliance}
+                        {alliance} first
                       </button>
                     ))}
-                    <button
-                      type="button"
-                      data-testid="first-shift-clear"
-                      onClick={() => updateData({ teleopFirstShiftAlliance: '' })}
-                      className="admin-g2-sm bg-slate-800 px-4 py-3 font-black text-slate-300 hover:bg-slate-700"
-                    >
-                      Clear
-                    </button>
                   </div>
                 </div>
                 <div data-testid="first-shift-current" className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
-                  Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Not recorded yet'}</span>
+                  Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Red'}</span>
                 </div>
+
+                {opponentTeamOptions.length < 3 && (
+                  <div className="admin-g2-sm mt-4 border border-amber-400/25 bg-amber-500/10 p-4">
+                    <div className="text-xs font-black uppercase tracking-[0.18em] text-amber-100/80">Opposing Robots</div>
+                    <p className="mt-1 text-xs font-semibold text-amber-50/75">
+                      TBA did not provide all three opponents for this match yet. Enter them here so defense target buttons stay specific.
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      {manualOpponents.map((team, index) => (
+                        <input
+                          key={index}
+                          value={team}
+                          onChange={event => {
+                            const next = [...manualOpponents];
+                            next[index] = event.target.value.replace(/[^\d]/g, '');
+                            setManualOpponents(next);
+                          }}
+                          className="admin-g2-sm border border-amber-400/25 bg-slate-950/70 px-3 py-2 font-mono font-black text-white outline-none focus:border-amber-200"
+                          placeholder={`Opponent ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-                <StepFrame step="score">
-                  <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-                    <NumberCounter label="Auto Points" description="Expected-value signal before teleop noise." value={normalizedData.autoPoints} onChange={value => updateData({ autoPoints: value })} />
-                    <NumberCounter label="Teleop Points" description="Main scoring contribution." value={normalizedData.teleopPoints} onChange={value => updateData({ teleopPoints: value })} />
-                    <NumberCounter label="Endgame Points" description="Late-match contribution." value={normalizedData.endgamePoints} onChange={value => updateData({ endgamePoints: value })} steps={[1, 5, 10, 15]} />
-                  </section>
+              <section className="space-y-3" data-testid="shift-timeline">
+                {timelineEntries.map(entry => (
+                  <ShiftCard
+                    key={entry.id}
+                    entry={entry}
+                    isActive={entry.index === activeShiftIndex}
+                    opponentTeamOptions={opponentTeamOptions}
+                    onActivate={() => setActiveShiftIndex(entry.index)}
+                    onActionToggle={action => toggleShiftAction(entry, action)}
+                    onAddScore={delta => addShiftScoreAction(entry, delta)}
+                    onUndoScore={() => undoShiftScoreAction(entry)}
+                    onDefenseChange={(targetTeamNumber, share) => updateShiftDefenseAssignment(entry, targetTeamNumber, share)}
+                  />
+                ))}
+              </section>
 
-                  <section className="mt-4 grid gap-4 md:grid-cols-2">
-                    <NumberCounter label="Auto Cycles" description="Autonomous repeatability." value={normalizedData.autoCycles} onChange={value => updateData({ autoCycles: value })} steps={[1]} />
-                    <NumberCounter label="Teleop Cycles" description="Teleop repeatability." value={normalizedData.teleopCycles} onChange={value => updateData({ teleopCycles: value })} steps={[1]} />
-                  </section>
-                </StepFrame>
-
-                <StepFrame step="role">
-                  <section>
-                    <div className="mb-4 flex items-start gap-3">
-                      <Shield className="h-5 w-5 text-emerald-300" />
-                      <div>
-                        <h2 className="text-xl font-black text-white">Role + Defense</h2>
-                        <p className="text-sm font-semibold text-slate-400">Use Mixed when they scored and defended in the same match.</p>
-                      </div>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-                      <div className="grid gap-2 md:col-span-3 md:grid-cols-5 xl:col-span-1 xl:grid-cols-1 2xl:col-span-3 2xl:grid-cols-5">
-                        {ROLE_OPTIONS.map(role => (
-                          <button
-                            key={role}
-                            type="button"
-                            onClick={() => updateData({ rolePlayed: role })}
-                            className={`admin-g2-sm px-3 py-3 font-black ${normalizedData.rolePlayed === role ? 'bg-emerald-400 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                          >
-                            {role}
-                          </button>
-                        ))}
-                      </div>
-                      <label className="space-y-2">
-                        <span className={fieldLabelClass}>Team they defended</span>
-                        <input
-                          value={normalizedData.defendedTeamNumber}
-                          onChange={event => updateData({ defendedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                        />
-                      </label>
-                      <label className="space-y-2">
-                        <span className={fieldLabelClass}>Defender faced</span>
-                        <input
-                          value={normalizedData.defenderFacedTeamNumber}
-                          onChange={event => updateData({ defenderFacedTeamNumber: event.target.value.replace(/[^\d]/g, '') })}
-                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                        />
-                      </label>
-                      <label className="space-y-2">
-                        <span className={fieldLabelClass}>Defense seconds</span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={normalizedData.defenseDurationSeconds}
-                          onChange={event => updateData({ defenseDurationSeconds: Number(event.target.value) })}
-                          className={`${inputClass} font-mono font-bold focus:border-emerald-400`}
-                        />
-                      </label>
-                      <label className="space-y-2 md:col-span-3 xl:col-span-1 2xl:col-span-3">
-                        <span className={fieldLabelClass}>
-                          Defense Intensity: {(normalizedData.defenseIntensity * 100).toFixed(0)}%
-                        </span>
-                        <input
-                          type="range"
-                          min={0}
-                          max={1}
-                          step={0.0001}
-                          value={normalizedData.defenseIntensity}
-                          onChange={event => updateData({ defenseIntensity: Number(event.target.value) })}
-                          className="w-full accent-emerald-400"
-                        />
-                      </label>
-                    </div>
-                  </section>
-                </StepFrame>
-              </div>
+              <StepFrame step="score">
+                <NumberCounter
+                  label="Endgame Points"
+                  description="Late-match contribution after teleop shifts."
+                  value={normalizedData.endgamePoints}
+                  onChange={value => {
+                    lockPowerCoinBet('gameplay_action');
+                    updateData({ endgamePoints: value });
+                  }}
+                  steps={[1, 5, 10, 15]}
+                />
+              </StepFrame>
 
               <StepFrame step="risk">
                 <section>
@@ -958,11 +1770,11 @@ export default function MatchScoutV4View() {
                 <div className="admin-g2 mt-4 flex flex-wrap items-center justify-end gap-3 border border-slate-800 bg-slate-900/70 p-4">
                   <button
                     type="button"
-                    onClick={() => setShowQr(value => !value)}
+                    onClick={handleDownloadCurrentJson}
                     className="admin-g2-sm inline-flex items-center gap-2 bg-slate-800 px-5 py-3 font-black text-slate-200 hover:bg-slate-700"
                   >
-                    <QrCode className="h-5 w-5" />
-                    Offline QR
+                    <Download className="h-5 w-5" />
+                    Offline JSON
                   </button>
                   <button
                     type="button"
@@ -971,28 +1783,10 @@ export default function MatchScoutV4View() {
                     className="admin-g2-sm inline-flex items-center gap-2 bg-emerald-500 px-8 py-3 text-lg font-black text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
                   >
                     <Save className="h-5 w-5" />
-                    Submit Local First
+                    Submit to Head Scout
                   </button>
                 </div>
               </StepFrame>
-
-              {showQr && (
-                <div className="admin-g2 border border-cyan-400/30 bg-cyan-500/10 p-6 text-center">
-                  <div className="mx-auto max-w-xl text-left">
-                    <div className="text-xs font-black uppercase tracking-[0.2em] text-cyan-100">Offline Backup</div>
-                    <p className="mt-2 text-sm font-semibold leading-relaxed text-cyan-50/80">
-                      Use this only when Firebase sync is not available. Submit Local First still saves the row on this device.
-                    </p>
-                  </div>
-                  <div className="admin-g2 mx-auto mt-4 inline-block bg-white p-4">
-                    <QRCodeSVG value={compressMatchDataV4(buildCurrentPayload())} size={260} level="M" />
-                  </div>
-                  <p className="mt-4 flex items-center justify-center gap-2 text-sm font-bold text-cyan-100">
-                    <Download className="h-4 w-4" />
-                    Scan this in Admin V4 Data if Firebase is unavailable.
-                  </p>
-                </div>
-              )}
             </section>
           )}
         </div>

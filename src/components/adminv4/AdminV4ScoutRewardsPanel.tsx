@@ -3,9 +3,11 @@ import { PowerCoinBet } from '../../types';
 import { AdminButton, AdminInput } from './AdminV4Primitives';
 import { AdminEmptyState, FocusHeader, SummaryCard } from './AdminV4UiAtoms';
 import { PowerCoinSettlementWinner } from './AdminV4SafetyModals';
+import { formatPowerCoinScoutChoice, resolvePowerCoinScoutChoice } from '../../utils/scoutPowerCoins';
 
 export interface AdminV4ScoutRewardRow {
   scoutName: string;
+  scoutNumber?: number | null;
   balance: number;
   openBets: number;
   openStake: number;
@@ -31,6 +33,7 @@ export default function AdminV4ScoutRewardsPanel({
   onSetAdjustmentAmount,
   onSetAdjustmentReason,
   onApplyAdjustment,
+  onDisqualifyBet,
   onSettleAllPlayed,
   onSettleMatch
 }: {
@@ -44,17 +47,22 @@ export default function AdminV4ScoutRewardsPanel({
   onSetAdjustmentAmount: (value: number) => void;
   onSetAdjustmentReason: (value: string) => void;
   onApplyAdjustment: () => void | Promise<void>;
+  onDisqualifyBet: (betId: string, disqualified: boolean) => void | Promise<void>;
   onSettleAllPlayed: () => void | Promise<void>;
   onSettleMatch: (matchKey: string, winner: PowerCoinSettlementWinner) => void | Promise<void>;
 }) {
-  const openBets = bets.filter(bet => !bet.settledAt);
-  const normalizedAdjustmentScout = adjustmentScout.trim().toLowerCase();
-  const selectedAdjustmentRow = rows.find(row => row.scoutName.trim().toLowerCase() === normalizedAdjustmentScout);
+  const openBets = bets.filter(bet => !bet.settledAt && !bet.disqualified);
+  const adjustmentIdentity = resolvePowerCoinScoutChoice(adjustmentScout, rows);
+  const selectedAdjustmentRow = rows.find(row =>
+    adjustmentIdentity.scoutNumber
+      ? row.scoutNumber === adjustmentIdentity.scoutNumber
+      : row.scoutName.trim().toLowerCase() === adjustmentIdentity.scoutName.trim().toLowerCase()
+  );
   const adjustmentDelta = Number.isFinite(Number(adjustmentAmount)) ? Math.trunc(Number(adjustmentAmount)) : 0;
   const adjustmentCurrentBalance = selectedAdjustmentRow?.balance ?? STARTING_REWARD_BALANCE;
   const adjustmentAfterBalance = adjustmentCurrentBalance + adjustmentDelta;
   const adjustmentReasonReady = adjustmentReason.trim().length > 0;
-  const adjustmentReady = normalizedAdjustmentScout.length > 0 && adjustmentDelta !== 0 && adjustmentReasonReady;
+  const adjustmentReady = adjustmentScout.trim().length > 0 && adjustmentDelta !== 0 && adjustmentReasonReady;
   const adjustmentDeltaLabel = adjustmentDelta > 0 ? `+${adjustmentDelta}` : String(adjustmentDelta);
 
   return (
@@ -96,7 +104,7 @@ export default function AdminV4ScoutRewardsPanel({
             list="adminv4-powercoin-scouts"
             value={adjustmentScout}
             onChange={event => onSetAdjustmentScout(event.target.value)}
-            placeholder="Scout name"
+            placeholder="#7 Scout name"
           />
           <AdminInput
             aria-label="Scout reward adjustment amount"
@@ -106,7 +114,7 @@ export default function AdminV4ScoutRewardsPanel({
           />
         </div>
         <datalist id="adminv4-powercoin-scouts">
-          {rows.map(row => <option key={row.scoutName} value={row.scoutName} />)}
+          {rows.map(row => <option key={`${row.scoutNumber ?? 'name'}:${row.scoutName}`} value={formatPowerCoinScoutChoice(row)} />)}
         </datalist>
         <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_auto]">
           <AdminInput
@@ -137,7 +145,7 @@ export default function AdminV4ScoutRewardsPanel({
             </div>
           </div>
         </div>
-        {normalizedAdjustmentScout && !selectedAdjustmentRow && (
+        {adjustmentScout.trim() && !selectedAdjustmentRow && (
           <div className="mt-3 admin-g2-sm border border-yellow-400/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-100/75">
             This scout is not in the current reward table yet, so the preview uses the {STARTING_REWARD_BALANCE}-point starting balance before creating a ledger entry.
           </div>
@@ -197,15 +205,17 @@ export default function AdminV4ScoutRewardsPanel({
             </thead>
             <tbody className="divide-y divide-slate-800">
               {bets.map(bet => (
-                <tr key={bet.id}>
-                  <td className="px-4 py-3 font-black text-white">{bet.scoutName}</td>
+                <tr key={bet.id} className={bet.disqualified ? 'bg-rose-500/10 text-slate-400' : ''}>
+                  <td className="px-4 py-3 font-black text-white">
+                    {bet.scoutName}{bet.scoutNumber ? <span className="ml-1 text-slate-400">#{bet.scoutNumber}</span> : null}
+                  </td>
                   <td className="px-4 py-3 font-mono">{bet.matchKey.toUpperCase()}</td>
                   <td className={`px-4 py-3 font-black ${bet.side === 'Red' ? 'text-red-300' : 'text-blue-300'}`}>{bet.side}</td>
                   <td className="px-4 py-3">{bet.amount}</td>
-                  <td className="px-4 py-3">{bet.outcome || 'open'}</td>
+                  <td className="px-4 py-3">{bet.disqualified ? 'disqualified' : bet.outcome || 'open'}</td>
                   <td className="px-4 py-3">{formatMetricValue(bet.payout ?? null, 0)}</td>
                   <td className="px-4 py-3">
-                    {!bet.settledAt && (
+                    {!bet.settledAt && !bet.disqualified && (
                       <div className="flex flex-wrap gap-2">
                         {(['Red', 'Blue', 'Tie'] as const).map(winner => (
                           <button
@@ -220,6 +230,18 @@ export default function AdminV4ScoutRewardsPanel({
                         ))}
                       </div>
                     )}
+                    <button
+                      type="button"
+                      aria-label={`${bet.disqualified ? 'Restore' : 'Disqualify'} scout reward prediction for ${bet.matchKey.toUpperCase()} by ${bet.scoutName}`}
+                      onClick={() => void onDisqualifyBet(bet.id, !bet.disqualified)}
+                      className={`admin-g2-sm mt-2 min-h-10 border px-3 py-2 text-xs font-black ${
+                        bet.disqualified
+                          ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25'
+                          : 'border-rose-400/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25'
+                      }`}
+                    >
+                      {bet.disqualified ? 'Restore Bet' : 'Disqualify Bet'}
+                    </button>
                   </td>
                 </tr>
               ))}

@@ -22,6 +22,8 @@
     "watch:head-scout": "node scripts/scouting-ops-watch.mjs",
     "capture:ppt-background": "node scripts/scouting-ppt-background.mjs",
     "report:morning": "node scripts/scouting-morning-report.mjs",
+    "env:seed:tba": "node scripts/seed-tba-env.mjs",
+    "powerscout:post-match-refresh": "node scripts/powerscout-post-match-refresh.mjs",
     "smoke": "node tests/smoke.mjs",
     "model:init": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts init",
     "model:ingest:tba": "node ./node_modules/tsx/dist/cli.mjs modeling/src/cli.ts ingest:tba",

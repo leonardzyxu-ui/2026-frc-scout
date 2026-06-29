@@ -152,6 +152,12 @@ export type MatchScoutingV4SubstituteScoutName = '' | 'Substitute 1' | 'Substitu
 export type MatchScoutingV4Role = '' | 'Offense' | 'Defense' | 'Mixed' | 'Support' | 'Disabled';
 export type MatchScoutingV4ShiftRole = 'offense' | 'defense' | 'stockpile' | 'inactive' | 'mixed';
 export type MatchScoutingV4ShiftOwner = 'own' | 'opponent';
+export type MatchScoutingV4ShiftAction = 'offense' | 'defense' | 'stockpile';
+
+export interface MatchScoutingV4ScoreAction {
+  delta: 1 | 3 | 5 | 10;
+  at: number;
+}
 
 export interface MatchScoutingV4DefenseAssignment {
   targetTeamNumber: string;
@@ -163,14 +169,31 @@ export interface MatchScoutingV4DefenseAssignment {
 export interface MatchScoutingV4ShiftEntry {
   id: string;
   index: number;
+  shiftAlliance: MatchScoutingV3Alliance;
   owner: MatchScoutingV4ShiftOwner;
   role: MatchScoutingV4ShiftRole;
+  actions?: MatchScoutingV4ShiftAction[];
   ballsScored: number;
+  scoreActions?: MatchScoutingV4ScoreAction[];
   stockpileShiftCredit: number;
   defenseShiftCredit: number;
   defendedTeams: MatchScoutingV4DefenseAssignment[];
   notes?: string;
+  status?: 'draft' | 'submitted';
   submittedAt?: number;
+}
+
+export interface MatchScoutingV4VersionMetadata {
+  logicalId: string;
+  version: number;
+  parentVersion?: number | null;
+  currentVersionSubmitted?: boolean;
+  submissionNumber?: 0 | 1;
+  submittedAt?: number | null;
+  editedAt: number;
+  editedByName: string;
+  editedByScoutNumber?: number | null;
+  editedBySurface: 'scout' | 'admin';
 }
 
 export interface MatchScoutingV4OfficialReconciliation {
@@ -247,6 +270,29 @@ export interface MatchScoutingV3 {
   totalMatchPoints: number;
 }
 
+export type PowerCoinBetSide = 'Red' | 'Blue';
+export type PowerCoinBetLockReason = 'start_game' | 'gameplay_action' | 'submit' | 'manual';
+export type PowerCoinBetSendStatus = 'not_attempted' | 'pending' | 'sent' | 'failed';
+
+export interface PowerCoinMatchBetSnapshot {
+  id: string;
+  eventKey: string;
+  matchKey: string;
+  matchNumber: number;
+  matchType: MatchScoutingV3MatchType;
+  scoutName: string;
+  scoutNumber?: number | null;
+  side: PowerCoinBetSide | '';
+  amount: number;
+  placedAt: number;
+  lockedAt: number | null;
+  lockReason?: PowerCoinBetLockReason;
+  secureMode?: boolean;
+  directSendStatus?: PowerCoinBetSendStatus;
+  directSendError?: string;
+  disqualified?: boolean;
+}
+
 export interface MatchScoutingV4 {
   schemaVersion: 'v4';
   eventKey: string;
@@ -263,6 +309,7 @@ export interface MatchScoutingV4 {
   deviceId?: string;
   timestamp?: number;
   editHistory?: { timestamp: number; editor: string; changes: string }[];
+  versionMetadata?: MatchScoutingV4VersionMetadata;
   adminTask?: ScoutEvidenceAdminTask;
 
   autoPoints: number;
@@ -295,6 +342,7 @@ export interface MatchScoutingV4 {
   defenseAssignments?: MatchScoutingV4DefenseAssignment[];
   officialReconciliation?: MatchScoutingV4OfficialReconciliation;
   shiftAuditFlags?: string[];
+  powerCoinBet?: PowerCoinMatchBetSnapshot;
 }
 
 export interface PowerCoinBet {
@@ -304,9 +352,16 @@ export interface PowerCoinBet {
   matchNumber: number;
   matchType: MatchScoutingV3MatchType;
   scoutName: string;
+  scoutNumber?: number | null;
   side: 'Red' | 'Blue';
   amount: number;
   placedAt: number;
+  lockedAt?: number | null;
+  lockReason?: PowerCoinBetLockReason;
+  secureMode?: boolean;
+  directSendStatus?: PowerCoinBetSendStatus;
+  directSendError?: string;
+  disqualified?: boolean;
   settledAt?: number;
   outcome?: 'won' | 'lost' | 'refunded';
   payout?: number;
@@ -316,6 +371,7 @@ export interface PowerCoinLedgerEntry {
   id: string;
   eventKey: string;
   scoutName: string;
+  scoutNumber?: number | null;
   reason: string;
   delta: number;
   balanceAfter: number;
@@ -764,6 +820,7 @@ export const initialMatchScoutingV4: MatchScoutingV4 = {
   alliance: '',
   deviceId: '',
   editHistory: [],
+  versionMetadata: undefined,
 
   autoPoints: 0,
   autoCycles: 0,
@@ -788,7 +845,12 @@ export const initialMatchScoutingV4: MatchScoutingV4 = {
   reliabilityScore: 1,
 
   notes: '',
-  strategyNotes: ''
+  strategyNotes: '',
+  teleopFirstShiftAlliance: 'Red',
+  shiftBreakdown: [],
+  defenseAssignments: [],
+  shiftAuditFlags: [],
+  powerCoinBet: undefined
 };
 
 export const initialMatchDefenseScoutingV1: MatchDefenseScoutingV1 = {

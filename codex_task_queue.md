@@ -105,3 +105,30 @@
 - [ ] Add a top-right gear settings view showing locked scout name/number, Scout History link, all-history export, and passphrase-gated identity edits.
 - [ ] Design history export selection and version-sync metadata so scout/admin sides preserve every version and sync the newest version both ways.
 - [ ] Build Match Scout shift UI with Auto Shift, first-alliance-shift toggle, red/blue ordered shift panels, offense counters only while editing, defense target/share, and stockpile instructions.
+- [ ] Simplify alliance-selection strategy objective: ignore qualification RP incentives and rank available partners/combinations by maximizing our positive expected point-difference contribution after role simulation.
+- [x] Research whether practice match official scores, alliance totals, winners, and RP-like threshold data are available online/API; if not, add a practice-scorekeeper scouting role.
+- [x] Adopt Leo's `ditch x` convention: remove `x` from active model inputs and scout collection, while preserving backward-compatible reads of older records unless purge is explicitly requested.
+- [x] Ditch cycles from active scouting inputs and model-facing Match Scout V4 summaries.
+- [x] Replace single-choice shift role with multi-select action toggles: Offense, Defense, Stockpile; remove Defense + Stockpile option; show scoring buttons only when own-alliance Offense is selected.
+- [x] Ditch the Match Scout V4 “Why did that number happen?” / derived-role panel from active scouting UI.
+- [x] Color every Match Scout shift panel red or blue based on the actual shift alliance, including collapsed cards.
+- [x] Ditch Auto Cycles specifically from active Match Scout V4 collection and copy.
+- [x] Rename the Match Scout V4 score-step question to “How many points did this robot contribute?” exactly.
+- [x] Change Match Scout V4 submit UX to Offline JSON + Submit to Head Scout, with 8-second head-scout timeout fallback to “Saved to Local. Try re-uploading later.”
+- [x] Add per-version submitted-state metadata so exported JSON says whether the current newest version has been submitted to the head scout.
+- [x] Update local cache/history UI to clearly show submitted vs not submitted records and add “Export All Non-Newest Matches” JSON export.
+- [x] Design relay pager messaging: Admin can ping one scout or broadcast to all; scout side gets an immediate notification; no group chat or scout reply stream.
+- [x] Add a local-only TBA env/key workflow so local testing can use a private `.vite-env/.env.local` key instead of requiring Admin V4 upload every time.
+- [x] Ditch the per-shift “Submit this shift” button; scouts should move to the next shift card instead.
+- [x] Add scout-facing PowerCoin betting before Auto: concealed red/blue bet, Secure Mode letter entry, amount, bright green Start Game, lock on first gameplay action, visible yellow locked state, match JSON storage, and deferred send-failure notice.
+- [x] Persist locked bets with scout number/name, match key, selected side, amount, lock reason/time, direct-send status, and disqualification metadata.
+- [x] Add local PowerCoin wallet math with 1000 starting balance, bankruptcy state, proportional winner payout, and profit-only winner display.
+- [x] Add scout betting dashboard/history/leaderboard surfaces with total wealth, last-match gain/loss, betting history, and non-reply leaderboard updates.
+- [x] Add head-scout disqualification support for any scout's betting capability on a specific match.
+- [x] Add a native PowerScout History / Rewards read-only section that mirrors PowerCoin wallet semantics, recent bet state, evidence readouts, and web handoff buttons.
+- [ ] Treat PowerScout Mac app as the first-priority command center for every major scouting feature; mirror website-only changes into PowerScout before considering a slice complete.
+- [ ] Design and implement a local-first scouting database sync contract across PowerScout local storage, Firebase, and scout browser caches, with conflict/version preservation.
+- [ ] Add post-match real-time refresh orchestration: pull newest TBA, FIRST, Statbotics, Firebase/scout data after every match, rerun models, and surface driver-team-ready inferences immediately.
+- [ ] Add PowerScout UI for the real-time refresh pipeline, data source freshness, model rerun status, and next-match inferences.
+- [x] Research practice-match data availability across TBA, FIRST Events API, and Statbotics; decide whether PowerScout needs a dedicated practice-scorekeeper role.
+- [x] Compact the Match Scout V4 Score Signal panel so the actual point counter dominates the space instead of long explanatory text.

@@ -1,4 +1,5 @@
 import { ModelFeatureSnapshot, ModelLabSnapshot, PowerCoinBet, PowerCoinLedgerEntry, ScoutAssignmentPlan } from '../types';
+import { computePowerCoinWallet } from './scoutPowerCoins';
 
 export interface FirstEventsCredentials {
   username: string;
@@ -27,7 +28,7 @@ export interface AdminV4AuditLogEntry {
 
 // Keep the original DB name and store names so existing local credentials/cache survive the Admin V4 rename.
 const DB_NAME = 'rebuilt-2026-admin-v2-local';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const SETTINGS_STORE = 'settings';
 const CACHE_STORE = 'cache';
 const POWERCOIN_BETS_STORE = 'powerCoinBets';
@@ -38,7 +39,6 @@ const MODEL_FEATURE_SNAPSHOTS_STORE = 'modelFeatureSnapshots';
 const AUDIT_LOG_STORE = 'adminAuditLog';
 const FIRST_CREDENTIALS_KEY = 'first_events_credentials';
 const TBA_API_KEY_SETTINGS_KEY = 'tba_api_key';
-const STARTING_POWERCOINS = 1000;
 
 const openDb = async (): Promise<IDBDatabase | null> => {
   if (typeof window === 'undefined' || !('indexedDB' in window)) return null;
@@ -58,11 +58,23 @@ const openDb = async (): Promise<IDBDatabase | null> => {
         const store = db.createObjectStore(POWERCOIN_BETS_STORE, { keyPath: 'id' });
         store.createIndex('eventKey', 'eventKey', { unique: false });
         store.createIndex('scoutName', 'scoutName', { unique: false });
+        store.createIndex('scoutNumber', 'scoutNumber', { unique: false });
+      } else {
+        const store = request.transaction?.objectStore(POWERCOIN_BETS_STORE);
+        if (store && !store.indexNames.contains('scoutNumber')) {
+          store.createIndex('scoutNumber', 'scoutNumber', { unique: false });
+        }
       }
       if (!db.objectStoreNames.contains(POWERCOIN_LEDGER_STORE)) {
         const store = db.createObjectStore(POWERCOIN_LEDGER_STORE, { keyPath: 'id' });
         store.createIndex('eventKey', 'eventKey', { unique: false });
         store.createIndex('scoutName', 'scoutName', { unique: false });
+        store.createIndex('scoutNumber', 'scoutNumber', { unique: false });
+      } else {
+        const store = request.transaction?.objectStore(POWERCOIN_LEDGER_STORE);
+        if (store && !store.indexNames.contains('scoutNumber')) {
+          store.createIndex('scoutNumber', 'scoutNumber', { unique: false });
+        }
       }
       if (!db.objectStoreNames.contains(SCOUT_PLANS_STORE)) {
         const store = db.createObjectStore(SCOUT_PLANS_STORE, { keyPath: 'id' });
@@ -264,20 +276,10 @@ export const upsertPowerCoinLedgerEntry = async (entry: PowerCoinLedgerEntry) =>
   });
 };
 
-export const getPowerCoinBalance = async (eventKey: string, scoutName: string) => {
-  const normalizedScoutName = scoutName.trim().toLowerCase();
+export const getPowerCoinBalance = async (eventKey: string, scoutName: string, scoutNumber?: number | null) => {
   const ledger = await listPowerCoinLedger(eventKey);
-  const deltas = ledger
-    .filter(entry => entry.scoutName.trim().toLowerCase() === normalizedScoutName)
-    .reduce((sum, entry) => sum + entry.delta, 0);
   const bets = await listPowerCoinBets(eventKey);
-  const betDelta = bets
-    .filter(bet => bet.scoutName.trim().toLowerCase() === normalizedScoutName)
-    .reduce((sum, bet) => {
-      if (!bet.settledAt) return sum - bet.amount;
-      return sum + ((bet.payout ?? 0) - bet.amount);
-    }, 0);
-  return STARTING_POWERCOINS + deltas + betDelta;
+  return computePowerCoinWallet({ bets, ledger, scoutName, scoutNumber }).balance;
 };
 
 export const settlePowerCoinBetsForMatch = async (
@@ -286,7 +288,7 @@ export const settlePowerCoinBetsForMatch = async (
   winner: 'Red' | 'Blue' | 'Tie' | 'Unknown'
 ) => {
   const allBets = await listPowerCoinBets(eventKey);
-  const matchBets = allBets.filter(bet => bet.matchKey === matchKey && !bet.settledAt);
+  const matchBets = allBets.filter(bet => bet.matchKey === matchKey && !bet.settledAt && !bet.disqualified);
   const now = Date.now();
 
   if (winner === 'Tie' || winner === 'Unknown') {

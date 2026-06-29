@@ -83,8 +83,11 @@ export default function ScoutUsernameGate({
                 <input
                   type="number"
                   min={1}
+                  max={99}
+                  inputMode="numeric"
+                  pattern="[0-9]{1,2}"
                   value={pendingScoutNumber ?? ''}
-                  onChange={(event) => setPendingScoutNumber(event.target.value.replace(/[^\d]/g, ''))}
+                  onChange={(event) => setPendingScoutNumber(event.target.value.replace(/[^\d]/g, '').slice(0, 2))}
                   className="admin-g2-sm w-full border border-slate-700 bg-slate-900 px-4 py-3 text-base font-black text-white outline-none transition-colors placeholder:text-slate-600 focus:border-cyan-400"
                   placeholder="Example: 7"
                 />

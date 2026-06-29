@@ -1496,6 +1496,7 @@ export default function AdminV4View() {
     handleExportScoutAssignmentsCsv,
     handleExportScoutCoverageGapsCsv,
     handleOptimizeScouts,
+    handleDisqualifyPowerCoinBet,
     handlePowerCoinAdjustment,
     handleSettleAllPlayedPowerCoins,
     handleSettlePowerCoins,
@@ -8089,6 +8090,7 @@ export default function AdminV4View() {
       teamNameLookup={resolvedTeamNameLookup}
       onApplyAdjustment={handlePowerCoinAdjustment}
       onBack={closeDataPanel}
+      onDisqualifyBet={handleDisqualifyPowerCoinBet}
       onExportCoverageGaps={handleExportScoutCoverageGapsCsv}
       onExportScoutAssignments={handleExportScoutAssignmentsCsv}
       onOptimizeScouts={handleOptimizeScouts}

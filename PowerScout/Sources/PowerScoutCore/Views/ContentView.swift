@@ -36,6 +36,8 @@ public struct PowerScoutContentView: View {
                 switch store.selection {
                 case .dashboard:
                     DashboardView(store: store, openURL: openURL)
+                case .liveOps:
+                    LiveOpsView(store: store)
                 case .systemAudit:
                     SystemAuditView()
                 case .preScout:
@@ -46,6 +48,8 @@ public struct PowerScoutContentView: View {
                     ScoutLaneView(lane: .matchScout)
                 case .allianceSelection:
                     AllianceSelectionView()
+                case .historyRewards:
+                    HistoryRewardsView(openURL: openURL)
                 case .reports:
                     ReportsView(store: store, openURL: openURL)
                 case .relay:

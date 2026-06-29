@@ -28,7 +28,7 @@ const getPrimaryScoutAsk = (handoff: ScoutTaskHandoff) => {
   const firstAsk = handoff.ppa?.asks?.find(Boolean);
   if (firstAsk) return firstAsk;
   if (handoff.reason) return handoff.reason;
-  return 'Record what you actually see, especially failures, fouls, defense, and cycle changes.';
+  return 'Record what you actually see, especially failures, fouls, defense, pressure, and role changes.';
 };
 
 export default function ScoutWorkflowHeader({

@@ -81,6 +81,21 @@ export interface ScoutArchiveBundle {
     byType: Record<ScoutArchiveRecordType, number>;
     byEventKey: Record<string, number>;
   };
+  versionChains?: Record<string, {
+    logicalId: string;
+    latestVersion: number;
+    versions: Array<{
+      version: number;
+      recordId: string;
+      updatedAt: number;
+      currentVersionSubmitted: boolean;
+      submissionNumber: 0 | 1;
+      syncStatus: ScoutArchiveSyncStatus;
+      editedByName: string;
+      editedByScoutNumber?: number | null;
+      editedBySurface?: 'scout' | 'admin';
+    }>;
+  }>;
   records: ScoutArchiveRecord[];
   powerCoinBets?: PowerCoinBet[];
   powerCoinLedger?: PowerCoinLedgerEntry[];
@@ -106,6 +121,18 @@ const normalizeArchiveRecord = (record: ScoutArchiveRecord): ScoutArchiveRecord 
   syncStatus: record.syncStatus || 'synced',
   syncMode: record.syncMode || 'strict',
   lastFirebaseError: record.lastFirebaseError || ''
+});
+
+const withMatchV4SubmissionState = (record: MatchScoutingV4, submitted: boolean): MatchScoutingV4 => ({
+  ...record,
+  versionMetadata: record.versionMetadata
+    ? {
+        ...record.versionMetadata,
+        currentVersionSubmitted: submitted,
+        submissionNumber: submitted ? 1 : 0,
+        submittedAt: submitted ? record.versionMetadata.submittedAt || Date.now() : null
+      }
+    : record.versionMetadata
 });
 
 const stableStringify = (value: unknown): string => {
@@ -185,7 +212,7 @@ const buildMatchRecordId = (record: ArchivedMatchPayload) =>
   `match:${record.eventKey}:${isMatchScoutingV3(record) ? getMatchV3DocId(record) : getMatchDocId(record)}`;
 
 const buildMatchV4RecordId = (record: MatchScoutingV4) =>
-  `matchV4:${record.eventKey}:${getMatchV4DocId(record)}`;
+  `matchV4:${record.eventKey}:${getMatchV4DocId(record)}:v${Math.max(1, Number(record.versionMetadata?.version || 1))}`;
 
 const buildPitRecordId = (eventKey: string, record: PitScoutingV2) =>
   `pit:${eventKey}:${getPitDocId(record)}`;
@@ -197,7 +224,7 @@ const normalizeUsername = (value: string) => value.trim();
 
 const normalizeScoutNumber = (value: unknown) => {
   const number = Math.trunc(Number(value));
-  return Number.isFinite(number) && number > 0 ? number : null;
+  return Number.isFinite(number) && number >= 1 && number <= 99 ? number : null;
 };
 
 export const getScoutArchiveUsername = async () =>
@@ -246,7 +273,7 @@ export const setScoutArchiveIdentity = async ({ username, scoutNumber }: ScoutAr
     throw new Error('Scout username cannot be empty.');
   }
   if (!normalizedNumber) {
-    throw new Error('Scout number must be a positive number.');
+    throw new Error('Scout number must be between 1 and 99.');
   }
 
   const existing = await getScoutArchiveIdentity().catch(() => ({ username: '', scoutNumber: null }));
@@ -332,7 +359,7 @@ export const renameScoutArchiveIdentity = async (
     throw new Error('Scout username cannot be empty.');
   }
   if (!normalizedNumber) {
-    throw new Error('Scout number must be a positive number.');
+    throw new Error('Scout number must be between 1 and 99.');
   }
 
   const previousIdentity = await getScoutArchiveIdentity().catch(() => ({ username: '', scoutNumber: null }));
@@ -520,23 +547,24 @@ export const upsertMatchArchiveRecordV4 = async (
   source: ScoutArchiveSource = 'local_submit',
   syncState?: ScoutArchiveUpsertSyncState
 ) => {
-  const recordId = buildMatchV4RecordId(record);
-  const logicalId = getMatchV4DocId(record);
+  const payload = withMatchV4SubmissionState(record, syncState?.syncStatus === 'synced' || !!record.versionMetadata?.currentVersionSubmitted);
+  const recordId = buildMatchV4RecordId(payload);
+  const logicalId = getMatchV4DocId(payload);
   const archiveRecord: MatchV4ArchiveRecord = {
     recordId,
     logicalId,
     recordType: 'matchV4',
-    eventKey: record.eventKey,
+    eventKey: payload.eventKey,
     username: normalizeUsername(username),
-    deviceId: record.deviceId || '',
-    updatedAt: record.timestamp || Date.now(),
+    deviceId: payload.deviceId || '',
+    updatedAt: payload.timestamp || Date.now(),
     deleted: false,
     source,
     syncStatus: syncState?.syncStatus || 'synced',
     syncMode: syncState?.syncMode || 'strict',
     lastFirebaseAttemptAt: syncState?.lastFirebaseAttemptAt,
     lastFirebaseError: syncState?.lastFirebaseError,
-    payload: record
+    payload
   };
 
   return await putArchiveRecordWithImportGuard(archiveRecord, syncState?.preserveExistingOnConflict);
@@ -645,13 +673,20 @@ export const updateScoutArchiveRecordSyncState = async (
     return null;
   }
 
-  const updatedRecord: ScoutArchiveRecord = {
+  const baseUpdates = {
     ...existing,
     syncStatus: updates.syncStatus,
     lastFirebaseAttemptAt: updates.lastFirebaseAttemptAt ?? Date.now(),
     lastFirebaseError: updates.lastFirebaseError || '',
     updatedAt: Math.max(existing.updatedAt, updates.lastFirebaseAttemptAt ?? Date.now())
   };
+  const updatedRecord: ScoutArchiveRecord = existing.recordType === 'matchV4'
+    ? {
+        ...baseUpdates,
+        recordType: 'matchV4',
+        payload: withMatchV4SubmissionState(existing.payload, updates.syncStatus === 'synced')
+      }
+    : baseUpdates;
 
   await putArchiveRecord(updatedRecord);
   return updatedRecord;
@@ -677,6 +712,32 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
     } satisfies MatchArchiveRecord;
   });
   const eventKeys = Array.from(new Set(normalizedRecords.map(record => record.eventKey))).filter(Boolean);
+  const versionChains = normalizedRecords.reduce<ScoutArchiveBundle['versionChains']>((chains, record) => {
+    if (!chains || record.recordType !== 'matchV4') return chains;
+    const logicalId = record.logicalId;
+    const version = Math.max(1, Number(record.payload.versionMetadata?.version || 1));
+    if (!chains[logicalId]) {
+      chains[logicalId] = {
+        logicalId,
+        latestVersion: version,
+        versions: []
+      };
+    }
+    chains[logicalId].latestVersion = Math.max(chains[logicalId].latestVersion, version);
+    chains[logicalId].versions.push({
+      version,
+      recordId: record.recordId,
+      updatedAt: record.updatedAt,
+      currentVersionSubmitted: !!record.payload.versionMetadata?.currentVersionSubmitted,
+      submissionNumber: record.payload.versionMetadata?.currentVersionSubmitted || record.payload.versionMetadata?.submissionNumber === 1 ? 1 : 0,
+      syncStatus: record.syncStatus,
+      editedByName: record.payload.versionMetadata?.editedByName || record.username,
+      editedByScoutNumber: record.payload.versionMetadata?.editedByScoutNumber ?? record.payload.scoutNumber ?? null,
+      editedBySurface: record.payload.versionMetadata?.editedBySurface || 'scout'
+    });
+    chains[logicalId].versions.sort((left, right) => left.version - right.version || left.updatedAt - right.updatedAt);
+    return chains;
+  }, {});
   const normalizedScoutName = normalizedUsername.trim().toLowerCase();
   const powerCoinBets = (await Promise.all(eventKeys.map(eventKey => listPowerCoinBets(eventKey).catch(() => []))))
     .flat()
@@ -720,6 +781,7 @@ export const buildScoutArchiveBundle = async (username: string): Promise<ScoutAr
       retryHint: 'If the browser download fails, reopen History and press Export Evidence JSON again; this file is generated from local IndexedDB.'
     },
     recordCounts,
+    versionChains,
     records: normalizedRecords,
     powerCoinBets,
     powerCoinLedger

@@ -116,7 +116,44 @@ const canonicalizeMatchV4 = (record: MatchScoutingV4) => ({
   failureReason: normalizeString(record.failureReason),
   reliabilityScore: record.reliabilityScore ?? 1,
   notes: normalizeString(record.notes),
-  strategyNotes: normalizeString(record.strategyNotes)
+  strategyNotes: normalizeString(record.strategyNotes),
+  teleopFirstShiftAlliance: record.teleopFirstShiftAlliance || '',
+  shiftBreakdown: (record.shiftBreakdown || []).map(entry => ({
+    id: normalizeString(entry.id),
+    index: entry.index ?? 0,
+    shiftAlliance: entry.shiftAlliance || '',
+    owner: entry.owner,
+    role: entry.role,
+    actions: entry.actions || [],
+    ballsScored: entry.ballsScored ?? 0,
+    scoreActions: (entry.scoreActions || []).map(action => ({ delta: action.delta, at: action.at || 0 })),
+    stockpileShiftCredit: entry.stockpileShiftCredit ?? 0,
+    defenseShiftCredit: entry.defenseShiftCredit ?? 0,
+    defendedTeams: (entry.defendedTeams || []).map(assignment => ({
+      targetTeamNumber: normalizeString(assignment.targetTeamNumber),
+      claimedSharePercent: assignment.claimedSharePercent ?? 0,
+      normalizedSharePercent: assignment.normalizedSharePercent ?? 0
+    })),
+    status: entry.status || 'draft'
+  })),
+  defenseAssignments: (record.defenseAssignments || []).map(assignment => ({
+    targetTeamNumber: normalizeString(assignment.targetTeamNumber),
+    claimedSharePercent: assignment.claimedSharePercent ?? 0,
+    normalizedSharePercent: assignment.normalizedSharePercent ?? 0
+  })),
+  versionMetadata: record.versionMetadata
+    ? {
+        logicalId: normalizeString(record.versionMetadata.logicalId),
+        version: record.versionMetadata.version ?? 1,
+        parentVersion: record.versionMetadata.parentVersion ?? null,
+        currentVersionSubmitted: !!record.versionMetadata.currentVersionSubmitted,
+        submissionNumber: record.versionMetadata.currentVersionSubmitted || record.versionMetadata.submissionNumber === 1 ? 1 : 0,
+        submittedAt: record.versionMetadata.submittedAt ?? null,
+        editedByName: normalizeString(record.versionMetadata.editedByName),
+        editedByScoutNumber: record.versionMetadata.editedByScoutNumber ?? null,
+        editedBySurface: record.versionMetadata.editedBySurface
+      }
+    : null
 });
 
 const canonicalizeMatchDefense = (record: MatchDefenseScoutingV1) => ({

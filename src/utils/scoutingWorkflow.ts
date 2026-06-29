@@ -31,7 +31,7 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     title: 'Pre Scout',
     shortTitle: 'Before Event',
     route: '/pre',
-    when: 'Before the event or before the first real match cycle.',
+    when: 'Before the event or before the first real match block.',
     question: 'What can we learn calmly before match pressure starts?',
     rawInputs: ['TBA team list', 'robot media', 'season results', 'video notes', 'manual research gaps'],
     processedSignals: ['pre-event coverage gaps', 'public context', 'pit priority list', 'match watch questions'],
@@ -59,7 +59,7 @@ export const SCOUTING_MISSIONS: Record<ScoutingMissionKey, ScoutingMission> = {
     route: '/scout',
     when: 'During practice and qualification matches, one assigned robot at a time.',
     question: 'What actual live capability did the robot prove, without overloading the scout?',
-    rawInputs: ['auto points/cycles', 'teleop points/cycles', 'endgame', 'role played', 'traffic behavior', 'pressure response', 'failures', 'reliability'],
+    rawInputs: ['auto points', 'teleop shift actions', 'endgame', 'role played', 'traffic behavior', 'pressure response', 'failures', 'reliability'],
     processedSignals: ['actual contribution', 'expected range', 'role fit', 'volatility', 'claim contradictions', 'scout confidence'],
     usedFor: ['future qual forecasts', 'manual simulator', 'team profiles', 'pick-list ordering', 'pit-claim verification'],
     modelImpact: 'This is the strongest local signal for actual capability, downside risk, and future match prediction, so the form must stay feasible.',
@@ -155,7 +155,7 @@ export const getMissionToneClasses = (tone: ScoutingMission['tone']) => {
 
 export const EXPECTED_RANGE_COLLECTION_FIELDS = [
   'Auto/teleop/endgame points define the expected value only after pre-scout and pit priors are already loaded.',
-  'Cycles help explain whether the score is repeatable.',
+  'Shift actions explain whether the contribution came from offense, defense, stockpile help, or role changes.',
   'Role, defended team, and defender faced prevent role confusion.',
   'Reliability and failures define the floor and tail risk.',
   'Strategy notes explain whether live match evidence confirmed or contradicted earlier claims.'

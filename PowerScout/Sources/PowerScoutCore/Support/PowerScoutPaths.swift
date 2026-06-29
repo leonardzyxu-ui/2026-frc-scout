@@ -38,6 +38,14 @@ public enum PowerScoutPaths {
         siteBaseURL.appendingPathComponent("adminv4")
     }
 
+    public static var scoutHistoryURL: URL {
+        siteBaseURL.appendingPathComponent("history")
+    }
+
+    public static var scoutFormURL: URL {
+        siteBaseURL.appendingPathComponent("scout")
+    }
+
     public static var adminV2PredictionURL: URL {
         siteBaseURL.appendingPathComponent("adminv2/prediction-vs-actual")
     }

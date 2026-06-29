@@ -44,6 +44,7 @@ export default function AdminV4ScoutStaffingPanel({
   teamNameLookup,
   onApplyAdjustment,
   onBack,
+  onDisqualifyBet,
   onExportCoverageGaps,
   onExportScoutAssignments,
   onOptimizeScouts,
@@ -69,6 +70,7 @@ export default function AdminV4ScoutStaffingPanel({
   teamNameLookup: Record<string, string>;
   onApplyAdjustment: () => void | Promise<void>;
   onBack: () => void;
+  onDisqualifyBet: (betId: string, disqualified: boolean) => void | Promise<void>;
   onExportCoverageGaps: () => void;
   onExportScoutAssignments: () => void;
   onOptimizeScouts: () => void | Promise<void>;
@@ -259,6 +261,7 @@ export default function AdminV4ScoutStaffingPanel({
           onSetAdjustmentAmount={onSetAdjustmentAmount}
           onSetAdjustmentReason={onSetAdjustmentReason}
           onApplyAdjustment={onApplyAdjustment}
+          onDisqualifyBet={onDisqualifyBet}
           onSettleAllPlayed={onSettleAllPlayed}
           onSettleMatch={onSettleMatch}
         />

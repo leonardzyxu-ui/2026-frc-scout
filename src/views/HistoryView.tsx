@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, BarChart3, Clock3, Database, Download, Edit3, RefreshCw, Trash2, UploadCloud, Wrench, X } from 'lucide-react';
-import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, ScoutEvidenceAdminTask } from '../types';
+import { AlertTriangle, ArrowLeft, BarChart3, Clock3, Coins, Database, Download, Edit3, RefreshCw, Trash2, Trophy, UploadCloud, Wrench, X } from 'lucide-react';
+import { MatchDefenseScoutingV1, MatchScoutingV2, MatchScoutingV3, MatchScoutingV4, PitScoutingV2, PowerCoinBet, PowerCoinLedgerEntry, ScoutEvidenceAdminTask } from '../types';
 import { DEFAULT_EVENT_KEY, getStoredEventKey, storeEventKey } from '../utils/sharedEventState';
 import {
   buildScoutArchiveBundle,
-  getScoutArchiveUsername,
+  getScoutArchiveIdentity,
   listScoutArchiveRecords,
   ScoutArchiveRecord,
   setScoutArchiveUsername,
@@ -24,6 +24,14 @@ import {
   getScoutEvidenceAdminTaskFromPayload
 } from '../utils/scoutTaskHandoff';
 import { getCachedPreMatchSheet, PreScoutAdminTaskEvidence } from '../utils/preMatchCache';
+import { listPowerCoinBets, listPowerCoinLedger } from '../utils/adminV4LocalStore';
+import {
+  buildPowerCoinLeaderboard,
+  computePowerCoinWallet,
+  getPowerCoinBetBalanceDelta,
+  powerCoinIdentityMatches,
+  STARTING_POWERCOIN_BALANCE
+} from '../utils/scoutPowerCoins';
 
 interface PreScoutHistoryRow {
   recordId: string;
@@ -55,6 +63,8 @@ function getMatchNumber(matchKey: string) {
 
 const formatRecordTime = (timestamp?: number) => timestamp ? new Date(timestamp).toLocaleString() : 'No timestamp';
 
+const formatPowerCoinDelta = (value: number) => value > 0 ? `+${Math.round(value)}` : `${Math.round(value)}`;
+
 const getRecordTeamNumber = (record: HistoryRow) => {
   if (record.recordType === 'preScout') return record.payload.teamNumber;
   if (record.recordType === 'matchV4') return (record.payload as MatchScoutingV4).teamNumber;
@@ -77,6 +87,31 @@ const getRecordAdminTask = (record: HistoryRow) =>
     : getScoutEvidenceAdminTaskFromPayload(record.payload);
 
 const isArchiveHistoryRow = (record: HistoryRow): record is ScoutArchiveRecord => record.recordType !== 'preScout';
+
+const getMatchV4Version = (record: Pick<ScoutArchiveRecord, 'recordType' | 'payload'>) =>
+  record.recordType === 'matchV4'
+    ? Math.max(1, Number((record.payload as MatchScoutingV4).versionMetadata?.version || 1))
+    : 1;
+
+const isMatchV4CurrentVersionSubmitted = (record: Pick<ScoutArchiveRecord, 'recordType' | 'payload' | 'syncStatus'>) =>
+  record.recordType === 'matchV4'
+    ? !!(record.payload as MatchScoutingV4).versionMetadata?.currentVersionSubmitted || record.syncStatus === 'synced'
+    : record.syncStatus === 'synced';
+
+const getNonNewestMatchV4Records = (records: ScoutArchiveRecord[]) => {
+  const latestByLogicalId = new Map<string, number>();
+  records
+    .filter((record): record is Extract<ScoutArchiveRecord, { recordType: 'matchV4' }> => record.recordType === 'matchV4')
+    .forEach(record => {
+      const version = getMatchV4Version(record);
+      latestByLogicalId.set(record.logicalId, Math.max(latestByLogicalId.get(record.logicalId) || 1, version));
+    });
+
+  return records
+    .filter((record): record is Extract<ScoutArchiveRecord, { recordType: 'matchV4' }> => record.recordType === 'matchV4')
+    .filter(record => getMatchV4Version(record) < (latestByLogicalId.get(record.logicalId) || 1))
+    .sort((left, right) => left.logicalId.localeCompare(right.logicalId) || getMatchV4Version(left) - getMatchV4Version(right));
+};
 
 const getEvidenceMeta = (record: HistoryRow): {
   missionKey: ScoutingMissionKey;
@@ -108,6 +143,7 @@ const getEvidenceMeta = (record: HistoryRow): {
 
   if (record.recordType === 'matchV4') {
     const payload = record.payload as MatchScoutingV4;
+    const currentVersionSubmitted = isMatchV4CurrentVersionSubmitted(record);
     return {
       missionKey: 'matchScout',
       title: 'Match evidence',
@@ -115,6 +151,8 @@ const getEvidenceMeta = (record: HistoryRow): {
       ppaSignal: 'Expected value, floor risk, role fit, volatility, and scout confidence.',
       value: `${payload.totalMatchPoints} pts`,
       tags: [
+        `v${payload.versionMetadata?.version || 1}`,
+        currentVersionSubmitted ? 'submitted to head scout' : 'local only',
         payload.rolePlayed || 'role unknown',
         `${payload.autoPoints} auto`,
         `${payload.teleopPoints} teleop`,
@@ -199,6 +237,7 @@ export default function HistoryView() {
   const [error, setError] = useState('');
   const [archiveUsername, setArchiveUsernameState] = useState('');
   const [pendingArchiveUsername, setPendingArchiveUsername] = useState('');
+  const [archiveScoutNumber, setArchiveScoutNumber] = useState<number | null>(null);
   const [isArchiveUsernameResolved, setIsArchiveUsernameResolved] = useState(false);
   const [isBulkSyncing, setIsBulkSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -206,6 +245,8 @@ export default function HistoryView() {
   const [activeFilter, setActiveFilter] = useState<HistoryFilter>('all');
   const [isEvidenceExportPreviewOpen, setIsEvidenceExportPreviewOpen] = useState(false);
   const [recordPendingDelete, setRecordPendingDelete] = useState<ScoutArchiveRecord | null>(null);
+  const [powerCoinBets, setPowerCoinBets] = useState<PowerCoinBet[]>([]);
+  const [powerCoinLedger, setPowerCoinLedger] = useState<PowerCoinLedgerEntry[]>([]);
 
   const handleEventKeyChange = (value: string) => {
     const nextEventKey = normalizeEventKey(value, DEFAULT_EVENT_KEY);
@@ -257,6 +298,13 @@ export default function HistoryView() {
     ),
     [recentRecords]
   );
+  const nonNewestMatchV4Records = useMemo(() => getNonNewestMatchV4Records(records.filter(record => !record.deleted)), [records]);
+  const unsubmittedCurrentMatchV4Records = useMemo(
+    () => records
+      .filter(record => !record.deleted && record.recordType === 'matchV4')
+      .filter(record => !isMatchV4CurrentVersionSubmitted(record)),
+    [records]
+  );
   const conflictRecords = useMemo(
     () => unsyncedRecords.filter(record => (record.lastFirebaseError || '').toLowerCase().includes('conflict')),
     [unsyncedRecords]
@@ -285,6 +333,33 @@ export default function HistoryView() {
       latestUpdate: active[0]?.updatedAt || 0
     };
   }, [recentRecords]);
+  const localPowerCoinIdentity = useMemo(() => ({
+    scoutName: archiveUsername || 'This Scout',
+    scoutNumber: archiveScoutNumber
+  }), [archiveScoutNumber, archiveUsername]);
+  const localPowerCoinWallet = useMemo(() =>
+    computePowerCoinWallet({
+      bets: powerCoinBets,
+      ledger: powerCoinLedger,
+      ...localPowerCoinIdentity
+    }),
+    [localPowerCoinIdentity, powerCoinBets, powerCoinLedger]
+  );
+  const localPowerCoinBets = useMemo(() =>
+    powerCoinBets
+      .filter(bet => powerCoinIdentityMatches(bet, localPowerCoinIdentity))
+      .sort((left, right) => (right.settledAt || right.lockedAt || right.placedAt) - (left.settledAt || left.lockedAt || left.placedAt))
+      .slice(0, 6),
+    [localPowerCoinIdentity, powerCoinBets]
+  );
+  const localPowerCoinLeaderboard = useMemo(() =>
+    buildPowerCoinLeaderboard({
+      bets: powerCoinBets,
+      ledger: powerCoinLedger,
+      identities: archiveUsername ? [localPowerCoinIdentity] : []
+    }).slice(0, 6),
+    [archiveUsername, localPowerCoinIdentity, powerCoinBets, powerCoinLedger]
+  );
   const filteredRecentRecords = useMemo(() => {
     if (activeFilter === 'all') return recentRecords;
     if (activeFilter === 'preScout') return recentRecords.filter(record => record.recordType === 'preScout');
@@ -299,12 +374,16 @@ export default function HistoryView() {
     setError('');
 
     try {
-      const [localRecords, preScoutSheet] = await Promise.all([
+      const [localRecords, preScoutSheet, localPowerCoinBetRows, localPowerCoinLedgerRows] = await Promise.all([
         listScoutArchiveRecords({ eventKey, includeDeleted: true }),
-        getCachedPreMatchSheet(eventKey).catch(() => null)
+        getCachedPreMatchSheet(eventKey).catch(() => null),
+        listPowerCoinBets(eventKey).catch(() => []),
+        listPowerCoinLedger(eventKey).catch(() => [])
       ]);
       setRecords(localRecords);
       setPreScoutEvidence(preScoutSheet?.adminTaskEvidence || []);
+      setPowerCoinBets(localPowerCoinBetRows);
+      setPowerCoinLedger(localPowerCoinLedgerRows);
     } catch (loadError) {
       console.error('Failed to load local history', loadError);
       setError('Unable to load the local IndexedDB history right now.');
@@ -318,10 +397,11 @@ export default function HistoryView() {
 
     const hydrateUsername = async () => {
       try {
-        const storedUsername = await getScoutArchiveUsername();
+        const storedIdentity = await getScoutArchiveIdentity();
         if (cancelled) return;
-        setArchiveUsernameState(storedUsername || '');
-        setPendingArchiveUsername(storedUsername || '');
+        setArchiveUsernameState(storedIdentity.username || '');
+        setPendingArchiveUsername(storedIdentity.username || '');
+        setArchiveScoutNumber(storedIdentity.scoutNumber);
       } catch (loadError) {
         console.error('Failed to read scout archive username', loadError);
       } finally {
@@ -470,6 +550,27 @@ export default function HistoryView() {
     downloadJson(filename, JSON.stringify(compactSummary, null, 2));
   };
 
+  const handleExportNonNewestMatches = () => {
+    const exportedAt = Date.now();
+    const payload = {
+      format: 'rebuilt-2026-scout-non-newest-match-v4-versions',
+      version: 1,
+      eventKey,
+      exportedAt,
+      exportedAtIso: new Date(exportedAt).toISOString(),
+      exportedByScoutName: archiveUsername,
+      recordCount: nonNewestMatchV4Records.length,
+      records: nonNewestMatchV4Records.map(record => ({
+        ...record,
+        currentVersionSubmitted: isMatchV4CurrentVersionSubmitted(record),
+        submissionNumber: isMatchV4CurrentVersionSubmitted(record) ? 1 : 0,
+        version: getMatchV4Version(record)
+      }))
+    };
+    const filename = `non_newest_match_versions_${eventKey}_${new Date(exportedAt).toISOString().replace(/[:.]/g, '-')}.json`;
+    downloadJson(filename, JSON.stringify(payload, null, 2));
+  };
+
   const handleRetrySync = async (record: ScoutArchiveRecord) => {
     const result = await syncScoutArchiveRecordToFirebase(record);
     if (result.outcome === 'conflict') {
@@ -562,6 +663,14 @@ export default function HistoryView() {
             Download Evidence JSON
           </button>
           <button
+            onClick={handleExportNonNewestMatches}
+            disabled={nonNewestMatchV4Records.length === 0}
+            className="admin-g2-sm flex items-center gap-2 border border-violet-400/30 bg-violet-500/15 px-4 py-2 text-sm font-black text-violet-50 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            Export All Non-Newest Matches ({nonNewestMatchV4Records.length})
+          </button>
+          <button
             onClick={() => void handleRefresh()}
             disabled={isLoading}
             className="admin-g2-sm flex items-center gap-2 border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:opacity-50"
@@ -591,7 +700,7 @@ export default function HistoryView() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4 xl:grid-cols-8">
         <HistorySummaryCard label="Teams Covered" value={evidenceSummary.teamsCovered} tone="cyan" />
         <HistorySummaryCard label="Pre Scout" value={evidenceSummary.preScoutRows} tone="violet" />
         <HistorySummaryCard label="Match Evidence" value={evidenceSummary.matchRows} />
@@ -599,7 +708,113 @@ export default function HistoryView() {
         <HistorySummaryCard label="Defense Impact" value={evidenceSummary.defenseRows} tone="rose" />
         <HistorySummaryCard label="Pit Priors" value={evidenceSummary.pitRows} tone="emerald" />
         <HistorySummaryCard label="Unsynced" value={unsyncedRecords.length} tone={unsyncedRecords.length > 0 ? 'amber' : 'slate'} />
+        <HistorySummaryCard label="Local Only V4" value={unsubmittedCurrentMatchV4Records.length} tone={unsubmittedCurrentMatchV4Records.length > 0 ? 'amber' : 'slate'} />
       </div>
+
+      <section className={`admin-g2 border p-5 ${
+        localPowerCoinWallet.bankrupt
+          ? 'border-rose-400/35 bg-rose-500/10'
+          : 'border-yellow-400/25 bg-yellow-500/10'
+      }`}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.24em] text-yellow-100/70">
+              <Coins className="h-4 w-4" />
+              PowerCoin Wallet
+            </div>
+            <h2 className="mt-1 text-2xl font-black text-white">
+              {localPowerCoinWallet.scoutName}
+              {localPowerCoinWallet.scoutNumber ? <span className="text-yellow-100/65"> #{localPowerCoinWallet.scoutNumber}</span> : null}
+            </h2>
+          </div>
+          <div className="grid min-w-full gap-3 sm:grid-cols-3 xl:min-w-[520px]">
+            <div className="admin-g2-sm border border-yellow-400/25 bg-slate-950/65 px-4 py-3">
+              <div className="text-[11px] font-black uppercase tracking-wider text-yellow-100/60">Balance</div>
+              <div className={`mt-1 text-3xl font-black ${localPowerCoinWallet.bankrupt ? 'text-rose-100' : 'text-yellow-50'}`}>
+                {Math.round(localPowerCoinWallet.balance)}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-yellow-100/55">Starts at {STARTING_POWERCOIN_BALANCE}</div>
+            </div>
+            <div className="admin-g2-sm border border-yellow-400/25 bg-slate-950/65 px-4 py-3">
+              <div className="text-[11px] font-black uppercase tracking-wider text-yellow-100/60">Open Stake</div>
+              <div className="mt-1 text-3xl font-black text-yellow-50">{Math.round(localPowerCoinWallet.openStake)}</div>
+              <div className="mt-1 text-xs font-semibold text-yellow-100/55">{localPowerCoinWallet.openBets} open bet{localPowerCoinWallet.openBets === 1 ? '' : 's'}</div>
+            </div>
+            <div className="admin-g2-sm border border-yellow-400/25 bg-slate-950/65 px-4 py-3">
+              <div className="text-[11px] font-black uppercase tracking-wider text-yellow-100/60">Last Result</div>
+              <div className={`mt-1 text-3xl font-black ${
+                localPowerCoinWallet.lastSettledDelta < 0 ? 'text-rose-100' : localPowerCoinWallet.lastSettledDelta > 0 ? 'text-emerald-100' : 'text-slate-100'
+              }`}>
+                {localPowerCoinWallet.lastSettledBet ? formatPowerCoinDelta(localPowerCoinWallet.lastSettledDelta) : '-'}
+              </div>
+              <div className="mt-1 text-xs font-semibold text-yellow-100/55">
+                {localPowerCoinWallet.lastSettledBet ? localPowerCoinWallet.lastSettledBet.matchKey.toUpperCase() : 'No settled bets'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+          <div className="admin-g2-sm border border-yellow-400/20 bg-slate-950/65 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-black text-yellow-50">Betting History</div>
+              {localPowerCoinWallet.bankrupt && (
+                <div className="admin-g2-sm border border-rose-400/30 bg-rose-500/15 px-2 py-1 text-xs font-black text-rose-100">Bankrupt</div>
+              )}
+            </div>
+            <div className="mt-3 divide-y divide-slate-800">
+              {localPowerCoinBets.length === 0 ? (
+                <div className="py-3 text-sm font-semibold text-yellow-100/55">No PowerCoin bets are stored on this device for {eventKey} yet.</div>
+              ) : localPowerCoinBets.map(bet => {
+                const delta = getPowerCoinBetBalanceDelta(bet);
+                return (
+                  <div key={bet.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
+                    <div>
+                      <div className="font-black text-white">{bet.matchKey.toUpperCase()} • {bet.side}</div>
+                      <div className="text-xs font-semibold text-yellow-100/55">
+                        {bet.settledAt ? `${bet.outcome || 'settled'} • stake ${Math.round(bet.amount)}` : `open • stake ${Math.round(bet.amount)}`}
+                        {bet.directSendStatus === 'failed' ? ' • not sent' : ''}
+                        {bet.disqualified ? ' • disqualified' : ''}
+                      </div>
+                    </div>
+                    <div className={`font-black ${
+                      delta < 0 ? 'text-rose-100' : delta > 0 ? 'text-emerald-100' : 'text-slate-200'
+                    }`}>
+                      {bet.settledAt ? formatPowerCoinDelta(delta) : `-${Math.round(bet.amount)} locked`}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="admin-g2-sm border border-yellow-400/20 bg-slate-950/65 p-4">
+            <div className="flex items-center gap-2 text-sm font-black text-yellow-50">
+              <Trophy className="h-4 w-4" />
+              Local Leaderboard
+            </div>
+            <div className="mt-3 space-y-2">
+              {localPowerCoinLeaderboard.length === 0 ? (
+                <div className="text-sm font-semibold text-yellow-100/55">No synced/imported PowerCoin rows yet.</div>
+              ) : localPowerCoinLeaderboard.map((wallet, index) => (
+                <div key={wallet.identityKey} className="admin-g2-sm flex items-center justify-between gap-3 border border-slate-800 bg-slate-900/75 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-white">
+                      {index + 1}. {wallet.scoutName}{wallet.scoutNumber ? ` #${wallet.scoutNumber}` : ''}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      last {wallet.lastSettledBet ? formatPowerCoinDelta(wallet.lastSettledDelta) : '-'} • open {wallet.openStake}
+                    </div>
+                  </div>
+                  <div className={`shrink-0 text-lg font-black ${wallet.bankrupt ? 'text-rose-100' : 'text-yellow-50'}`}>
+                    {Math.round(wallet.balance)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
         <section className="admin-g2 border border-slate-800 bg-slate-900/70 p-5">
@@ -770,6 +985,7 @@ export default function HistoryView() {
                   ) : record.recordType === 'matchV4' ? (
                     (() => {
                       const matchPayload = record.payload as MatchScoutingV4;
+                      const currentVersionSubmitted = isMatchV4CurrentVersionSubmitted(record);
                       return (
                         <>
                           <div className="flex flex-wrap items-center gap-2">
@@ -795,6 +1011,21 @@ export default function HistoryView() {
                             </span>
                             <span className="admin-g2-sm bg-cyan-500/15 px-3 py-1 text-xs font-black tracking-wider text-cyan-200">
                               {matchPayload.totalMatchPoints} pts
+                            </span>
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                              Version {matchPayload.versionMetadata?.version || 1}
+                            </span>
+                            <span
+                              className={`admin-g2-sm px-3 py-1 text-xs font-black tracking-wider ${
+                                currentVersionSubmitted
+                                  ? 'bg-emerald-500/15 text-emerald-200'
+                                  : 'bg-amber-500/15 text-amber-200'
+                              }`}
+                            >
+                              {currentVersionSubmitted ? 'Submitted to Head Scout' : 'Local Only'}
+                            </span>
+                            <span className="admin-g2-sm bg-slate-800 px-3 py-1 text-xs font-black tracking-wider text-slate-200">
+                              Submission {currentVersionSubmitted ? 1 : 0}
                             </span>
                             {record.syncStatus !== 'synced' && (
                               <span className="admin-g2-sm bg-rose-500/15 px-3 py-1 text-xs font-black tracking-wider text-rose-200">

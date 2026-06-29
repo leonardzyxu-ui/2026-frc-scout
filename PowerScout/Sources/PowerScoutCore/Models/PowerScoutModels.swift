@@ -2,11 +2,13 @@ import Foundation
 
 public enum PowerScoutSection: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard"
+    case liveOps = "Live Ops"
     case systemAudit = "System Audit"
     case preScout = "Pre Scout"
     case pitScout = "Pit Scout"
     case matchScout = "Match Scout"
     case allianceSelection = "Alliance Selection"
+    case historyRewards = "History / Rewards"
     case reports = "Reports"
     case relay = "Relay"
     case commands = "Commands"
@@ -16,11 +18,13 @@ public enum PowerScoutSection: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .dashboard: "rectangle.3.group"
+        case .liveOps: "bolt.horizontal.circle"
         case .systemAudit: "checklist.checked"
         case .preScout: "magnifyingglass"
         case .pitScout: "wrench.and.screwdriver"
         case .matchScout: "stopwatch"
         case .allianceSelection: "person.3.sequence"
+        case .historyRewards: "clock.badge.checkmark"
         case .reports: "doc.text.magnifyingglass"
         case .relay: "antenna.radiowaves.left.and.right"
         case .commands: "terminal"
@@ -157,6 +161,45 @@ public struct CommandSpec: Identifiable, Hashable, Sendable {
     }
 }
 
+public enum LiveOpsSourceRole: String, Sendable {
+    case authoritative = "Authoritative"
+    case syncSource = "Sync Source"
+    case contextOnly = "Context Only"
+    case localFallback = "Local Fallback"
+}
+
+public struct LiveOpsPipelineStep: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let title: String
+    public let detail: String
+    public let owner: String
+    public let urgency: String
+
+    public init(_ title: String, detail: String, owner: String, urgency: String) {
+        self.id = title
+        self.title = title
+        self.detail = detail
+        self.owner = owner
+        self.urgency = urgency
+    }
+}
+
+public struct LiveOpsSourceRule: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let source: String
+    public let role: LiveOpsSourceRole
+    public let givesUs: String
+    public let limitation: String
+
+    public init(_ source: String, role: LiveOpsSourceRole, givesUs: String, limitation: String) {
+        self.id = source
+        self.source = source
+        self.role = role
+        self.givesUs = givesUs
+        self.limitation = limitation
+    }
+}
+
 public struct CommandResult: Identifiable, Hashable, Sendable {
     public let id = UUID()
     public let title: String
@@ -170,7 +213,89 @@ public struct CommandResult: Identifiable, Hashable, Sendable {
     public var duration: TimeInterval { finishedAt.timeIntervalSince(startedAt) }
 }
 
+public struct PowerCoinWalletSnapshot: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let scoutName: String
+    public let scoutNumber: Int?
+    public let balance: Int
+    public let openStake: Int
+    public let openBets: Int
+    public let lastResultDelta: Int?
+    public let lastResultMatch: String
+    public let note: String
+
+    public init(scoutName: String, scoutNumber: Int?, balance: Int, openStake: Int, openBets: Int, lastResultDelta: Int?, lastResultMatch: String, note: String) {
+        self.id = scoutNumber.map { "scout-\($0)" } ?? scoutName
+        self.scoutName = scoutName
+        self.scoutNumber = scoutNumber
+        self.balance = balance
+        self.openStake = openStake
+        self.openBets = openBets
+        self.lastResultDelta = lastResultDelta
+        self.lastResultMatch = lastResultMatch
+        self.note = note
+    }
+}
+
+public struct PowerCoinHistoryRow: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let matchKey: String
+    public let side: String
+    public let stake: Int
+    public let status: String
+    public let delta: Int?
+
+    public init(matchKey: String, side: String, stake: Int, status: String, delta: Int?) {
+        self.id = "\(matchKey)-\(side)-\(stake)-\(status)"
+        self.matchKey = matchKey
+        self.side = side
+        self.stake = stake
+        self.status = status
+        self.delta = delta
+    }
+}
+
+public struct EvidenceLedgerSummary: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let label: String
+    public let value: String
+    public let detail: String
+    public let tone: String
+
+    public init(_ label: String, value: String, detail: String, tone: String) {
+        self.id = label
+        self.label = label
+        self.value = value
+        self.detail = detail
+        self.tone = tone
+    }
+}
+
 public enum PowerScoutKnowledgeBase {
+    public static let startingPowerCoinBalance = 1000
+
+    public static let walletSnapshot = PowerCoinWalletSnapshot(
+        scoutName: "Test Scout QA",
+        scoutNumber: 7,
+        balance: 880,
+        openStake: 120,
+        openBets: 1,
+        lastResultDelta: nil,
+        lastResultMatch: "No settled bets",
+        note: "Native read-only mirror of the web wallet contract. Full local database sync is the next slice."
+    )
+
+    public static let powerCoinHistoryRows: [PowerCoinHistoryRow] = [
+        PowerCoinHistoryRow(matchKey: "QM1", side: "Red", stake: 120, status: "open", delta: -120)
+    ]
+
+    public static let evidenceLedgerSummaries: [EvidenceLedgerSummary] = [
+        EvidenceLedgerSummary("Evidence Rows", value: "local", detail: "Match, pit, pre-scout, and deleted/tombstoned rows stay auditable in browser cache exports.", tone: "cyan"),
+        EvidenceLedgerSummary("Submitted State", value: "versioned", detail: "Every Match Scout V4 row carries version and submitted-state metadata for recovery.", tone: "green"),
+        EvidenceLedgerSummary("PowerCoins", value: "number-first", detail: "Wallet identity is Scout Number first; display names can change without splitting balances.", tone: "yellow"),
+        EvidenceLedgerSummary("Admin Controls", value: "guarded", detail: "Head scout can settle, adjust, disqualify, and restore reward predictions with audit confirmation.", tone: "orange")
+    ]
+
     public static let systemScores: [ScoutSystemScore] = [
         ScoutSystemScore(
             lane: .preScout,
@@ -289,7 +414,87 @@ public enum PowerScoutKnowledgeBase {
         StrategySafetyRule("Keep DPR separate", "Use DPR as context only; live scout-observed Defense remains the decision metric.")
     ]
 
+    public static let liveOpsSteps: [LiveOpsPipelineStep] = [
+        LiveOpsPipelineStep(
+            "Scout evidence lands locally first",
+            detail: "Match Scout browsers, offline JSON, and Firebase writes all preserve versions so a bad connection does not erase the newest scout truth.",
+            owner: "Scout devices + PowerScout",
+            urgency: "during match"
+        ),
+        LiveOpsPipelineStep(
+            "PowerScout reconciles local and Firebase",
+            detail: "The Mac app should compare scout cache versions, Firebase records, and imported JSON, then keep every version while promoting the newest usable record.",
+            owner: "PowerScout local database",
+            urgency: "immediate"
+        ),
+        LiveOpsPipelineStep(
+            "Official sources refresh after each match",
+            detail: "TBA, FIRST Events, Statbotics, and scout data are refreshed after the score is revealed. FIRST is the practice-day sync source when available.",
+            owner: "PowerScout refresh runner",
+            urgency: "under one minute"
+        ),
+        LiveOpsPipelineStep(
+            "Models rerun from the refreshed cache",
+            detail: "Contribution, Defense, floor, ceiling, deviations, and next-match strategy should be recomputed from the local cache instead of waiting for a deployed website.",
+            owner: "PowerScout model runner",
+            urgency: "under one minute"
+        ),
+        LiveOpsPipelineStep(
+            "Driver-team inference is the output",
+            detail: "The useful product is a driver team next-match plan: offense/defense roles, expected margin, win probability, RP upside, gamble warning, and data-quality flags.",
+            owner: "Head scout",
+            urgency: "before queueing"
+        )
+    ]
+
+    public static let liveOpsSourceRules: [LiveOpsSourceRule] = [
+        LiveOpsSourceRule(
+            "PowerScout Local Database",
+            role: .authoritative,
+            givesUs: "Fast local storage, conflict history, model-ready cache, and offline survivability on Leo's Mac.",
+            limitation: "Must sync outward to Firebase and imports so it does not become a private island."
+        ),
+        LiveOpsSourceRule(
+            "Firebase",
+            role: .syncSource,
+            givesUs: "Shared field data from scout devices and the hosted website.",
+            limitation: "Network timing can lag; never block driver-team decisions on one slow write."
+        ),
+        LiveOpsSourceRule(
+            "FIRST Events API",
+            role: .syncSource,
+            givesUs: "Official FMS schedules, results, and practice-match data when credentials and event sync are healthy.",
+            limitation: "Authenticated and venue-sync dependent; use local practice scorekeeping as the fallback."
+        ),
+        LiveOpsSourceRule(
+            "The Blue Alliance",
+            role: .contextOnly,
+            givesUs: "Public official quals/playoffs, alliances, winners, and score breakdowns.",
+            limitation: "No documented practice-match level in the public match schema."
+        ),
+        LiveOpsSourceRule(
+            "Statbotics",
+            role: .contextOnly,
+            givesUs: "EPA-style public ratings and prediction context.",
+            limitation: "No documented practice-match score feed; do not treat it as practice truth."
+        ),
+        LiveOpsSourceRule(
+            "Practice Scorekeeper",
+            role: .localFallback,
+            givesUs: "Red/blue practice totals, threshold notes, and scorekeeper observations when APIs lag or omit practice.",
+            limitation: "Needs a simple local entry surface and post-match reconciliation."
+        )
+    ]
+
+    public static let postMatchRefreshCommand = CommandSpec(
+        title: "Post-Match Refresh",
+        subtitle: "Refresh TBA, FIRST, Statbotics, Firebase/scout data, then rerun model inferences.",
+        arguments: ["npm", "run", "powerscout:post-match-refresh"],
+        usesProxy: true
+    )
+
     public static let commands: [CommandSpec] = [
+        postMatchRefreshCommand,
         CommandSpec(
             title: "Head Scout Status",
             subtitle: "Official site, Admin V2 graph link, relay summary, and morning cues.",
