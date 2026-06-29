@@ -118,8 +118,8 @@ Status: living decomposition. The pasted file is treated as source material, not
 29. `Done` - Connect `compareAllianceStrategies()` into Admin V4.
     Evidence: `buildStrategyMatchPlans()` feeds the shift role engine into `StrategyMatchPlan`, and `AdminV4StrategyPlanPanel` now exposes Shift Role Simulation with objective, margin, Red win probability, and Red/Blue best role plans.
 
-30. `Partial` - Mirrored strategy preview page.
-    Done criteria: a page that looks like the scrollable scout form, but shows predicted opponent shift behavior and our recommended response plan.
+30. `Done` - Mirrored strategy preview page.
+    Evidence: `/strategy-preview` renders a scout-form-like alternating shift timeline, uses `compareAllianceStrategies()` and `buildMatchScoutTimelineEntries()`, and labels each shift with our recommended response or opponent predicted behavior. Browser check: route rendered with eight shift cards and no console errors.
 
 31. `Partial` - Winners Graph / comparison visuals in PowerScout.
     Evidence: existing PowerScout prediction evidence chart work. Missing: confirm every Admin graph has a native equivalent.
@@ -146,8 +146,7 @@ Status: living decomposition. The pasted file is treated as source material, not
 
 ## Current Highest-Value Missing Slices
 
-1. Build the mirrored shift strategy preview page.
-2. Split and document browser-cache JSON export schema and direct local-file export path.
+1. Split and document browser-cache JSON export schema and direct local-file export path.
 
 ## Logic Invariants From Red-Team
 

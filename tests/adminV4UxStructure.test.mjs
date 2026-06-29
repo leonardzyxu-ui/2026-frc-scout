@@ -857,11 +857,20 @@ test('Admin V4 visualize and stat help use the intended interaction model', () =
 test('Admin V4 strategy plan exposes the shift role simulation engine', () => {
   const strategyPanelSource = readFileSync('src/components/adminv4/AdminV4StrategyPlanPanel.tsx', 'utf8');
   const strategyBrainSource = readFileSync('src/utils/strategyBrain.ts', 'utf8');
+  const strategyPreviewSource = readFileSync('src/views/StrategyPreviewView.tsx', 'utf8');
+  const appSource = readFileSync('src/App.tsx', 'utf8');
 
   assert.match(strategyBrainSource, /compareAllianceStrategies/);
   assert.match(strategyPanelSource, /Shift Role Simulation/);
   assert.match(strategyPanelSource, /shiftEngineRedPlan/);
   assert.match(strategyPanelSource, /qualification-rp/);
+  assert.match(appSource, /\/strategy-preview/);
+  assert.match(strategyPreviewSource, /Scout-form mirror for the next match/);
+  assert.match(strategyPreviewSource, /compareAllianceStrategies/);
+  assert.match(strategyPreviewSource, /buildMatchScoutTimelineEntries/);
+  assert.match(strategyPreviewSource, /Our Recommended Response/);
+  assert.match(strategyPreviewSource, /Opponent Predicted Behavior/);
+  assert.match(strategyPreviewSource, /data-testid="strategy-shift-preview-timeline"/);
 });
 
 test('Admin V4 primitives are active and not sidebar-era placeholders', () => {

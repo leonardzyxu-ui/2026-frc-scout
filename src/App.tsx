@@ -13,6 +13,7 @@ const PitScoutView = lazy(() => import('./views/PitScoutView'));
 const PreMatchView = lazy(() => import('./views/PreMatchView'));
 const MatchDefenseScoutView = lazy(() => import('./views/MatchDefenseScoutView'));
 const HistoryView = lazy(() => import('./views/HistoryView'));
+const StrategyPreviewView = lazy(() => import('./views/StrategyPreviewView'));
 const AdminMainframeView = lazy(() => import('./views/AdminMainframeView'));
 const AdminV4View = lazy(() => import('./views/AdminV4View'));
 
@@ -38,6 +39,7 @@ function ScoutShell({ isLocalMode }: { isLocalMode: boolean }) {
             <Route path="/defense" element={<MatchDefenseScoutView />} />
             <Route path="/pit" element={<PitScoutView />} />
             <Route path="/history" element={<HistoryView />} />
+            <Route path="/strategy-preview" element={<StrategyPreviewView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

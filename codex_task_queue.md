@@ -98,7 +98,7 @@
 - [x] Fetch and anchor the official FIRST Season Materials, REBUILT TU22 manual, and Team Update 22 sources for RP/rules logic.
 - [x] Add an event-tier RP threshold adapter for Regional/District, District Championship, and FIRST Championship thresholds.
 - [x] Add Traversal RP handling as a valid low-probability strategy metric instead of treating it as obsolete.
-- [ ] Build the mirrored strategy preview page that shows predicted opponent shift behavior and our recommended shift response plan.
+- [x] Build the mirrored strategy preview page that shows predicted opponent shift behavior and our recommended shift response plan.
 - [ ] Split browser-cache export work into explicit JSON schema documentation and direct local-file export UX.
 - [deferred] Add the conditional PowerScout marketing-site task only after the core scouting redesign is otherwise complete.
 - [x] Launch exactly two `gpt-5.4` high-reasoning agents to decipher the minimalist scout website + shift-form redesign prompt, both with the official REBUILT TU22 manual anchor.
