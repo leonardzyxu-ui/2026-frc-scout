@@ -78,7 +78,6 @@ struct SystemAuditView: View {
                     .foregroundStyle(.secondary)
                 Text(value)
                     .font(.title2.weight(.bold))
-                    .monospacedDigit()
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)

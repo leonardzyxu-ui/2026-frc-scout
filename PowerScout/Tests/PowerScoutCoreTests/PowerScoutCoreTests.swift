@@ -76,6 +76,32 @@ func liveOpsShowsFreshnessAndDriverBriefingOutputs() {
 }
 
 @Test
+func relayDispatchCandidatesKeepCloudflareAsGlobalBackup() {
+    let candidates = PowerScoutKnowledgeBase.relayDispatchCandidates
+    let mainlandOrder = candidates.sorted { $0.mainlandOrder < $1.mainlandOrder }.map(\.label)
+    let globalOrder = candidates.sorted { $0.globalVpnOrder < $1.globalVpnOrder }.map(\.label)
+
+    #expect(mainlandOrder == ["The Button", "DirectChat", "Cloudflare DirectChat"])
+    #expect(globalOrder == ["The Button", "Cloudflare DirectChat", "DirectChat"])
+    #expect(candidates.first { $0.label == "Cloudflare DirectChat" }?.caveat.localizedCaseInsensitiveContains("workers.dev") == true)
+    #expect(candidates.first { $0.label == "Cloudflare DirectChat" }?.caveat.localizedCaseInsensitiveContains("Sanya") == true)
+}
+
+@Test
+func nextMatchDashboardMirrorsStrategyPreview() {
+    let dashboard = PowerScoutKnowledgeBase.nextMatchDashboard
+    #expect(PowerScoutKnowledgeBase.nextMatchDashboardMetricLabels == ["Our Win Prob", "Our Margin"])
+    #expect(dashboard.ourAlliance == "Blue")
+    #expect(dashboard.firstShiftAlliance == "Red")
+    #expect(dashboard.projectedRedScore == 94)
+    #expect(dashboard.projectedBlueScore == 78)
+    #expect(dashboard.columns.count == 6)
+    #expect(dashboard.columns.contains { $0.teamNumber == "254" && $0.instructions.contains { $0.instruction == "Score 82 Points" } })
+    #expect(dashboard.columns.contains { $0.teamNumber == "971" && $0.instructions.contains { $0.instruction.localizedCaseInsensitiveContains("Defend Team 1323") } })
+    #expect(dashboard.columns.contains { $0.teamNumber == "1323" && $0.instructions.contains { $0.instruction == "Stockpile Fuel" } })
+}
+
+@Test
 func historyRewardsSurfaceMirrorsPowerCoinsAndEvidence() {
     #expect(PowerScoutSection.allCases.contains(.historyRewards))
     #expect(PowerScoutKnowledgeBase.startingPowerCoinBalance == 1000)
@@ -91,6 +117,15 @@ func powerScoutCreatesAndLoadsLocalSyncLedger() throws {
     let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("powerscout-sync-ledger-\(UUID().uuidString)", isDirectory: true)
     let store = PowerScoutSyncLedgerStore(storageRoot: root)
+
+    do {
+        _ = try store.loadSnapshot()
+        Issue.record("Passive ledger load should not create a synthetic snapshot.")
+    } catch let error as PowerScoutSyncLedgerStore.LedgerError {
+        #expect(error.errorDescription?.localizedCaseInsensitiveContains("No local sync ledger exists yet") == true)
+    }
+    #expect(!FileManager.default.fileExists(atPath: store.ledgerURL.path))
+
     let snapshot = try store.refreshSnapshot(now: Date(timeIntervalSince1970: 1_000))
     let loaded = try store.loadSnapshot()
 

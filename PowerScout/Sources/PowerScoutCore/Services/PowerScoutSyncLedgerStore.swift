@@ -3,6 +3,17 @@ import Foundation
 public struct PowerScoutSyncLedgerStore: Sendable {
     public let storageRoot: URL
 
+    public enum LedgerError: LocalizedError, Equatable {
+        case missingLedger(String)
+
+        public var errorDescription: String? {
+            switch self {
+            case .missingLedger(let path):
+                return "No local sync ledger exists yet. Refresh after importing scout-cache rows or Firebase snapshots to create \(path)."
+            }
+        }
+    }
+
     public init(storageRoot: URL = PowerScoutSyncLedgerStore.defaultStorageRoot()) {
         self.storageRoot = storageRoot
     }
@@ -16,7 +27,7 @@ public struct PowerScoutSyncLedgerStore: Sendable {
             let data = try Data(contentsOf: ledgerURL)
             return try decoder.decode(PowerScoutSyncSnapshot.self, from: data)
         }
-        return try refreshSnapshot()
+        throw LedgerError.missingLedger(ledgerURL.path)
     }
 
     @discardableResult

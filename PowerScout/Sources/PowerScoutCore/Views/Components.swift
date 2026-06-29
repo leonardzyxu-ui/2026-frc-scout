@@ -56,7 +56,6 @@ struct PSScoreRing: View {
                 .rotationEffect(.degrees(-90))
             Text("\(score)")
                 .font(.title3.weight(.bold))
-                .monospacedDigit()
         }
         .frame(width: diameter, height: diameter)
         .accessibilityLabel("Readiness score \(score)")

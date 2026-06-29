@@ -57,6 +57,16 @@ Continue PowerScout/scouting redesign with bounded subagent support. Current foc
 | Singer | PROMPT-MIN-LOGIC-001 | Explorer / logic decoder | gpt-5.4 / high | launch | read-only | launched | Leo explicitly requested exactly two gpt-5.4 high agents; shift logic, sync, reversibility, and manual constraints need independent checking. | 2026-06-29T05:57:40+00:00 |
 | Singer | PROMPT-MIN-LOGIC-001 | Explorer / logic decoder | gpt-5.4 / high | close | read-only | completed |  | 2026-06-29T06:02:15+00:00 |
 | Helmholtz | PROMPT-MIN-UX-001 | Explorer / requirements decoder | gpt-5.4 / high | close | read-only | completed |  | 2026-06-29T06:03:10+00:00 |
+| QA-Web-Logic | qa-web-logic-001 | Read-only verifier | gpt-5.4 / medium | launch | read-only; no file changes | launched | Independent web lane catches UI/state/model integration bugs while the main agent moves on to integration. | 2026-06-29T07:38:41+00:00 |
+| QA-Math-Safety | qa-math-safety-001 | Read-only verifier | gpt-5.4 / medium | launch | read-only; no file changes | launched | Independent math lane checks the parts most likely to fail silently under competition pressure. | 2026-06-29T07:38:41+00:00 |
+| QA-PowerScout-Mac | qa-powerscout-mac-001 | Read-only verifier | gpt-5.4 / medium | launch | read-only; no file changes | launched | Native app is Leo's priority, so it gets its own independent QA lane. | 2026-06-29T07:38:41+00:00 |
+| Noether / QA-Web-Logic | qa-web-logic-001 | Read-only verifier | gpt-5.4 / medium | close | read-only | completed; found first-shift default bug |  | 2026-06-29T07:43:17+00:00 |
+| Archimedes / QA-Math-Safety | qa-math-safety-001 | Read-only verifier | gpt-5.4 / medium | close | read-only | completed; found zero-deviation strategy bug |  | 2026-06-29T07:43:17+00:00 |
+| Galileo / QA-PowerScout-Mac | qa-powerscout-mac-001 | Read-only verifier | gpt-5.4 / medium | close | read-only | completed; found synthetic ledger-on-load bug |  | 2026-06-29T07:43:17+00:00 |
+| Queue-Keeper | queue-cleanup-20260629 | worker | gpt-5.3-codex-spark / medium | launch | scoped edits: codex_task_queue.md and codex_task_queue_completed.md only | launched | Leo explicitly asked to use an agent for queue cleanup; the work is mechanical and separable from feature implementation. | 2026-06-29T08:01:23+00:00 |
+| Queue-Keeper | queue-cleanup-20260629 | worker | gpt-5.3-codex-spark / medium | close | scoped edits: codex_task_queue.md and codex_task_queue_completed.md only | completed | Queue split completed without blockers. | 2026-06-29T08:04:21+00:00 |
+| Mac-App-Inspector | mac-app-ui-inspection-20260629 | verifier | gpt-5.4 / medium | launch | read-only; UI inspection only | launched | Leo explicitly requested an agent focused on using Mac Computer Use to inspect the app and improve quality while the main thread implements. | 2026-06-29T08:27:29+00:00 |
+| Mac-App-Inspector | mac-app-ui-inspection-20260629 | verifier | gpt-5.4 / medium | close | read-only; UI inspection only | completed | Report received and used to prioritize native next-match dashboard at top of Dashboard. | 2026-06-29T08:31:43+00:00 |
 
 ## Integration Notes
 

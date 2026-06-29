@@ -977,6 +977,7 @@ export const buildTeamPerformanceProfiles = ({
   epaRatings,
   ppaRatings,
   defenseImpactLookup,
+  defenseDeviationLookup = {},
   featureMatchSnapshots = []
 }: {
   v4Records: MatchScoutingV4[];
@@ -988,6 +989,7 @@ export const buildTeamPerformanceProfiles = ({
   epaRatings: Record<string, number>;
   ppaRatings: Record<string, number>;
   defenseImpactLookup: Record<string, number>;
+  defenseDeviationLookup?: Record<string, number>;
   featureMatchSnapshots?: NonNullable<ModelFeatureSnapshot['matchSnapshots']>;
 }): TeamPerformanceProfile[] => {
   const teams = new Set<string>();
@@ -1097,7 +1099,7 @@ export const buildTeamPerformanceProfiles = ({
       epa: epaRatings[teamNumber] ?? null,
       ppa: ppaRatings[teamNumber] ?? null,
       defense,
-      defenseDeviation: 0,
+      defenseDeviation: defenseDeviationLookup[teamNumber] ?? 0,
       defenseImpact: defense,
       normalLowScore: Math.max(0, averageScore - deviation),
       normalHighScore: averageScore + deviation,
@@ -1293,6 +1295,33 @@ export const buildDefenseImpactLookup = (records: DefenseAttributionRecord[]) =>
   );
 };
 
+export const buildDefenseImpactDeviationLookup = (records: DefenseAttributionRecord[]) => {
+  const buckets = new Map<string, DefenseAttributionRecord[]>();
+  records.forEach(record => {
+    const bucket = buckets.get(record.defenderTeamNumber) || [];
+    bucket.push(record);
+    buckets.set(record.defenderTeamNumber, bucket);
+  });
+
+  return Object.fromEntries(
+    Array.from(buckets.entries()).map(([team, teamRecords]) => [
+      team,
+      stddev(teamRecords.map(record => record.pointsDenied * record.confidence))
+    ])
+  );
+};
+
+export const buildStrategyDeviationLookupFromProfiles = (profiles: TeamPerformanceProfile[]) =>
+  Object.fromEntries(
+    profiles.map(profile => [
+      profile.teamNumber,
+      {
+        contributionDeviation: Math.max(0, profile.contributionDeviation),
+        defenseDeviation: Math.max(0, profile.defenseDeviation)
+      }
+    ])
+  );
+
 export const buildScoutedBonusMetricLookup = (
   v3Records: MatchScoutingV3[],
   v4Records: MatchScoutingV4[]
@@ -1343,7 +1372,8 @@ export const buildStrategyMatchPlans = (
     modelName: string;
     modelSource: string;
     forecasts: Record<string, { redScore: number; blueScore: number; lowConfidence: boolean }>;
-  }
+  },
+  deviationLookup: Record<string, { contributionDeviation?: number; defenseDeviation?: number }> = {}
 ): StrategyMatchPlan[] =>
   matches
     .filter(match =>
@@ -1419,16 +1449,16 @@ export const buildStrategyMatchPlans = (
         redTeams.map(team => ({
           teamNumber: team,
           contribution: Math.max(0, ratings[team] ?? 0),
-          contributionDeviation: 0,
+          contributionDeviation: Math.max(0, deviationLookup[team]?.contributionDeviation ?? 0),
           defense: Math.max(0, defenseImpactLookup[team] ?? 0),
-          defenseDeviation: 0
+          defenseDeviation: Math.max(0, deviationLookup[team]?.defenseDeviation ?? 0)
         })),
         blueTeams.map(team => ({
           teamNumber: team,
           contribution: Math.max(0, ratings[team] ?? 0),
-          contributionDeviation: 0,
+          contributionDeviation: Math.max(0, deviationLookup[team]?.contributionDeviation ?? 0),
           defense: Math.max(0, defenseImpactLookup[team] ?? 0),
-          defenseDeviation: 0
+          defenseDeviation: Math.max(0, deviationLookup[team]?.defenseDeviation ?? 0)
         })),
         { strategyObjective: shiftEngineObjective }
       );

@@ -1,15 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Activity, Crosshair, Shield, Target, TrendingUp } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { MatchScoutingV3Alliance } from '../types';
-import {
-  buildMatchScoutTimelineEntries,
-  deriveMatchScoutShiftRole,
-  normalizeMatchScoutShiftActions
-} from '../utils/matchScoutTimeline';
+import { buildMatchScoutTimelineEntries } from '../utils/matchScoutTimeline';
 import {
   compareAllianceStrategies,
   type ShiftAllianceRolePlan,
-  type ShiftStrategyObjective,
+  type ShiftStrategyAssignment,
   type ShiftStrategyRole,
   type ShiftStrategyTeamInput
 } from '../utils/shiftStrategyEngine';
@@ -17,13 +13,13 @@ import {
 const redTeams: ShiftStrategyTeamInput[] = [
   { teamNumber: '254', contribution: 82, contributionDeviation: 11, defense: 24, defenseDeviation: 7, traversal: 8, traversalDeviation: 3 },
   { teamNumber: '1678', contribution: 64, contributionDeviation: 14, defense: 19, defenseDeviation: 8, traversal: 6, traversalDeviation: 4 },
-  { teamNumber: '971', contribution: 48, contributionDeviation: 18, defense: 34, defenseDeviation: 9, traversal: 5, traversalDeviation: 4 }
+  { teamNumber: '971', contribution: 48, contributionDeviation: 18, defense: 58, defenseDeviation: 12, traversal: 5, traversalDeviation: 4 }
 ];
 
 const blueTeams: ShiftStrategyTeamInput[] = [
   { teamNumber: '1323', contribution: 78, contributionDeviation: 13, defense: 21, defenseDeviation: 8, traversal: 7, traversalDeviation: 3 },
   { teamNumber: '4414', contribution: 58, contributionDeviation: 15, defense: 27, defenseDeviation: 9, traversal: 5, traversalDeviation: 4 },
-  { teamNumber: '5940', contribution: 43, contributionDeviation: 16, defense: 31, defenseDeviation: 10, traversal: 4, traversalDeviation: 4 }
+  { teamNumber: '5940', contribution: 43, contributionDeviation: 16, defense: 52, defenseDeviation: 12, traversal: 4, traversalDeviation: 4 }
 ];
 
 const roleLabels: Record<ShiftStrategyRole, string> = {
@@ -32,210 +28,318 @@ const roleLabels: Record<ShiftStrategyRole, string> = {
   stockpile: 'Stockpile'
 };
 
-const roleIcons: Record<ShiftStrategyRole, React.ElementType> = {
-  offense: Target,
-  defense: Shield,
-  stockpile: Crosshair
-};
-
-const getOppositeAlliance = (alliance: MatchScoutingV3Alliance): MatchScoutingV3Alliance =>
-  alliance === 'Red' ? 'Blue' : alliance === 'Blue' ? 'Red' : '';
-
-const getAllianceTone = (alliance: MatchScoutingV3Alliance) =>
-  alliance === 'Red'
-    ? 'border-red-400/40 bg-red-950/55 text-red-50'
-    : 'border-blue-400/40 bg-blue-950/55 text-blue-50';
+const getAllianceTeams = (alliance: MatchScoutingV3Alliance) => alliance === 'Red' ? redTeams : blueTeams;
 
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 const formatSigned = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
-const previewPanelClass = 'admin-g2 rounded-[2rem] border border-slate-800 bg-slate-900/70';
-const previewTileClass = 'admin-g2-sm rounded-2xl border border-slate-800 bg-slate-900/70';
-const previewButtonClass = 'rounded-full px-4 py-3 font-black transition-colors';
-const previewPillClass = 'admin-g2-sm rounded-2xl border border-white/10 bg-slate-950/45';
+const formatPoints = (value: number) => Math.max(0, Math.round(value));
 
-function TeamRolePill({ role, teamNumber, mean }: { role: ShiftStrategyRole; teamNumber: string; mean: number }) {
-  const Icon = roleIcons[role];
-  return (
-    <div className={`flex items-center justify-between gap-3 px-3 py-2 ${previewPillClass}`}>
-      <div className="flex min-w-0 items-center gap-2">
-        <Icon className="h-4 w-4 shrink-0 text-cyan-200" aria-hidden="true" />
-        <span className="truncate font-black text-white">Team {teamNumber}</span>
-      </div>
-      <div className="shrink-0 text-right">
-        <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{roleLabels[role]}</div>
-        <div className="font-mono text-sm font-black text-cyan-100">{mean.toFixed(1)}</div>
-      </div>
-    </div>
-  );
-}
+const previewPanelClass = 'admin-g2-lg rounded-[2rem] border border-slate-700/70 bg-slate-900/72 shadow-2xl shadow-slate-950/25';
+const previewTileClass = 'admin-g2 rounded-[1.75rem] border border-slate-700/70 bg-slate-950/55';
 
-function PlanSummary({ title, plan }: { title: string; plan: ShiftAllianceRolePlan }) {
+function AllianceSplitReadout({
+  value,
+  label,
+  source,
+  redLabel = 'Red',
+  blueLabel = 'Blue'
+}: {
+  value: MatchScoutingV3Alliance;
+  label: string;
+  source: string;
+  redLabel?: string;
+  blueLabel?: string;
+}) {
+  const options = [
+    { value: 'Red' as const, label: redLabel, activeClass: 'bg-red-500 text-white shadow-lg shadow-red-950/30' },
+    { value: 'Blue' as const, label: blueLabel, activeClass: 'bg-sky-400 text-slate-950 shadow-lg shadow-sky-950/30' }
+  ];
   return (
-    <section className={`${previewPanelClass} p-4`}>
+    <section className={`${previewPanelClass} p-5`}>
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{title}</div>
-          <div className="mt-1 text-lg font-black text-white">{formatSigned(plan.pointDifferenceMean)} point-difference contribution</div>
+        <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
+        <div className="rounded-full border border-white/10 bg-slate-950/55 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-200">
+          Guessed
         </div>
-        <TrendingUp className="h-5 w-5 text-emerald-200" aria-hidden="true" />
       </div>
-      <div className="mt-4 grid gap-2">
-        {plan.assignments.map(assignment => (
-          <TeamRolePill
-            key={`${assignment.teamNumber}-${assignment.role}`}
-            role={assignment.role}
-            teamNumber={assignment.teamNumber}
-            mean={assignment.mean}
-          />
-        ))}
+      <div className="mt-4 grid grid-cols-2 overflow-hidden rounded-full border border-white/10 bg-slate-950/70 p-1">
+        {options.map(option => {
+          const active = value === option.value;
+          return (
+            <div
+              key={option.value}
+              aria-current={active ? 'true' : undefined}
+              className={`rounded-full px-5 py-4 text-center text-base font-black transition-all ${
+                active
+                  ? option.activeClass
+                  : 'bg-slate-950/70 text-slate-400'
+              }`}
+            >
+              {option.label}
+            </div>
+          );
+        })}
       </div>
-      {plan.saturationWarning && (
-        <div className="admin-g2-sm mt-3 border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-50">
-          {plan.saturationWarning}
-        </div>
-      )}
+      <div className="mt-3 text-xs font-semibold text-slate-400">{source}</div>
     </section>
   );
 }
 
-export default function StrategyPreviewView() {
-  const [ourAlliance, setOurAlliance] = useState<MatchScoutingV3Alliance>('Red');
-  const [firstShiftAlliance, setFirstShiftAlliance] = useState<MatchScoutingV3Alliance>('Red');
-  const [objective, setObjective] = useState<ShiftStrategyObjective>('qualification-rp');
+function MetricTile({ label, value, tone }: { label: string; value: string; tone: 'win' | 'margin' }) {
+  return (
+    <section className={`${previewTileClass} px-5 py-4`}>
+      <div className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
+      <div className={`mt-2 text-4xl font-black ${tone === 'win' ? 'text-emerald-200' : 'text-cyan-100'}`}>
+        {value}
+      </div>
+    </section>
+  );
+}
 
-  const result = useMemo(() => compareAllianceStrategies(redTeams, blueTeams, { strategyObjective: objective }), [objective]);
+function ProjectedScoreFaceoff({ redScore, blueScore }: { redScore: number; blueScore: number }) {
+  const redTeamNumbers = redTeams.map(team => team.teamNumber);
+  const blueTeamNumbers = blueTeams.map(team => team.teamNumber);
+  const teamPillClass = "rounded-full border border-white/10 bg-slate-950/65 px-3 py-1 text-xs font-black tracking-[0.14em] text-slate-200";
+  return (
+    <section className="mt-5 rounded-[2rem] border border-slate-700/70 bg-slate-950/55 px-5 py-5">
+      <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Projected Score</div>
+      <div className="mx-auto mt-2 grid max-w-4xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-2 sm:gap-4">
+        <div className="min-w-0 justify-self-end text-right">
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-red-200/70">Red</div>
+          <div className="text-8xl font-black leading-[0.85] tracking-wide text-red-400 sm:text-9xl">
+            {formatPoints(redScore)}
+          </div>
+        </div>
+        <div className="pb-4 text-center text-lg font-black uppercase tracking-[0.2em] text-yellow-300 sm:pb-6">
+          vs
+        </div>
+        <div className="min-w-0 justify-self-start">
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-sky-200/70">Blue</div>
+          <div className="text-8xl font-black leading-[0.85] tracking-wide text-sky-300 sm:text-9xl">
+            {formatPoints(blueScore)}
+          </div>
+        </div>
+      </div>
+      <div className="mx-auto mt-3 grid max-w-4xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
+        <div className="flex flex-wrap justify-end gap-2">
+          {redTeamNumbers.map(team => <span key={team} className={teamPillClass}>{team}</span>)}
+        </div>
+        <div className="h-px w-8 bg-yellow-300/30" aria-hidden="true" />
+        <div className="flex flex-wrap justify-start gap-2">
+          {blueTeamNumbers.map(team => <span key={team} className={teamPillClass}>{team}</span>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const getAssignmentForTeam = (plan: ShiftAllianceRolePlan, teamNumber: string) =>
+  plan.assignments.find(assignment => assignment.teamNumber === teamNumber) || plan.assignments[0];
+
+const getDefenseTargets = (
+  assignment: ShiftStrategyAssignment,
+  opponentTeams: ShiftStrategyTeamInput[]
+) => {
+  const targets = [...opponentTeams].sort((left, right) => right.contribution - left.contribution);
+  const first = targets[0]?.teamNumber;
+  const second = assignment.mean >= 28 ? targets[1]?.teamNumber : '';
+  return [first, second].filter((target): target is string => Boolean(target));
+};
+
+const describeShiftAction = (
+  assignment: ShiftStrategyAssignment,
+  teamAlliance: MatchScoutingV3Alliance,
+  shiftAlliance: MatchScoutingV3Alliance,
+  opponentTeams: ShiftStrategyTeamInput[]
+) => {
+  if (assignment.role === 'defense') {
+    const targets = getDefenseTargets(assignment, opponentTeams);
+    return targets.length > 1
+      ? `Defend Team ${targets[0]} + Team ${targets[1]}`
+      : `Defend Team ${targets[0] || 'their top scorer'}`;
+  }
+  if (assignment.role === 'stockpile') return 'Stockpile Fuel';
+  if (teamAlliance === shiftAlliance) return `Score ${formatPoints(assignment.mean)} Points`;
+  return 'Stockpile Fuel';
+};
+
+const getShiftCardTone = (shiftAlliance: MatchScoutingV3Alliance, teamAlliance: MatchScoutingV3Alliance) => {
+  if (shiftAlliance === 'Red') {
+    return shiftAlliance === teamAlliance
+      ? 'border-red-300/50 bg-red-500/18 text-red-50'
+      : 'border-red-500/15 bg-red-950/15 text-slate-300';
+  }
+  return shiftAlliance === teamAlliance
+    ? 'border-sky-300/50 bg-sky-400/18 text-sky-50'
+    : 'border-sky-500/15 bg-sky-950/15 text-slate-300';
+};
+
+function StrategyTeamColumn({
+  team,
+  alliance,
+  plan,
+  opponentTeams,
+  timelineEntries
+}: {
+  team: ShiftStrategyTeamInput;
+  alliance: MatchScoutingV3Alliance;
+  plan: ShiftAllianceRolePlan;
+  opponentTeams: ShiftStrategyTeamInput[];
+  timelineEntries: ReturnType<typeof buildMatchScoutTimelineEntries>;
+}) {
+  const assignment = getAssignmentForTeam(plan, team.teamNumber);
+  if (!assignment) return null;
+
+  return (
+    <article className="min-w-[230px] rounded-[1.85rem] border border-slate-700/80 bg-slate-950/55 p-3">
+      <div className="rounded-[1.5rem] border border-white/10 bg-slate-900/75 px-4 py-3">
+        <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">{alliance}</div>
+        <div className="mt-1 text-xl font-black text-white">Team {team.teamNumber}</div>
+        <div className="mt-1 text-xs font-bold text-slate-400">{roleLabels[assignment.role]} plan</div>
+      </div>
+      <div className="mt-3 space-y-2">
+        {timelineEntries.map(entry => (
+          <section
+            key={`${team.teamNumber}-${entry.id}`}
+            className={`flex h-28 flex-col justify-between rounded-[1.35rem] border px-3 py-3 ${getShiftCardTone(entry.shiftAlliance, alliance)}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
+                Shift {entry.index + 1} · {entry.shiftAlliance}
+              </div>
+              <div className="rounded-full bg-slate-950/45 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] opacity-80">
+                {entry.shiftAlliance === alliance ? 'Active' : 'Other'}
+              </div>
+            </div>
+            <div className="mt-2 min-h-10 overflow-hidden text-sm font-black leading-snug">
+              {describeShiftAction(assignment, alliance, entry.shiftAlliance, opponentTeams)}
+            </div>
+          </section>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function ShiftExplorer({
+  ourAlliance,
+  firstShiftAlliance,
+  redPlan,
+  bluePlan
+}: {
+  ourAlliance: MatchScoutingV3Alliance;
+  firstShiftAlliance: MatchScoutingV3Alliance;
+  redPlan: ShiftAllianceRolePlan;
+  bluePlan: ShiftAllianceRolePlan;
+}) {
   const timelineEntries = useMemo(
     () => buildMatchScoutTimelineEntries([], firstShiftAlliance, ourAlliance),
     [firstShiftAlliance, ourAlliance]
   );
-  const ourPlan = ourAlliance === 'Red' ? result.redBestPlan : result.blueBestPlan;
-  const opponentAlliance = getOppositeAlliance(ourAlliance);
-  const opponentPlan = opponentAlliance === 'Red' ? result.redBestPlan : result.blueBestPlan;
+  const columns = [
+    ...redTeams.map(team => ({ team, alliance: 'Red' as const, plan: redPlan, opponentTeams: blueTeams })),
+    ...blueTeams.map(team => ({ team, alliance: 'Blue' as const, plan: bluePlan, opponentTeams: redTeams }))
+  ];
+
+  return (
+    <section data-testid="strategy-shift-preview-timeline" className={`${previewPanelClass} mt-5 p-5`}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Explore Shifts</div>
+          <h2 className="mt-1 text-2xl font-black text-white">Per-team shift plan</h2>
+        </div>
+        <div className="rounded-full border border-white/10 bg-slate-950/55 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-300">
+          First shift: {firstShiftAlliance}
+        </div>
+      </div>
+      <div className="mt-5 overflow-x-auto pb-2">
+        <div className="grid min-w-max grid-flow-col auto-cols-[230px] gap-3">
+          {columns.map(column => (
+            <StrategyTeamColumn
+              key={`${column.alliance}-${column.team.teamNumber}`}
+              team={column.team}
+              alliance={column.alliance}
+              plan={column.plan}
+              opponentTeams={column.opponentTeams}
+              timelineEntries={timelineEntries}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const guessedNextMatch: {
+  ourAlliance: MatchScoutingV3Alliance;
+  firstShiftAlliance: MatchScoutingV3Alliance;
+} = {
+  ourAlliance: 'Blue',
+  firstShiftAlliance: 'Red'
+};
+
+export default function StrategyPreviewView() {
+  const [isExplorerOpen, setIsExplorerOpen] = useState(true);
+  const { ourAlliance, firstShiftAlliance } = guessedNextMatch;
+
+  const result = useMemo(() => compareAllianceStrategies(redTeams, blueTeams, { strategyObjective: 'qualification-rp' }), []);
   const ourWinProbability = ourAlliance === 'Red' ? result.redWinProbability : result.blueWinProbability;
   const expectedMargin = ourAlliance === 'Red' ? result.expectedMargin : -result.expectedMargin;
 
-  const getPlanForShift = (alliance: MatchScoutingV3Alliance) => alliance === ourAlliance ? ourPlan : opponentPlan;
-
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-6 text-white">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex flex-col gap-4 border-b border-slate-800 pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Shift Strategy Preview</div>
-            <h1 className="mt-2 text-3xl font-black">Scout-form mirror for the next match</h1>
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
-              Same alternating shift rhythm as Match Scout, but read-only: opponent behavior is predicted, and our response plan is highlighted.
-            </p>
+      <main className="mx-auto max-w-6xl">
+        <header className={`${previewPanelClass} p-5 sm:p-6`}>
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">Shift Strategy Preview</div>
+              <h1 className="mt-2 text-3xl font-black sm:text-4xl">Next match dashboard</h1>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
+                Drive-team view: win chance, expected margin, alliance side, and a shift-by-shift plan when you need to drill down.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsExplorerOpen(value => !value)}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-300 px-5 py-3 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-200"
+            >
+              Explore Shifts
+              {isExplorerOpen ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+            </button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div className={`${previewTileClass} px-3 py-2`}>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Our Win</div>
-              <div className="mt-1 font-mono text-xl font-black text-emerald-200">{formatPercent(ourWinProbability)}</div>
-            </div>
-            <div className={`${previewTileClass} px-3 py-2`}>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Margin</div>
-              <div className="mt-1 font-mono text-xl font-black text-cyan-100">{formatSigned(expectedMargin)}</div>
-            </div>
-            <div className={`${previewTileClass} px-3 py-2`}>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Objective</div>
-              <div className="mt-1 text-sm font-black text-white">{objective === 'qualification-rp' ? 'Quals + RP' : 'Point Diff'}</div>
-            </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <MetricTile label="Our Win Prob" value={formatPercent(ourWinProbability)} tone="win" />
+            <MetricTile label="Our Margin" value={formatSigned(expectedMargin)} tone="margin" />
           </div>
+
+          <ProjectedScoreFaceoff redScore={result.expectedRedScore} blueScore={result.expectedBlueScore} />
         </header>
 
-        <section className="mt-5 grid gap-3 lg:grid-cols-3">
-          <div className={`${previewPanelClass} p-4`}>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Our Alliance</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(['Red', 'Blue'] as const).map(alliance => (
-                <button
-                  key={alliance}
-                  type="button"
-                  onClick={() => setOurAlliance(alliance)}
-                  className={`${previewButtonClass} ${ourAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {alliance}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${previewPanelClass} p-4`}>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">First Shift</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {(['Red', 'Blue'] as const).map(alliance => (
-                <button
-                  key={alliance}
-                  type="button"
-                  onClick={() => setFirstShiftAlliance(alliance)}
-                  className={`${previewButtonClass} ${firstShiftAlliance === alliance ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {alliance} first
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={`${previewPanelClass} p-4`}>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Objective</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {([
-                ['qualification-rp', 'Quals + RP'],
-                ['point-difference', 'Point Diff']
-              ] as Array<[ShiftStrategyObjective, string]>).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setObjective(value)}
-                  className={`${previewButtonClass} ${objective === value ? 'bg-cyan-300 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
         <section className="mt-5 grid gap-4 lg:grid-cols-2">
-          <PlanSummary title="Our Recommended Response" plan={ourPlan} />
-          <PlanSummary title="Opponent Predicted Behavior" plan={opponentPlan} />
+          <AllianceSplitReadout
+            value={ourAlliance}
+            label="Our Alliance"
+            source="Inferred from the next scheduled match."
+          />
+          <AllianceSplitReadout
+            value={firstShiftAlliance}
+            label="First Alliance Shift"
+            source="Guessed from autonomous edge; scouts can correct after the match starts."
+            redLabel="Red first"
+            blueLabel="Blue first"
+          />
         </section>
 
-        <section data-testid="strategy-shift-preview-timeline" className="mt-5 space-y-3">
-          {timelineEntries.map(entry => {
-            const plan = getPlanForShift(entry.shiftAlliance);
-            const actions = normalizeMatchScoutShiftActions({ actions: plan.assignments.map(assignment => assignment.role), role: deriveMatchScoutShiftRole(plan.assignments.map(assignment => assignment.role)) });
-            return (
-              <article key={entry.id} className={`admin-g2 rounded-[2rem] border p-4 ${getAllianceTone(entry.shiftAlliance)}`}>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-[0.22em] opacity-70">
-                      Shift {entry.index + 1} · {entry.phase || 'teleop'} · {entry.shiftAlliance}
-                    </div>
-                    <h2 className="mt-1 text-xl font-black">
-                      {entry.shiftAlliance === ourAlliance ? 'Our recommended move' : 'Opponent predicted move'}
-                    </h2>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-slate-300">
-                    <Activity className="h-4 w-4" aria-hidden="true" />
-                    {actions.map(role => roleLabels[role]).join(' + ')}
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-2 md:grid-cols-3">
-                  {plan.assignments.map(assignment => (
-                    <TeamRolePill
-                      key={`${entry.id}-${assignment.teamNumber}`}
-                      role={assignment.role}
-                      teamNumber={assignment.teamNumber}
-                      mean={assignment.mean}
-                    />
-                  ))}
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      </div>
+        {isExplorerOpen && (
+          <ShiftExplorer
+            ourAlliance={ourAlliance}
+            firstShiftAlliance={firstShiftAlliance}
+            redPlan={result.redBestPlan}
+            bluePlan={result.blueBestPlan}
+          />
+        )}
+      </main>
     </div>
   );
 }

@@ -12,40 +12,22 @@ struct RelayView: View {
             )
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
-                PSCard {
-                    relayBlock(
-                        title: "Primary: The Button",
-                        status: "Design target, needs hostname repair",
-                        detail: "Use as the primary relay when the Render hostname and receiver path are confirmed. It should handle scout-head alerts and fast field signals.",
-                        color: .orange
-                    )
-                }
-
-                PSCard {
-                    relayBlock(
-                        title: "Backup: DirectChat",
-                        status: "Mainland backup lane",
-                        detail: "Use in Sanya or mainland-China conditions when The Button is unavailable or too risky. It has more traffic, but the path is known and useful.",
-                        color: .green
-                    )
-                }
-
-                PSCard {
-                    relayBlock(
-                        title: "Global: Cloudflare DirectChat",
-                        status: "VPN / US fallback",
-                        detail: "Very fast and reliable with VPN or outside mainland China. Do not treat it as the only Sanya relay because workers.dev can time out without VPN.",
-                        color: .blue
-                    )
+                ForEach(PowerScoutKnowledgeBase.relayDispatchCandidates.sorted { $0.mainlandOrder < $1.mainlandOrder }) { candidate in
+                    PSCard {
+                        relayBlock(candidate)
+                    }
                 }
             }
 
             PSCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Relay safety rule")
+                    Text("Relay dispatch rule")
                         .font(.title3.weight(.bold))
-                    Text("Relays are for speed. The Forecast Ledger, Firebase data, local exports, and reports remain the durable record.")
+                    Text("For Sanya or mainland China, try The Button, then DirectChat, then Cloudflare only with VPN/global access. Relays are for speed; Firebase, local exports, and the Forecast Ledger remain the durable record.")
                         .font(.body)
+                        .foregroundStyle(.secondary)
+                    Text("Global/VPN order: The Button -> Cloudflare DirectChat -> DirectChat.")
+                        .font(.callout.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Button {
                         openURL(URL(string: "https://directchat-relay.onrender.com/health")!)
@@ -64,15 +46,29 @@ struct RelayView: View {
         }
     }
 
-    private func relayBlock(title: String, status: String, detail: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            PSTag(text: status, color: color)
-            Text(title)
+    private func relayBlock(_ candidate: RelayDispatchCandidateSpec) -> some View {
+        let color = color(for: candidate.label)
+        return VStack(alignment: .leading, spacing: 10) {
+            PSTag(text: "Mainland order \(candidate.mainlandOrder)", color: color)
+            Text(candidate.label)
                 .font(.title3.weight(.bold))
-            Text(detail)
+            Text(candidate.role)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.secondary)
+            Text(candidate.caveat)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text(candidate.endpoint)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
         }
+    }
+
+    private func color(for label: String) -> Color {
+        if label.contains("Cloudflare") { return .blue }
+        if label.contains("DirectChat") { return .green }
+        return .orange
     }
 }

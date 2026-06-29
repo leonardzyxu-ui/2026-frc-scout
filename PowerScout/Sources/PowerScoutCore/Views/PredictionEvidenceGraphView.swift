@@ -10,7 +10,7 @@ struct PredictionEvidenceGraphView: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Winners Graph")
-                    .font(.system(size: 28, weight: .black, design: .rounded))
+                    .font(.system(size: 28, weight: .black))
                     .foregroundStyle(.white)
                 Text("Actual vs predicted winner scores across completed matches.")
                     .font(.title3.weight(.medium))

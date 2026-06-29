@@ -66,7 +66,7 @@ struct HistoryRewardsView: View {
 
                     if let syncSnapshot {
                         Text(syncSnapshot.ledgerURLPath)
-                            .font(.caption.monospaced())
+                            .font(.caption)
                             .foregroundStyle(.tertiary)
                             .textSelection(.enabled)
 
@@ -147,7 +147,7 @@ struct HistoryRewardsView: View {
                             }
                             Spacer()
                             Text(row.delta.map(formatDelta) ?? "-")
-                                .font(.headline.monospacedDigit())
+                                .font(.headline)
                                 .foregroundStyle((row.delta ?? 0) < 0 ? .red : .green)
                         }
                     }
@@ -200,7 +200,7 @@ struct HistoryRewardsView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
                 Text(value)
-                    .font(.largeTitle.weight(.bold).monospacedDigit())
+                    .font(.largeTitle.weight(.bold))
                     .foregroundStyle(color)
                 Text(detail)
                     .font(.caption)
@@ -237,7 +237,7 @@ struct HistoryRewardsView: View {
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.tertiary)
             Text("\(value)")
-                .font(.headline.monospacedDigit())
+                .font(.headline)
         }
     }
 

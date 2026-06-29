@@ -8,8 +8,10 @@ import { TBAMatch } from '../../utils/mathEngine';
 import {
   checkScoutingRelayHealth,
   SCOUTING_RELAY_PROVIDERS,
-  ScoutingRelayHealthResult
+  ScoutingRelayHealthResult,
+  ScoutingRelayProviderKey
 } from '../../utils/scoutingRelayReadiness';
+import { buildScoutRelayDispatchPlan } from '../../utils/scoutRelayPager';
 import { AdminButton, AdminInput, AdminModal, AdminSurface, DangerZone } from './AdminV4Primitives';
 import { MetricField } from './AdminV4UiAtoms';
 
@@ -109,9 +111,13 @@ export default function AdminV4SettingsModal({
     : 'Needs API keys';
   const sourceState = sourceRowCount > 0 ? `${sourceRowCount} source rows` : 'No source rows';
   const rehearsalState = settings.testModeEnabled ? 'Test Mode on' : 'Live by default';
-  const [relayHealth, setRelayHealth] = React.useState<Partial<Record<string, ScoutingRelayHealthResult>>>({});
+  const [relayHealth, setRelayHealth] = React.useState<Partial<Record<ScoutingRelayProviderKey, ScoutingRelayHealthResult>>>({});
   const [relayChecking, setRelayChecking] = React.useState(false);
   const [relayDraftStatus, setRelayDraftStatus] = React.useState('');
+  const mainlandRelayPlan = React.useMemo(
+    () => buildScoutRelayDispatchPlan({ region: 'mainland-china', relayHealth }),
+    [relayHealth]
+  );
 
   const refreshRelayHealth = React.useCallback(async () => {
     setRelayChecking(true);
@@ -210,6 +216,30 @@ export default function AdminV4SettingsModal({
               <RefreshCw className={`h-4 w-4 ${relayChecking ? 'animate-spin' : ''}`} />
               {relayChecking ? 'Checking' : 'Recheck Relays'}
             </AdminButton>
+          </div>
+          <div className="admin-g2-sm mt-4 border border-cyan-300/20 bg-cyan-300/10 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">Current Dispatch Plan</div>
+            <p className="mt-1 text-sm font-bold text-cyan-50">{mainlandRelayPlan.summary}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {mainlandRelayPlan.candidates.map(candidate => (
+                <span
+                  key={candidate.key}
+                  className={`admin-g2-sm border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                    candidate.selected
+                      ? 'border-emerald-300/30 bg-emerald-300/10 text-emerald-100'
+                      : candidate.key === 'cloudflare-directchat'
+                        ? 'border-sky-300/30 bg-sky-300/10 text-sky-100'
+                        : 'border-slate-700 bg-slate-950/70 text-slate-300'
+                  }`}
+                  title={candidate.caveat}
+                >
+                  {candidate.priority}. {candidate.label} · {candidate.status}
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-xs font-semibold text-slate-500">
+              Authenticated sending stays in the local Mac/relay layer. The Firebase client only plans order and copies drafts, so relay secrets stay off the public website.
+            </p>
           </div>
           <div className="mt-4 grid gap-3 xl:grid-cols-3">
             {SCOUTING_RELAY_PROVIDERS.map(provider => {

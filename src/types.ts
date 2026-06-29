@@ -859,7 +859,7 @@ export const initialMatchScoutingV4: MatchScoutingV4 = {
 
   notes: '',
   strategyNotes: '',
-  teleopFirstShiftAlliance: 'Red',
+  teleopFirstShiftAlliance: '',
   shiftBreakdown: [],
   defenseAssignments: [],
   shiftAuditFlags: [],

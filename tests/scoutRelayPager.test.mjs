@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildFirstShiftCorrectionPagerMessages,
+  buildScoutRelayDispatchPlan,
   buildScoutPagerMessage,
   shouldDeliverScoutPagerMessage
 } from '../src/utils/scoutRelayPager.ts';
@@ -73,4 +74,36 @@ test('first-shift correction notices become scout-number targeted pager messages
   assert.deepEqual(messages.map(message => message.recipient.kind === 'scout' ? message.recipient.scoutNumber : null), [7, 8]);
   assert.equal(messages.every(message => message.priority === 'urgent' && message.noReply), true);
   assert.match(messages[0].body, /first teleop shift/i);
+});
+
+test('relay dispatch plan keeps mainland relays before Cloudflare', () => {
+  const plan = buildScoutRelayDispatchPlan({
+    region: 'mainland-china',
+    relayHealth: {
+      'the-button': { ok: false, latencyMs: 3500, error: 'Timed out' },
+      directchat: { ok: true, latencyMs: 172, error: '' },
+      'cloudflare-directchat': { ok: true, latencyMs: 91, error: '' }
+    }
+  });
+
+  assert.deepEqual(plan.candidates.map(candidate => candidate.key), ['the-button', 'directchat', 'cloudflare-directchat']);
+  assert.equal(plan.selectedProviderKey, 'directchat');
+  assert.equal(plan.localAuthenticatedSenderRequired, true);
+  assert.match(plan.candidates[2].caveat, /workers\.dev/);
+  assert.match(plan.candidates[2].caveat, /no-VPN mainland/i);
+});
+
+test('relay dispatch plan can promote Cloudflare for global or VPN operation', () => {
+  const plan = buildScoutRelayDispatchPlan({
+    region: 'global-vpn',
+    relayHealth: {
+      'the-button': { ok: false, latencyMs: 3500, error: 'Wrong service' },
+      directchat: { ok: true, latencyMs: 210, error: '' },
+      'cloudflare-directchat': { ok: true, latencyMs: 66, error: '' }
+    }
+  });
+
+  assert.deepEqual(plan.candidates.map(candidate => candidate.key), ['the-button', 'cloudflare-directchat', 'directchat']);
+  assert.equal(plan.selectedProviderKey, 'cloudflare-directchat');
+  assert.match(plan.summary, /Cloudflare DirectChat/);
 });

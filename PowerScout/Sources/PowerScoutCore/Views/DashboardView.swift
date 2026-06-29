@@ -12,6 +12,8 @@ struct DashboardView: View {
                 subtitle: "A native command center for match-day readiness, prediction evidence, and the uncomfortable but important question: are our scouting lanes actually prepared?"
             )
 
+            NextMatchDashboardView(snapshot: PowerScoutKnowledgeBase.nextMatchDashboard)
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
                 statusCard("Mac Command", "PowerScout first", "Local database, official refreshes, and model reruns belong here before the website.", .cyan)
                 statusCard("Official Site", "Firebase live", "Admin V4 and legacy Admin V2 graph are the official surfaces.", .green)

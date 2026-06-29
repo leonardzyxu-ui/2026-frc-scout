@@ -133,6 +133,22 @@ test('first-shift correction notice supports arbitrary scout counts', () => {
   assert.equal(notice.counts.Blue, 5);
 });
 
+test('first-shift correction notice treats missing first-shift confirmations as action required', () => {
+  const notice = buildFirstShiftCorrectionNotice({
+    matchKey: 'qm21',
+    reports: [
+      { scoutName: 'Scout A', firstShiftAlliance: '' },
+      { scoutName: 'Scout B', firstShiftAlliance: '' },
+      { scoutName: 'Scout C', firstShiftAlliance: '' }
+    ]
+  });
+
+  assert.ok(notice);
+  assert.equal(notice.consensus, null);
+  assert.deepEqual(notice.counts, { Red: 0, Blue: 0 });
+  assert.deepEqual(notice.targetScoutNames, ['Scout A', 'Scout B', 'Scout C']);
+});
+
 test('first-shift correction notice is not created when scouts agree', () => {
   const notice = buildFirstShiftCorrectionNotice({
     matchKey: 'qm13',

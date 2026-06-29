@@ -173,7 +173,7 @@ struct LiveOpsView: View {
                                 .font(.headline)
                         }
                         Text(result.stdout.isEmpty ? result.stderr : result.stdout)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }

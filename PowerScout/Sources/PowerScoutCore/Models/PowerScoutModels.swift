@@ -242,6 +242,101 @@ public struct DriverBriefingOutput: Identifiable, Hashable, Sendable {
     }
 }
 
+public struct NextMatchShiftInstruction: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let shift: Int
+    public let shiftAlliance: String
+    public let state: String
+    public let instruction: String
+
+    public init(shift: Int, shiftAlliance: String, state: String, instruction: String) {
+        self.id = "\(shift)-\(shiftAlliance)-\(instruction)"
+        self.shift = shift
+        self.shiftAlliance = shiftAlliance
+        self.state = state
+        self.instruction = instruction
+    }
+}
+
+public struct NextMatchTeamShiftColumn: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let teamNumber: String
+    public let alliance: String
+    public let planLabel: String
+    public let instructions: [NextMatchShiftInstruction]
+
+    public init(teamNumber: String, alliance: String, planLabel: String, instructions: [NextMatchShiftInstruction]) {
+        self.id = "\(alliance)-\(teamNumber)"
+        self.teamNumber = teamNumber
+        self.alliance = alliance
+        self.planLabel = planLabel
+        self.instructions = instructions
+    }
+}
+
+public struct NextMatchDashboardSnapshot: Identifiable, Hashable, Sendable {
+    public let id = "next-match-dashboard"
+    public let ourAlliance: String
+    public let firstShiftAlliance: String
+    public let winProbabilityPercent: Int
+    public let expectedMargin: Double
+    public let projectedRedScore: Int
+    public let projectedBlueScore: Int
+    public let redTeamNumbers: [String]
+    public let blueTeamNumbers: [String]
+    public let ourContribution: Double
+    public let opponentContribution: Double
+    public let columns: [NextMatchTeamShiftColumn]
+
+    public init(
+        ourAlliance: String,
+        firstShiftAlliance: String,
+        winProbabilityPercent: Int,
+        expectedMargin: Double,
+        projectedRedScore: Int,
+        projectedBlueScore: Int,
+        redTeamNumbers: [String],
+        blueTeamNumbers: [String],
+        ourContribution: Double,
+        opponentContribution: Double,
+        columns: [NextMatchTeamShiftColumn]
+    ) {
+        self.ourAlliance = ourAlliance
+        self.firstShiftAlliance = firstShiftAlliance
+        self.winProbabilityPercent = winProbabilityPercent
+        self.expectedMargin = expectedMargin
+        self.projectedRedScore = projectedRedScore
+        self.projectedBlueScore = projectedBlueScore
+        self.redTeamNumbers = redTeamNumbers
+        self.blueTeamNumbers = blueTeamNumbers
+        self.ourContribution = ourContribution
+        self.opponentContribution = opponentContribution
+        self.columns = columns
+    }
+}
+
+public struct RelayDispatchCandidateSpec: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let priority: Int
+    public let label: String
+    public let role: String
+    public let endpoint: String
+    public let caveat: String
+    public let mainlandOrder: Int
+    public let globalVpnOrder: Int
+
+    public init(priority: Int, label: String, role: String, endpoint: String, caveat: String, mainlandOrder: Int, globalVpnOrder: Int) {
+        self.id = label
+        self.priority = priority
+        self.label = label
+        self.role = role
+        self.endpoint = endpoint
+        self.caveat = caveat
+        self.mainlandOrder = mainlandOrder
+        self.globalVpnOrder = globalVpnOrder
+    }
+}
+
 public struct CommandResult: Identifiable, Hashable, Sendable {
     public let id = UUID()
     public let title: String
@@ -356,6 +451,29 @@ public struct EvidenceLedgerSummary: Identifiable, Hashable, Sendable {
 public enum PowerScoutKnowledgeBase {
     public static let startingPowerCoinBalance = 1000
 
+    public static let nextMatchDashboardMetricLabels = ["Our Win Prob", "Our Margin"]
+
+    public static let nextMatchDashboard = NextMatchDashboardSnapshot(
+        ourAlliance: "Blue",
+        firstShiftAlliance: "Red",
+        winProbabilityPercent: 31,
+        expectedMargin: -16,
+        projectedRedScore: 94,
+        projectedBlueScore: 78,
+        redTeamNumbers: ["254", "1678", "971"],
+        blueTeamNumbers: ["1323", "4414", "5940"],
+        ourContribution: 188,
+        opponentContribution: 204,
+        columns: [
+            nextMatchColumn(team: "254", alliance: "Red", role: "Score plan", ownAction: "Score 82 Points", otherAction: "Stockpile Fuel"),
+            nextMatchColumn(team: "1678", alliance: "Red", role: "Score plan", ownAction: "Score 64 Points", otherAction: "Stockpile Fuel"),
+            nextMatchColumn(team: "971", alliance: "Red", role: "Defend plan", ownAction: "Defend Team 1323 + Team 4414", otherAction: "Defend Team 1323 + Team 4414"),
+            nextMatchColumn(team: "1323", alliance: "Blue", role: "Score plan", ownAction: "Score 78 Points", otherAction: "Stockpile Fuel"),
+            nextMatchColumn(team: "4414", alliance: "Blue", role: "Score plan", ownAction: "Score 58 Points", otherAction: "Stockpile Fuel"),
+            nextMatchColumn(team: "5940", alliance: "Blue", role: "Defend plan", ownAction: "Defend Team 254 + Team 1678", otherAction: "Defend Team 254 + Team 1678")
+        ]
+    )
+
     public static let walletSnapshot = PowerCoinWalletSnapshot(
         scoutName: "Test Scout QA",
         scoutNumber: 7,
@@ -366,6 +484,19 @@ public enum PowerScoutKnowledgeBase {
         lastResultMatch: "No settled bets",
         note: "Native wallet readout follows the same scout-number-first contract as the web cache."
     )
+
+    private static func nextMatchColumn(team: String, alliance: String, role: String, ownAction: String, otherAction: String) -> NextMatchTeamShiftColumn {
+        let shiftAlliances = ["Red", "Blue", "Red", "Blue", "Red", "Blue", "Red", "Blue"]
+        let instructions = shiftAlliances.enumerated().map { index, shiftAlliance in
+            NextMatchShiftInstruction(
+                shift: index + 1,
+                shiftAlliance: shiftAlliance,
+                state: shiftAlliance == alliance ? "Active" : "Other",
+                instruction: shiftAlliance == alliance ? ownAction : otherAction
+            )
+        }
+        return NextMatchTeamShiftColumn(teamNumber: team, alliance: alliance, planLabel: role, instructions: instructions)
+    }
 
     public static let powerCoinHistoryRows: [PowerCoinHistoryRow] = [
         PowerCoinHistoryRow(matchKey: "QM1", side: "Red", stake: 120, status: "open", delta: -120)
@@ -643,6 +774,36 @@ public enum PowerScoutKnowledgeBase {
             value: "Freshness and conflicts",
             detail: "Calls out stale scout devices, missing official totals, first-shift disagreement, and unresolved version conflicts.",
             decisionUse: "Know what to trust before the robot is already in queue."
+        )
+    ]
+
+    public static let relayDispatchCandidates: [RelayDispatchCandidateSpec] = [
+        RelayDispatchCandidateSpec(
+            priority: 1,
+            label: "The Button",
+            role: "Primary head-scout alert relay",
+            endpoint: "https://the-button.onrender.com/health",
+            caveat: "Use first when the Render hostname is serving the expected Node relay.",
+            mainlandOrder: 1,
+            globalVpnOrder: 1
+        ),
+        RelayDispatchCandidateSpec(
+            priority: 2,
+            label: "DirectChat",
+            role: "Mainland/Sanya backup relay",
+            endpoint: "https://directchat-relay.onrender.com/health",
+            caveat: "Use as the no-VPN mainland fallback before Cloudflare.",
+            mainlandOrder: 2,
+            globalVpnOrder: 3
+        ),
+        RelayDispatchCandidateSpec(
+            priority: 3,
+            label: "Cloudflare DirectChat",
+            role: "Global/VPN backup relay",
+            endpoint: "https://directchat-relay.leonard-zy-xu.workers.dev/health",
+            caveat: "Fast with VPN or outside mainland China; do not rely on workers.dev as the only Sanya path.",
+            mainlandOrder: 3,
+            globalVpnOrder: 2
         )
     ]
 

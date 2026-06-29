@@ -232,11 +232,13 @@ import {
   buildAlliancePickRecommendations,
   buildBestModelFutureForecasts,
   buildDefenseAttributions,
+  buildDefenseImpactDeviationLookup,
   buildDefenseImpactLookup,
   buildNoFutureFeatureMatchSnapshots,
   buildPpaRatings,
   buildScoutCalibrationRows,
   buildScoutedBonusMetricLookup,
+  buildStrategyDeviationLookupFromProfiles,
   buildStrategyMatchPlans,
   buildTeamPerformanceProfiles
 } from '../utils/strategyBrain';
@@ -1988,40 +1990,25 @@ export default function AdminV4View() {
         }),
     [activePredictorMatches, adminV4BestForecastLayer]
   );
-  const adminV4DefenseImpactLookup = useMemo(
+  const adminV4DefenseAttributions = useMemo(
     () =>
-      buildDefenseImpactLookup(
-        buildDefenseAttributions(
-          v4Records,
-          Object.keys(adminV4PpaRatings).length > 0 ? adminV4PpaRatings : activeMetricRatings
-        )
+      buildDefenseAttributions(
+        v4Records,
+        Object.keys(adminV4PpaRatings).length > 0 ? adminV4PpaRatings : activeMetricRatings
       ),
     [activeMetricRatings, adminV4PpaRatings, v4Records]
+  );
+  const adminV4DefenseImpactLookup = useMemo(
+    () => buildDefenseImpactLookup(adminV4DefenseAttributions),
+    [adminV4DefenseAttributions]
+  );
+  const adminV4DefenseDeviationLookup = useMemo(
+    () => buildDefenseImpactDeviationLookup(adminV4DefenseAttributions),
+    [adminV4DefenseAttributions]
   );
   const adminV4BonusMetricLookup = useMemo(
     () => buildScoutedBonusMetricLookup(records, v4Records),
     [records, v4Records]
-  );
-  const adminV4StrategyMatchPlans = useMemo(
-    () =>
-      buildStrategyMatchPlans(
-        activePredictorMatches,
-        activeMetricRatings,
-        adminV4DefenseImpactLookup,
-        adminV4BonusMetricLookup,
-        adminV4BestForecastLayer
-      ),
-    [
-      activeMetricRatings,
-      activePredictorMatches,
-      adminV4BestForecastLayer,
-      adminV4BonusMetricLookup,
-      adminV4DefenseImpactLookup
-    ]
-  );
-  const selectedStrategyMatchPlan = useMemo(
-    () => adminV4StrategyMatchPlans.find(plan => plan.matchKey === selectedMatchKey) || null,
-    [adminV4StrategyMatchPlans, selectedMatchKey]
   );
   const teamPerformanceProfiles = useMemo(
     () =>
@@ -2035,10 +2022,12 @@ export default function AdminV4View() {
         epaRatings,
         ppaRatings: adminV4PpaRatings,
         defenseImpactLookup: adminV4DefenseImpactLookup,
+        defenseDeviationLookup: adminV4DefenseDeviationLookup,
         featureMatchSnapshots: adminV4FeatureMatchSnapshots
       }),
     [
       activeOprRatings,
+      adminV4DefenseDeviationLookup,
       adminV4DefenseImpactLookup,
       adminV4FeatureMatchSnapshots,
       adminV4PpaRatings,
@@ -2049,6 +2038,33 @@ export default function AdminV4View() {
       teamAverages,
       v4Records
     ]
+  );
+  const adminV4StrategyDeviationLookup = useMemo(
+    () => buildStrategyDeviationLookupFromProfiles(teamPerformanceProfiles),
+    [teamPerformanceProfiles]
+  );
+  const adminV4StrategyMatchPlans = useMemo(
+    () =>
+      buildStrategyMatchPlans(
+        activePredictorMatches,
+        activeMetricRatings,
+        adminV4DefenseImpactLookup,
+        adminV4BonusMetricLookup,
+        adminV4BestForecastLayer,
+        adminV4StrategyDeviationLookup
+      ),
+    [
+      activeMetricRatings,
+      activePredictorMatches,
+      adminV4BestForecastLayer,
+      adminV4BonusMetricLookup,
+      adminV4DefenseImpactLookup,
+      adminV4StrategyDeviationLookup
+    ]
+  );
+  const selectedStrategyMatchPlan = useMemo(
+    () => adminV4StrategyMatchPlans.find(plan => plan.matchKey === selectedMatchKey) || null,
+    [adminV4StrategyMatchPlans, selectedMatchKey]
   );
   const modelFeaturesByTeam = useMemo(() => {
     const ppcByTeam = Object.fromEntries(teamAverages.map(row => [row.teamNumber, row]));
@@ -4230,6 +4246,7 @@ export default function AdminV4View() {
       });
       const defenseAttributions = buildDefenseAttributions(v4Records, Object.keys(exportPpaRatings).length ? exportPpaRatings : activeMetricRatings);
       const defenseImpactLookup = buildDefenseImpactLookup(defenseAttributions);
+      const defenseDeviationLookup = buildDefenseImpactDeviationLookup(defenseAttributions);
       const scoutCalibrationRows = buildScoutCalibrationRows(v4Records, activePredictorMatches);
       const teamProfiles = buildTeamPerformanceProfiles({
         v4Records,
@@ -4241,6 +4258,7 @@ export default function AdminV4View() {
         epaRatings,
         ppaRatings: exportPpaRatings,
         defenseImpactLookup,
+        defenseDeviationLookup,
         featureMatchSnapshots: noFutureFeatureMatchSnapshots
       });
       const bestModelForecastLayer = buildBestModelFutureForecasts({
@@ -4260,7 +4278,14 @@ export default function AdminV4View() {
         }
       });
       const bonusMetricLookup = buildScoutedBonusMetricLookup(records, v4Records);
-      const strategyPlans = buildStrategyMatchPlans(activePredictorMatches, activeMetricRatings, defenseImpactLookup, bonusMetricLookup, bestModelForecastLayer);
+      const strategyPlans = buildStrategyMatchPlans(
+        activePredictorMatches,
+        activeMetricRatings,
+        defenseImpactLookup,
+        bonusMetricLookup,
+        bestModelForecastLayer,
+        buildStrategyDeviationLookupFromProfiles(teamProfiles)
+      );
       const allianceRecommendations = buildAlliancePickRecommendations(teamProfiles, allianceSeed, alliancePickStatuses, ownTeamNumber);
       const exportPpaInsightsByTeam = buildPpaInsights({
         teamNumbers: allKnownTeams,

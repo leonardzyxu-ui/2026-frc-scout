@@ -291,7 +291,7 @@ export const normalizeMatchScoutingV4 = (
     strategyNotes: raw.strategyNotes || '',
 
     versionMetadata,
-    teleopFirstShiftAlliance: normalizeAlliance(raw.teleopFirstShiftAlliance) || 'Red',
+    teleopFirstShiftAlliance: normalizeAlliance(raw.teleopFirstShiftAlliance),
     shiftBreakdown,
     defenseAssignments: Array.isArray(raw.defenseAssignments)
       ? raw.defenseAssignments.map(assignment => normalizeDefenseAssignment(assignment)).filter(assignment => assignment.targetTeamNumber)

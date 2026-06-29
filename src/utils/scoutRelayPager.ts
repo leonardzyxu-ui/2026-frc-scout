@@ -1,3 +1,10 @@
+import {
+  SCOUTING_RELAY_PROVIDERS,
+  type ScoutingRelayHealthResult,
+  type ScoutingRelayProvider,
+  type ScoutingRelayProviderKey
+} from './scoutingRelayReadiness.ts';
+
 export type ScoutPagerRecipient =
   | { kind: 'all' }
   | { kind: 'scout'; scoutNumber: number; scoutName?: string };
@@ -25,11 +32,104 @@ export interface ScoutPagerDirectoryEntry {
   scoutNumber: number | null;
 }
 
+export type ScoutRelayDispatchRegion = 'mainland-china' | 'global-vpn';
+
+export interface ScoutRelayDispatchCandidate {
+  key: ScoutingRelayProviderKey;
+  label: string;
+  role: string;
+  priority: number;
+  baseUrl: string;
+  dispatchPathHint: string;
+  status: 'ready' | 'not-checked' | 'unavailable';
+  latencyMs: number | null;
+  caveat: string;
+  selected: boolean;
+}
+
+export interface ScoutRelayDispatchPlan {
+  region: ScoutRelayDispatchRegion;
+  selectedProviderKey: ScoutingRelayProviderKey | null;
+  candidates: ScoutRelayDispatchCandidate[];
+  summary: string;
+  localAuthenticatedSenderRequired: true;
+}
+
 const SCOUT_PAGER_INBOX_KEY = 'scout_relay_pager_inbox_v1';
+
+const MAINLAND_RELAY_ORDER: ScoutingRelayProviderKey[] = ['the-button', 'directchat', 'cloudflare-directchat'];
+const GLOBAL_VPN_RELAY_ORDER: ScoutingRelayProviderKey[] = ['the-button', 'cloudflare-directchat', 'directchat'];
+const DISPATCH_PATH_HINT: Record<ScoutingRelayProviderKey, string> = {
+  'the-button': '/pager',
+  directchat: '/mailbox/envelope',
+  'cloudflare-directchat': '/mailbox/envelope'
+};
+const RELAY_CAVEATS: Record<ScoutingRelayProviderKey, string> = {
+  'the-button': 'Primary fast alert lane when the Render hostname is serving the expected Node relay.',
+  directchat: 'Mainland/Sanya backup lane; busier than The Button but the Render DirectChat relay is the preferred non-VPN fallback.',
+  'cloudflare-directchat': 'Global/VPN fallback. Do not rely on workers.dev as the only Sanya or no-VPN mainland path.'
+};
 
 const normalizeScoutNumber = (value: unknown) => {
   const number = Math.trunc(Number(value));
   return Number.isFinite(number) && number >= 1 && number <= 99 ? number : null;
+};
+
+const providerByKey = new Map(SCOUTING_RELAY_PROVIDERS.map(provider => [provider.key, provider]));
+
+const getProvider = (key: ScoutingRelayProviderKey): ScoutingRelayProvider => {
+  const provider = providerByKey.get(key);
+  if (!provider) throw new Error(`Unknown relay provider: ${key}`);
+  return provider;
+};
+
+export const buildScoutRelayDispatchPlan = ({
+  region = 'mainland-china',
+  relayHealth = {}
+}: {
+  region?: ScoutRelayDispatchRegion;
+  relayHealth?: Partial<Record<ScoutingRelayProviderKey, Pick<ScoutingRelayHealthResult, 'ok' | 'latencyMs' | 'error'>>>;
+} = {}): ScoutRelayDispatchPlan => {
+  const order = region === 'global-vpn' ? GLOBAL_VPN_RELAY_ORDER : MAINLAND_RELAY_ORDER;
+  const firstReady = order.find(key => relayHealth[key]?.ok) || null;
+  const candidates = order.map((key, index): ScoutRelayDispatchCandidate => {
+    const provider = getProvider(key);
+    const health = relayHealth[key];
+    const status: ScoutRelayDispatchCandidate['status'] = !health
+      ? 'not-checked'
+      : health.ok
+        ? 'ready'
+        : 'unavailable';
+    return {
+      key,
+      label: provider.label,
+      role: provider.role,
+      priority: index + 1,
+      baseUrl: provider.defaultBaseUrl,
+      dispatchPathHint: DISPATCH_PATH_HINT[key],
+      status,
+      latencyMs: health?.latencyMs ?? null,
+      caveat: RELAY_CAVEATS[key],
+      selected: firstReady === key
+    };
+  });
+
+  const selected = candidates.find(candidate => candidate.selected);
+  const unchecked = candidates.some(candidate => candidate.status === 'not-checked');
+  const regionLabel = region === 'global-vpn' ? 'global/VPN' : 'mainland/Sanya';
+  const summary = selected
+    ? `${selected.label} is the current ${regionLabel} relay send target.`
+    : unchecked
+      ? `Relay health has not been checked; default ${regionLabel} order is ${candidates.map(candidate => candidate.label).join(' -> ')}.`
+      : `No relay is healthy for ${regionLabel}; stay on Firebase/local backup and retry later.`;
+
+  return {
+    region,
+    selectedProviderKey: selected?.key ?? null,
+    candidates,
+    summary,
+    localAuthenticatedSenderRequired: true
+  };
 };
 
 export const buildScoutPagerMessage = ({

@@ -95,7 +95,7 @@ struct CommandOutputView: View {
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal) {
                 Text(text)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.caption)
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)

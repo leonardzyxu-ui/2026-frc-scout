@@ -88,9 +88,14 @@ test('Match Scout V4 normalization defaults optional shift arrays to safe empty 
   assert.deepEqual(normalized.defenseAssignments, []);
   assert.deepEqual(normalized.shiftAuditFlags, []);
   assert.equal(normalized.officialReconciliation, undefined);
-  assert.equal(normalized.teleopFirstShiftAlliance, 'Red');
+  assert.equal(normalized.teleopFirstShiftAlliance, '');
   assert.equal(normalized.autoCycles, 0);
   assert.equal(normalized.teleopCycles, 0);
+});
+
+test('Match Scout V4 normalization preserves unknown first shift instead of inventing Red', () => {
+  assert.equal(normalizeMatchScoutingV4({ matchKey: 'qm2', teleopFirstShiftAlliance: '' }).teleopFirstShiftAlliance, '');
+  assert.equal(normalizeMatchScoutingV4({ matchKey: 'qm2', teleopFirstShiftAlliance: 'Green' }).teleopFirstShiftAlliance, '');
 });
 
 test('Match Scout V4 rejects scout numbers outside the locked device range', () => {

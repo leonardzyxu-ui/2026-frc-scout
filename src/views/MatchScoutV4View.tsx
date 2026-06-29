@@ -1169,6 +1169,7 @@ export default function MatchScoutV4View() {
     if (!archiveScoutNumber) return 'Scout number is required.';
     if (!normalizedData.teamNumber.trim()) return 'Team number is required.';
     if (!normalizedData.alliance) return 'Alliance is required.';
+    if (!normalizedData.teleopFirstShiftAlliance) return 'Confirm which alliance started the first teleop shift.';
     return '';
   };
 
@@ -1207,7 +1208,7 @@ export default function MatchScoutV4View() {
     const previousVersion = Math.max(1, Number(normalizedData.versionMetadata?.version || 1));
     const nextVersion = isEditingExistingRecord ? previousVersion + 1 : previousVersion;
     const nextMatchKey = currentMatchKey;
-    const nextShiftBreakdown = buildMatchScoutTimelineEntries(timelineEntries, normalizedData.teleopFirstShiftAlliance || 'Red', normalizedData.alliance);
+    const nextShiftBreakdown = buildMatchScoutTimelineEntries(timelineEntries, normalizedData.teleopFirstShiftAlliance || '', normalizedData.alliance);
     const shiftSummary = deriveMatchScoutShiftSummary(nextShiftBreakdown);
     return normalizeMatchScoutingV4({
       ...normalizedData,
@@ -1646,7 +1647,7 @@ export default function MatchScoutV4View() {
                     <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-500">Teleop Timeline</div>
                     <h2 className="mt-1 text-xl font-black text-white">Red/Blue First Alliance Shift</h2>
                     <p className="mt-1 max-w-3xl text-sm font-semibold leading-relaxed text-slate-400">
-                      Default is Red. This is reversible, and the shift cards below reorder immediately so the form stays aligned with the real match.
+                      Choose the alliance that actually started teleop. This is reversible, and the shift cards below reorder immediately so the form stays aligned with the real match.
                     </p>
                   </div>
                   <div className="grid min-w-full grid-cols-2 gap-2 xl:min-w-[18rem]">
@@ -1686,7 +1687,7 @@ export default function MatchScoutV4View() {
                   </div>
                 </div>
                 <div data-testid="first-shift-current" className="admin-g2-sm mt-4 border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-bold text-cyan-50/85">
-                  Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Red'}</span>
+                  Current first shift: <span className="text-white">{normalizedData.teleopFirstShiftAlliance || 'Not confirmed'}</span>
                 </div>
 
                 {opponentTeamOptions.length < 3 && (
