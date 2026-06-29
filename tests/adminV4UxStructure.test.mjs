@@ -1283,6 +1283,10 @@ test('scout-facing screens keep model and offline export details deliberate', ()
   assert.match(historySource, /Privacy Review/);
   assert.match(historySource, /Export Device Evidence JSON/);
   assert.match(historySource, /Export Compact Summary/);
+  assert.match(historySource, /Select Visible/);
+  assert.match(historySource, /Export Selected/);
+  assert.match(historySource, /selected-history-records/);
+  assert.match(historySource, /history-checkboxes-select-visible/);
   assert.match(historySource, /containsScoutNames: false/);
   assert.match(historySource, /deleted tombstones/);
   assert.match(historySource, /Delete Review/);

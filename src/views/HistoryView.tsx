@@ -247,6 +247,7 @@ export default function HistoryView() {
   const [recordPendingDelete, setRecordPendingDelete] = useState<ScoutArchiveRecord | null>(null);
   const [powerCoinBets, setPowerCoinBets] = useState<PowerCoinBet[]>([]);
   const [powerCoinLedger, setPowerCoinLedger] = useState<PowerCoinLedgerEntry[]>([]);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
 
   const handleEventKeyChange = (value: string) => {
     const nextEventKey = normalizeEventKey(value, DEFAULT_EVENT_KEY);
@@ -368,6 +369,16 @@ export default function HistoryView() {
     if (activeFilter === 'pit') return recentRecords.filter(record => record.recordType === 'pit');
     return recentRecords.filter(record => record.syncStatus === 'pending_sync' || record.syncStatus === 'unsynced');
   }, [activeFilter, recentRecords]);
+  const selectableVisibleRecords = useMemo(
+    () => filteredRecentRecords.filter(isArchiveHistoryRow),
+    [filteredRecentRecords]
+  );
+  const selectedRecordIdSet = useMemo(() => new Set(selectedRecordIds), [selectedRecordIds]);
+  const selectedVisibleCount = useMemo(
+    () => selectableVisibleRecords.filter(record => selectedRecordIdSet.has(record.recordId)).length,
+    [selectableVisibleRecords, selectedRecordIdSet]
+  );
+  const allVisibleSelected = selectableVisibleRecords.length > 0 && selectedVisibleCount === selectableVisibleRecords.length;
 
   const loadHistory = async () => {
     setIsLoading(true);
@@ -572,6 +583,67 @@ export default function HistoryView() {
     downloadJson(filename, JSON.stringify(payload, null, 2));
   };
 
+  const toggleRecordSelection = (recordId: string) => {
+    setSelectedRecordIds(previous => previous.includes(recordId)
+      ? previous.filter(id => id !== recordId)
+      : [...previous, recordId]
+    );
+  };
+
+  const selectVisibleRecords = () => {
+    const visibleIds = selectableVisibleRecords.map(record => record.recordId);
+    setSelectedRecordIds(previous => Array.from(new Set([...previous, ...visibleIds])));
+  };
+
+  const clearSelectedRecords = () => {
+    setSelectedRecordIds([]);
+  };
+
+  const exportSelectedRecords = async () => {
+    if (!archiveUsername) {
+      setError('Please set a scout username for this device before exporting selected JSON.');
+      return;
+    }
+    if (selectedRecordIds.length === 0) {
+      setError('Select at least one history record before exporting selected JSON.');
+      return;
+    }
+    try {
+      const selectedIds = new Set(selectedRecordIds);
+      const bundle = await buildScoutArchiveBundle(archiveUsername);
+      const selectedRecords = bundle.records.filter(record => selectedIds.has(record.recordId));
+      const selectedVersionChains = Object.fromEntries(
+        Object.entries(bundle.versionChains || {})
+          .map(([logicalId, chain]) => [
+            logicalId,
+            {
+              ...chain,
+              versions: chain.versions.filter(version => selectedIds.has(version.recordId))
+            }
+          ] as const)
+          .filter(([, chain]) => chain.versions.length > 0)
+      );
+      const payload = {
+        ...bundle,
+        exportScope: {
+          type: 'selected-history-records',
+          selectedRecordIds,
+          selectedRecordCount: selectedRecords.length,
+          selectedAt: Date.now(),
+          selectionUi: 'history-checkboxes-select-visible'
+        },
+        records: selectedRecords,
+        versionChains: selectedVersionChains
+      };
+      const filename = `selected_history_${eventKey}_${new Date(bundle.exportedAt).toISOString().replace(/[:.]/g, '-')}.json`;
+      downloadJson(filename, JSON.stringify(payload, null, 2));
+      setSyncMessage(`Exported ${selectedRecords.length} selected record${selectedRecords.length === 1 ? '' : 's'} to ${filename}.`);
+    } catch (exportError) {
+      console.error('Failed to export selected history records', exportError);
+      setError('Unable to export selected local history records right now.');
+    }
+  };
+
   const handleRetrySync = async (record: ScoutArchiveRecord) => {
     const result = await syncScoutArchiveRecordToFirebase(record);
     if (result.outcome === 'conflict') {
@@ -670,6 +742,21 @@ export default function HistoryView() {
           >
             <Download className="w-4 h-4" />
             Export All Non-Newest Matches ({nonNewestMatchV4Records.length})
+          </button>
+          <button
+            onClick={allVisibleSelected ? clearSelectedRecords : selectVisibleRecords}
+            disabled={selectableVisibleRecords.length === 0}
+            className="admin-g2-sm flex items-center gap-2 border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-black text-slate-200 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {allVisibleSelected ? 'Clear Selection' : `Select Visible (${selectableVisibleRecords.length})`}
+          </button>
+          <button
+            onClick={() => void exportSelectedRecords()}
+            disabled={selectedRecordIds.length === 0}
+            className="admin-g2-sm flex items-center gap-2 border border-emerald-400/30 bg-emerald-500/15 px-4 py-2 text-sm font-black text-emerald-50 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            Export Selected ({selectedRecordIds.length})
           </button>
           <button
             onClick={() => void handleRefresh()}
@@ -917,6 +1004,18 @@ export default function HistoryView() {
               const adminTask = getRecordAdminTask(record);
               return (
               <div key={record.recordId} className="px-5 py-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                {isArchiveHistoryRow(record) && (
+                  <label className="admin-g2-sm flex w-fit items-center gap-2 border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-slate-300 xl:mt-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedRecordIdSet.has(record.recordId)}
+                      onChange={() => toggleRecordSelection(record.recordId)}
+                      className="h-4 w-4 accent-cyan-300"
+                      aria-label={`Select ${record.recordType} ${record.logicalId}`}
+                    />
+                    Select
+                  </label>
+                )}
                 <div className="min-w-0 flex-1 space-y-3">
                   <div className={`admin-g2-sm border px-3 py-3 ${meta.toneClass}`}>
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

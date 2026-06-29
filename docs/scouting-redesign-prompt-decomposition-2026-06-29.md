@@ -99,7 +99,7 @@ Status: living decomposition. The pasted file is treated as source material, not
 ## Cache And Export
 
 24. `Done` - Browser cache/history export metadata.
-    Evidence: `src/utils/scoutArchive.ts` v6 export metadata and record counts.
+    Evidence: `src/utils/scoutArchive.ts` v8 export metadata, schema metadata, record counts, version chains, and selected-history export scope.
 
 25. `Done` - Direct export to local computer.
     Evidence: Scout Settings and Scout History explicitly describe local `.json` download behavior, export status names the downloaded file, and bundle schema metadata includes local-file retry guidance.
