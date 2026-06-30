@@ -185,12 +185,12 @@
 
     <section class="danger">
       <h2>Fix The Render Screen You Are On Right Now</h2>
-      <p>The screenshot shows Render trying to deploy the whole app as a normal frontend. For this relay, change these fields before clicking deploy:</p>
+      <p>The screenshot shows Render trying to deploy the whole app as a normal frontend. The relay folder is now on <code>main</code>, so keep the Branch field on <code>main</code> and make Render run only the <code>scouting-relay/</code> folder:</p>
       <table>
         <tr><th>Render field</th><th>Fill this in</th><th>Why</th></tr>
         <tr><td>Name</td><td><code>powerscout-relay</code></td><td>A clear service name for the scouting-only relay.</td></tr>
         <tr><td>Language</td><td><code>Node</code></td><td>Correct.</td></tr>
-        <tr><td>Branch</td><td><code>main</code></td><td>Use the branch that contains the <code>scouting-relay</code> folder on GitHub. If this folder is not pushed yet, do not deploy yet.</td></tr>
+        <tr><td>Branch</td><td><code>main</code></td><td>Render should deploy the production branch. The <code>scouting-relay</code> folder has been backported there.</td></tr>
         <tr><td>Region</td><td><code>Oregon (US West)</code></td><td>Fine for the current screen. If Render offers Singapore later, that may be better for Sanya.</td></tr>
         <tr><td>Root Directory</td><td><code>scouting-relay</code></td><td>This is the critical fix. Render must run only the relay folder, not the Firebase/Vite app.</td></tr>
         <tr><td>Build Command</td><td><code>npm install &amp;&amp; npm run check</code></td><td>Installs the relay deps and runs the relay smoke tests before deploy.</td></tr>
@@ -198,6 +198,9 @@
       </table>
       <p class="warn">
         Do not use <code>npm install; npm run build</code> or <code>yarn start</code> for this relay. Those are wrong for the service shown here.
+      </p>
+      <p class="bad">
+        If Render says <code>Root directory "scouting-relay" does not exist</code>, do not change the root directory. Change the branch to one that actually contains <code>scouting-relay/</code>, or push/merge the relay folder to the branch Render is deploying.
       </p>
     </section>
 
@@ -223,9 +226,12 @@
         <div class="num">3</div>
         <div>
           <strong>Copy REST credentials</strong>
-          <p>In the Upstash database details page, copy these exact two values. You will paste them into Render later:</p>
+          <p>In the Upstash database details page, copy these exact two values. If they are already saved on Leo's Desktop, paste the complete text from these files into Render with no surrounding quotes:</p>
           <pre>UPSTASH_REDIS_REST_URL
-UPSTASH_REDIS_REST_TOKEN</pre>
+UPSTASH_REDIS_REST_TOKEN
+
+/Users/leoxu/Desktop/UPSTASH_REDIS_REST_URL.txt
+/Users/leoxu/Desktop/UPSTASH_REDIS_REST_TOKEN.txt</pre>
           <p class="warn">Do not paste these into chat, GitHub, Firebase, or screenshots.</p>
         </div>
       </div>
@@ -274,8 +280,8 @@ UPSTASH_REDIS_REST_TOKEN</pre>
           <table>
             <tr><th>Key</th><th>Value</th><th>Where it comes from</th></tr>
             <tr><td><code>NODE_ENV</code></td><td><code>production</code></td><td>Type it exactly.</td></tr>
-            <tr><td><code>UPSTASH_REDIS_REST_URL</code></td><td><code>&lt;paste from Upstash&gt;</code></td><td>Upstash database REST URL.</td></tr>
-            <tr><td><code>UPSTASH_REDIS_REST_TOKEN</code></td><td><code>&lt;paste from Upstash&gt;</code></td><td>Upstash database REST token.</td></tr>
+            <tr><td><code>UPSTASH_REDIS_REST_URL</code></td><td><code>&lt;paste the full text from /Users/leoxu/Desktop/UPSTASH_REDIS_REST_URL.txt&gt;</code></td><td>Upstash database REST URL, no quotes around the value.</td></tr>
+            <tr><td><code>UPSTASH_REDIS_REST_TOKEN</code></td><td><code>&lt;paste the full text from /Users/leoxu/Desktop/UPSTASH_REDIS_REST_TOKEN.txt&gt;</code></td><td>Upstash database REST token, no quotes around the value.</td></tr>
             <tr><td><code>POWERSCOUT_RELAY_ADMIN_TOKEN</code></td><td><code>&lt;new random secret&gt;</code></td><td>Use a password manager or <code>openssl rand -hex 32</code>.</td></tr>
             <tr><td><code>POWERSCOUT_RELAY_SCOUT_TOKEN</code></td><td><code>&lt;different random secret&gt;</code></td><td>Use a different secret from the admin token.</td></tr>
             <tr><td><code>POWERSCOUT_RELAY_ALLOWED_ORIGINS</code></td><td><code>https://scout-rebuilt-2026.web.app,http://localhost:3000,http://127.0.0.1:5188</code></td><td>Add official custom domains later, separated by commas.</td></tr>
@@ -287,17 +293,17 @@ UPSTASH_REDIS_REST_TOKEN</pre>
         <div>
           <strong>Click Deploy Web Service</strong>
           <p>Only click deploy after the <code>scouting-relay</code> folder exists on the GitHub branch Render is using.</p>
-          <p class="bad">If Render says the root directory does not exist, stop. The relay folder has not been pushed to that branch yet.</p>
+          <p class="bad">If Render says the root directory does not exist, stop. The relay folder has not been pushed to that branch yet, or the Branch field is wrong.</p>
         </div>
       </div>
     </section>
 
     <section>
       <h2>After Deploy: Verify It Works</h2>
-      <p>Render will give you a service URL like:</p>
+      <p>Render should give you this service URL if the service name is <code>powerscout-relay</code>:</p>
       <pre>https://powerscout-relay.onrender.com</pre>
       <h3>Health check</h3>
-      <pre>curl -sS https://YOUR-RENDER-SERVICE.onrender.com/health</pre>
+      <pre>curl -sS https://powerscout-relay.onrender.com/health</pre>
       <p>Expected result:</p>
       <pre>{
   "ok": true,
@@ -309,12 +315,13 @@ UPSTASH_REDIS_REST_TOKEN</pre>
 
       <h3>Admin stats check</h3>
       <pre>curl -sS \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
-  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/stats?eventKey=2026CASNV"</pre>
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE" \
+  "https://powerscout-relay.onrender.com/api/pager/stats?eventKey=2026CASNV"</pre>
+      <p class="warn">Do not paste the text <code>PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE</code>. Replace it with the real Render environment variable value for <code>POWERSCOUT_RELAY_ADMIN_TOKEN</code>.</p>
 
       <h3>Send one test scout message</h3>
       <pre>curl -sS -X POST \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "eventKey": "2026CASNV",
@@ -323,12 +330,13 @@ UPSTASH_REDIS_REST_TOKEN</pre>
     "body": "If this appears, PowerScout relay messages are working.",
     "ttlMs": 600000
   }' \
-  https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages</pre>
+  https://powerscout-relay.onrender.com/api/pager/messages</pre>
 
       <h3>Read the test message as Scout #7</h3>
       <pre>curl -sS \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_SCOUT_TOKEN&gt;" \
-  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages?eventKey=2026CASNV&amp;scoutNumber=7"</pre>
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_SCOUT_TOKEN_HERE" \
+  "https://powerscout-relay.onrender.com/api/pager/messages?eventKey=2026CASNV&amp;scoutNumber=7"</pre>
+      <p class="warn">Do not paste the text <code>PASTE_THE_ACTUAL_SCOUT_TOKEN_HERE</code>. Replace it with the real Render environment variable value for <code>POWERSCOUT_RELAY_SCOUT_TOKEN</code>.</p>
     </section>
 
     <section>
@@ -336,7 +344,7 @@ UPSTASH_REDIS_REST_TOKEN</pre>
       <p>Once the Render service passes the checks above, record this information for the app configuration:</p>
       <table>
         <tr><th>Thing</th><th>Value to keep</th></tr>
-        <tr><td>Relay base URL</td><td><code>https://YOUR-RENDER-SERVICE.onrender.com</code></td></tr>
+        <tr><td>Relay base URL</td><td><code>https://powerscout-relay.onrender.com</code></td></tr>
         <tr><td>Admin token</td><td><code>POWERSCOUT_RELAY_ADMIN_TOKEN</code> value from Render</td></tr>
         <tr><td>Scout token</td><td><code>POWERSCOUT_RELAY_SCOUT_TOKEN</code> value from Render</td></tr>
         <tr><td>Storage health</td><td><code>storage: upstash</code> from <code>/health</code></td></tr>
