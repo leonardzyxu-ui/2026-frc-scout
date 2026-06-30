@@ -281,3 +281,229 @@ func practiceMatchDataUsesFirstAndLocalScorekeeperFallback() {
     #expect(rules.contains { $0.source == "Statbotics" && $0.limitation.localizedCaseInsensitiveContains("No documented practice") })
     #expect(rules.contains { $0.source == "Practice Scorekeeper" && $0.role == .localFallback })
 }
+
+@Test
+func predictionEvidenceLoadsFullEventLedgerForRenderedWinnerGraph() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-prediction-ledger-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = PredictionEvidenceStore(applicationSupportRoot: root)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data(predictionLedgerFixture.utf8).write(to: store.applicationSupportURL)
+
+    let result = try store.loadSeries(repoRoot: repoRoot)
+
+    #expect(result.loadedFromLedger)
+    #expect(result.loadedURL == store.applicationSupportURL)
+    #expect(result.series.eventKey == "2026test")
+    #expect(result.series.points.count == 4)
+    #expect(result.series.points.first?.label == "Quals 1")
+    #expect(result.series.points.last?.label == "Finals 1")
+    #expect(result.series.points.last?.actualWinner == 511)
+    #expect(result.series.points.last?.alignedPredictedWinner == 423)
+    #expect(result.series.winnerAccuracy == 0.75)
+    #expect(result.series.metrics?.decisivePredictions == 4)
+    #expect(result.series.metrics?.brierScore == 0.22)
+    #expect(result.series.metrics?.scoreMae == 42.5)
+    #expect(result.series.metrics?.marginMae == 58)
+}
+
+@Test
+func predictionEvidencePrefersFinalReplayOverLongerRawReplayArtifact() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-prediction-priority-\(UUID().uuidString)", isDirectory: true)
+    let repoRoot = root.appendingPathComponent("repo", isDirectory: true)
+    let store = PredictionEvidenceStore(applicationSupportRoot: root.appendingPathComponent("app-support", isDirectory: true))
+    let realURL = repoRoot.appendingPathComponent("SyntheticFullSystemTest/artifacts/sft-real-2026long/prediction-ledger.json")
+    let finalURL = repoRoot.appendingPathComponent("SyntheticFullSystemTest/artifacts/tune-2026short-final/prediction-ledger.json")
+    try FileManager.default.createDirectory(at: realURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: finalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data(makePredictionLedgerFixture(eventKey: "2026long", eventName: "Long Raw Replay", matchCount: 6).utf8).write(to: realURL)
+    try Data(makePredictionLedgerFixture(eventKey: "2026short", eventName: "Short Final Replay", matchCount: 4).utf8).write(to: finalURL)
+
+    let result = try store.loadSeries(repoRoot: repoRoot)
+
+    #expect(result.loadedURL?.standardizedFileURL == finalURL.standardizedFileURL)
+    #expect(result.sourceKind == .finalReplayArtifact)
+    #expect(result.series.eventName == "Short Final Replay")
+    #expect(result.series.points.count == 4)
+}
+
+@Test
+func powerScoutNotesRoundTripAndExportByStableSectionID() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-section-notes-\(UUID().uuidString)", isDirectory: true)
+    let store = PowerScoutNotesStore(storageRoot: root)
+    let notes: [PowerScoutSection: PowerScoutSectionNote] = [
+        .dashboard: PowerScoutSectionNote(section: .dashboard, text: "Graph should load full event.", updatedAt: Date(timeIntervalSince1970: 10)),
+        .allianceSelection: PowerScoutSectionNote(section: .allianceSelection, text: "Pick list needs decline states.", updatedAt: Date(timeIntervalSince1970: 20))
+    ]
+
+    try store.saveNotes(notes)
+    let loaded = store.loadNotesOrEmpty()
+    let exportedURL = try store.exportNotes(loaded)
+    let exported = try JSONDecoder.powerScoutISO8601.decode(PowerScoutNotesExport.self, from: Data(contentsOf: exportedURL))
+
+    #expect(loaded[.dashboard]?.text == "Graph should load full event.")
+    #expect(loaded[.allianceSelection]?.sectionID == PowerScoutSection.allianceSelection.id)
+    #expect(exported.noteCount == 2)
+    #expect(exported.notes.map(\.sectionID).contains(PowerScoutSection.dashboard.id))
+}
+
+@Test
+func powerScoutNotesLoaderSurvivesDuplicateSectionEntries() throws {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-section-notes-duplicates-\(UUID().uuidString)", isDirectory: true)
+    let store = PowerScoutNotesStore(storageRoot: root)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let duplicateJSON = """
+    {
+      "app": "PowerScout",
+      "schemaVersion": 1,
+      "exportedAt": "2026-06-30T00:00:00Z",
+      "noteCount": 2,
+      "notes": [
+        { "sectionID": "Dashboard", "sectionTitle": "Dashboard", "text": "old", "updatedAt": "2026-06-30T00:00:00Z" },
+        { "sectionID": "Dashboard", "sectionTitle": "Dashboard", "text": "new", "updatedAt": "2026-06-30T00:01:00Z" }
+      ]
+    }
+    """
+    try Data(duplicateJSON.utf8).write(to: store.notesURL)
+
+    let loaded = store.loadNotesOrEmpty()
+
+    #expect(loaded[.dashboard]?.text == "new")
+}
+
+@Test
+@MainActor
+func powerScoutNotesWhitespaceRemovesSectionEntryAndLengthIsCapped() {
+    let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("powerscout-section-notes-store-\(UUID().uuidString)", isDirectory: true)
+    let store = PowerScoutStore(
+        repositoryRoot: root.appendingPathComponent("repo", isDirectory: true),
+        notesStore: PowerScoutNotesStore(storageRoot: root)
+    )
+    let longText = String(repeating: "x", count: PowerScoutNotesStore.maxNoteLength + 50)
+
+    store.updateNoteText(longText, for: .dashboard)
+    #expect(store.noteText(for: .dashboard).count == PowerScoutNotesStore.maxNoteLength)
+
+    store.updateNoteText("   \n\t", for: .dashboard)
+    #expect(store.noteText(for: .dashboard).isEmpty)
+    #expect(store.notesBySection[.dashboard] == nil)
+}
+
+private let predictionLedgerFixture = """
+{
+  "runId": "test-run",
+  "eventKey": "2026test",
+  "eventName": "Test Regional",
+  "entries": [
+    {
+      "checkpoint": "QM1_POSTED",
+      "matchIndex": 0,
+      "matchKey": "qm1",
+      "title": "Quals 1",
+      "predictedWinner": "red",
+      "actualWinner": "blue",
+      "predictedRedScore": 181,
+      "predictedBlueScore": 168,
+      "actualRedScore": 66,
+      "actualBlueScore": 183,
+      "winnerCorrect": false
+    },
+    {
+      "checkpoint": "QM2_POSTED",
+      "matchIndex": 1,
+      "matchKey": "qm2",
+      "title": "Quals 2",
+      "predictedWinner": "blue",
+      "actualWinner": "blue",
+      "predictedRedScore": 201,
+      "predictedBlueScore": 229,
+      "actualRedScore": 111,
+      "actualBlueScore": 258,
+      "winnerCorrect": true
+    },
+    {
+      "checkpoint": "QM3_POSTED",
+      "matchIndex": 2,
+      "matchKey": "qm3",
+      "title": "Quals 3",
+      "predictedWinner": "blue",
+      "actualWinner": "blue",
+      "predictedRedScore": 120,
+      "predictedBlueScore": 180,
+      "actualRedScore": 80,
+      "actualBlueScore": 84,
+      "winnerCorrect": true
+    },
+    {
+      "checkpoint": "F1M1_POSTED",
+      "matchIndex": 3,
+      "matchKey": "f1m1",
+      "title": "Finals 1",
+      "predictedWinner": "blue",
+      "actualWinner": "blue",
+      "predictedRedScore": 370,
+      "predictedBlueScore": 423,
+      "actualRedScore": 401,
+      "actualBlueScore": 511,
+      "winnerCorrect": true
+    }
+  ],
+  "metrics": {
+    "matchesPredicted": 4,
+    "decisivePredictions": 4,
+    "winnerAccuracy": 0.75,
+    "qualificationWinnerAccuracy": 0.667,
+    "playoffWinnerAccuracy": 1,
+    "brierScore": 0.22,
+    "scoreMae": 42.5,
+    "marginMae": 58
+  }
+}
+"""
+
+private func makePredictionLedgerFixture(eventKey: String, eventName: String, matchCount: Int) -> String {
+    let entries = (0..<matchCount).map { index in
+        """
+        {
+          "checkpoint": "QM\(index + 1)_POSTED",
+          "matchIndex": \(index),
+          "matchKey": "qm\(index + 1)",
+          "title": "Quals \(index + 1)",
+          "predictedWinner": "blue",
+          "actualWinner": "blue",
+          "predictedRedScore": \(120 + index),
+          "predictedBlueScore": \(160 + index),
+          "actualRedScore": \(100 + index),
+          "actualBlueScore": \(170 + index),
+          "winnerCorrect": true
+        }
+        """
+    }.joined(separator: ",")
+
+    return """
+    {
+      "runId": "test-run",
+      "eventKey": "\(eventKey)",
+      "eventName": "\(eventName)",
+      "entries": [\(entries)],
+      "metrics": {
+        "matchesPredicted": \(matchCount),
+        "decisivePredictions": \(matchCount),
+        "winnerAccuracy": 1
+      }
+    }
+    """
+}
+
+private extension JSONDecoder {
+    static var powerScoutISO8601: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}

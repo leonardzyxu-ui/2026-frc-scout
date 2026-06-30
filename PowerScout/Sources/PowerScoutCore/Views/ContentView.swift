@@ -31,35 +31,47 @@ public struct PowerScoutContentView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                switch store.selection {
-                case .dashboard:
-                    DashboardView(store: store)
-                case .liveOps:
-                    LiveOpsView(store: store, openURL: openURL)
-                case .systemAudit:
-                    SystemAuditView()
-                case .preScout:
-                    ScoutLaneView(lane: .preScout)
-                case .pitScout:
-                    ScoutLaneView(lane: .pitScout)
-                case .matchScout:
-                    ScoutLaneView(lane: .matchScout)
-                case .allianceSelection:
-                    AllianceSelectionView()
-                case .historyRewards:
-                    HistoryRewardsView(openURL: openURL)
-                case .reports:
-                    ReportsView(store: store, openURL: openURL)
-                case .relay:
-                    RelayView(openURL: openURL)
-                case .commands:
-                    CommandsView(store: store)
+        GeometryReader { proxy in
+            let notesWidth = min(340, max(300, proxy.size.width * 0.3))
+            let reserveNotesLane = proxy.size.width >= 980
+
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        switch store.selection {
+                        case .dashboard:
+                            DashboardView(store: store)
+                        case .liveOps:
+                            LiveOpsView(store: store, openURL: openURL)
+                        case .systemAudit:
+                            SystemAuditView()
+                        case .preScout:
+                            ScoutLaneView(lane: .preScout)
+                        case .pitScout:
+                            ScoutLaneView(lane: .pitScout)
+                        case .matchScout:
+                            ScoutLaneView(lane: .matchScout)
+                        case .allianceSelection:
+                            AllianceSelectionView()
+                        case .historyRewards:
+                            HistoryRewardsView(openURL: openURL)
+                        case .reports:
+                            ReportsView(store: store, openURL: openURL)
+                        case .relay:
+                            RelayView(openURL: openURL)
+                        case .commands:
+                            CommandsView(store: store)
+                        }
+                    }
+                    .padding(24)
+                    .padding(.trailing, reserveNotesLane ? notesWidth + 18 : 0)
+                    .padding(.bottom, 176)
+                    .frame(maxWidth: 1180, alignment: .leading)
                 }
+
+                PowerScoutNotesPad(store: store, section: store.selection, expandedWidth: notesWidth)
+                    .padding(22)
             }
-            .padding(24)
-            .frame(maxWidth: 1180, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
     }

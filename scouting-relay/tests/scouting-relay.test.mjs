@@ -39,6 +39,20 @@ test('scouting relay health exposes the expected service identity', async () => 
   });
 });
 
+test('scouting relay root exposes a friendly unauthenticated service summary', async () => {
+  await withServer(async baseUrl => {
+    const response = await fetch(`${baseUrl}/`);
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.service, 'powerscout-relay');
+    assert.equal(payload.health, '/health');
+    assert.equal(payload.help, '/api/pager/messages');
+    assert.equal(payload.routes.health, 'GET /health');
+    assert.equal(payload.routes.pagerStats, 'GET /api/pager/stats');
+  });
+});
+
 test('scouting relay stores admin pager messages and filters scout reads by event and scout number', async () => {
   await withServer(async baseUrl => {
     const createResponse = await jsonFetch(`${baseUrl}/api/pager/messages`, {
@@ -75,6 +89,36 @@ test('scouting relay stores admin pager messages and filters scout reads by even
     const otherEventPayload = await otherEventResponse.json();
     assert.equal(otherEventResponse.status, 200);
     assert.equal(otherEventPayload.messages.length, 0);
+  });
+});
+
+test('scouting relay stats endpoint requires admin and reports event counts', async () => {
+  await withServer(async baseUrl => {
+    await jsonFetch(`${baseUrl}/api/pager/messages`, {
+      method: 'POST',
+      headers: { authorization: 'Bearer admin-test-token' },
+      body: JSON.stringify({
+        eventKey: '2026casnv',
+        recipient: { kind: 'all' },
+        title: 'All scouts',
+        body: 'Stats should count this message.',
+        ttlMs: 60_000
+      })
+    });
+
+    const unauthorizedResponse = await fetch(`${baseUrl}/api/pager/stats?eventKey=2026casnv`, {
+      headers: { authorization: 'Bearer scout-test-token' }
+    });
+    assert.equal(unauthorizedResponse.status, 401);
+
+    const response = await fetch(`${baseUrl}/api/pager/stats?eventKey=2026casnv`, {
+      headers: { authorization: 'Bearer admin-test-token' }
+    });
+    const payload = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.stats.eventKey, '2026CASNV');
+    assert.equal(payload.stats.messageCount, 1);
   });
 });
 

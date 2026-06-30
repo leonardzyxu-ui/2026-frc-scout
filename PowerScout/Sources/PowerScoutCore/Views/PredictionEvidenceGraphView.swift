@@ -2,23 +2,95 @@ import Charts
 import SwiftUI
 
 struct PredictionEvidenceGraphView: View {
-    private let points = PredictionEvidencePoint.sample
-    private let yAxisValues = [10, 105, 200, 295, 390, 480]
-    private let xAxisValues = [1, 4, 7, 10, 13, 16, 19, 22]
+    let title: String
+    let subtitle: String
+    let note: String
+    let loadResult: PredictionEvidenceLoadResult
+
+    private var points: [PredictionEvidencePoint] {
+        loadResult.series.points
+    }
+
+    private var yAxisValues: [Int] {
+        let maxValue = max(points.map(\.actualWinner).max() ?? 500, points.map(\.alignedPredictedWinner).max() ?? 500)
+        let top = max(500, Int(ceil(maxValue / 100) * 100))
+        return stride(from: 0, through: top, by: max(100, top / 5)).map { max($0, 10) }
+    }
+
+    private var xAxisValues: [Int] {
+        guard points.count > 8 else { return points.map(\.index) }
+        let strideSize = max(1, Int(ceil(Double(points.count) / 8.0)))
+        return points.map(\.index).filter { ($0 - 1) % strideSize == 0 || $0 == points.count }
+    }
+
+    private var metricColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 132), spacing: 10)]
+    }
+
+    init(
+        title: String = "Winners Graph",
+        subtitle: String = "Actual vs predicted winner scores across completed matches.",
+        note: String = "The dotted line is visually aligned to the event's scoring scale so the trend comparison is easier to read.",
+        loadResult: PredictionEvidenceLoadResult = .fallback
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.note = note
+        self.loadResult = loadResult
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Winners Graph")
+                Text(title)
                     .font(.system(size: 28, weight: .black))
                     .foregroundStyle(.white)
-                Text("Actual vs predicted winner scores across completed matches.")
+                Text(subtitle)
                     .font(.title3.weight(.medium))
                     .foregroundStyle(Color.powerscoutGraphSecondary)
-                Text("The dotted line is visually aligned to the event's scoring scale so the trend comparison is easier to read.")
+                Text(note)
                     .font(.callout.weight(.semibold))
                     .foregroundStyle(Color.powerscoutGraphMuted)
+                HStack(spacing: 8) {
+                    PSTag(text: loadResult.sourceKind.badgeText, color: loadResult.loadedFromLedger ? .green : .yellow)
+                    Text("\(loadResult.series.eventName) · \(points.count) matches\(accuracyLabel)")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(Color.powerscoutGraphSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
+
+            LazyVGrid(columns: metricColumns, alignment: .leading, spacing: 10) {
+                EvidenceMetricCard(
+                    title: "Decision Calls",
+                    value: decisionAccuracyValue,
+                    detail: decisionAccuracyDetail,
+                    tint: .green
+                )
+                EvidenceMetricCard(
+                    title: "Brier",
+                    value: formattedNumber(loadResult.series.metrics?.brierScore, digits: 3),
+                    detail: "Lower is better",
+                    tint: .cyan
+                )
+                EvidenceMetricCard(
+                    title: "Score MAE",
+                    value: formattedNumber(loadResult.series.metrics?.scoreMae, digits: 1),
+                    detail: "Exact-score error",
+                    tint: .orange
+                )
+                EvidenceMetricCard(
+                    title: "Margin MAE",
+                    value: formattedNumber(loadResult.series.metrics?.marginMae, digits: 1),
+                    detail: "Spread error",
+                    tint: .red
+                )
+            }
+
+            Text("Read this as a trust audit: the top row grades winner calls; the line chart below shows score calibration noise and highlights missed calls.")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.powerscoutGraphMuted)
 
             Chart {
                 ForEach(points) { point in
@@ -40,12 +112,21 @@ struct PredictionEvidenceGraphView: View {
                     .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [8, 6]))
                     .interpolationMethod(.catmullRom)
                 }
+
+                ForEach(points.filter { $0.winnerCorrect == false }) { point in
+                    PointMark(
+                        x: .value("Missed Match", point.index),
+                        y: .value("Actual Winner Score", point.actualWinner)
+                    )
+                    .foregroundStyle(Color.red.opacity(0.88))
+                    .symbolSize(70)
+                }
             }
             .chartForegroundStyleScale([
                 "Actual Winner": Color.powerscoutGraphActual,
                 "Aligned Predicted Winner": Color.powerscoutGraphPredicted
             ])
-            .chartYScale(domain: 0 ... 500)
+            .chartYScale(domain: 0 ... yDomainTop)
             .chartXAxis {
                 AxisMarks(values: xAxisValues) { value in
                     AxisGridLine()
@@ -82,13 +163,44 @@ struct PredictionEvidenceGraphView: View {
         .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(Color.powerscoutGraphBackground)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .stroke(Color.powerscoutGraphBorder, lineWidth: 1)
         )
+    }
+
+    private var yDomainTop: Double {
+        max(Double(yAxisValues.last ?? 500), 500)
+    }
+
+    private var accuracyLabel: String {
+        guard let accuracy = loadResult.series.winnerAccuracy else { return "" }
+        return " · \(Int(round(accuracy * 100)))% winner accuracy"
+    }
+
+    private var decisionAccuracyValue: String {
+        guard let accuracy = loadResult.series.metrics?.winnerAccuracy ?? loadResult.series.winnerAccuracy else { return "Demo" }
+        return "\(Int(round(accuracy * 100)))%"
+    }
+
+    private var decisionAccuracyDetail: String {
+        guard let metrics = loadResult.series.metrics else { return "Sample only" }
+        if let decisive = metrics.decisivePredictions, let accuracy = metrics.winnerAccuracy {
+            let correct = Int(round(accuracy * Double(decisive)))
+            return "\(correct)/\(decisive) decisive"
+        }
+        if let matches = metrics.matchesPredicted {
+            return "\(matches) matches"
+        }
+        return "Loaded ledger"
+    }
+
+    private func formattedNumber(_ value: Double?, digits: Int) -> String {
+        guard let value else { return "--" }
+        return value.formatted(.number.precision(.fractionLength(digits)))
     }
 
     private func label(for index: Int) -> String {
@@ -96,38 +208,36 @@ struct PredictionEvidenceGraphView: View {
     }
 }
 
-private struct PredictionEvidencePoint: Identifiable {
-    let index: Int
-    let label: String
-    let actualWinner: Double
-    let alignedPredictedWinner: Double
+private struct EvidenceMetricCard: View {
+    let title: String
+    let value: String
+    let detail: String
+    let tint: Color
 
-    var id: Int { index }
-
-    static let sample: [PredictionEvidencePoint] = [
-        .init(index: 1, label: "QM 1", actualWinner: 92, alignedPredictedWinner: 118),
-        .init(index: 2, label: "QM 5", actualWinner: 190, alignedPredictedWinner: 176),
-        .init(index: 3, label: "QM 9", actualWinner: 145, alignedPredictedWinner: 158),
-        .init(index: 4, label: "QM 13", actualWinner: 318, alignedPredictedWinner: 252),
-        .init(index: 5, label: "QM 18", actualWinner: 118, alignedPredictedWinner: 132),
-        .init(index: 6, label: "QM 22", actualWinner: 402, alignedPredictedWinner: 370),
-        .init(index: 7, label: "QM 27", actualWinner: 65, alignedPredictedWinner: 104),
-        .init(index: 8, label: "QM 31", actualWinner: 290, alignedPredictedWinner: 254),
-        .init(index: 9, label: "QM 36", actualWinner: 84, alignedPredictedWinner: 198),
-        .init(index: 10, label: "QM 40", actualWinner: 330, alignedPredictedWinner: 318),
-        .init(index: 11, label: "QM 46", actualWinner: 150, alignedPredictedWinner: 171),
-        .init(index: 12, label: "QM 50", actualWinner: 438, alignedPredictedWinner: 323),
-        .init(index: 13, label: "QM 55", actualWinner: 128, alignedPredictedWinner: 205),
-        .init(index: 14, label: "QM 59", actualWinner: 292, alignedPredictedWinner: 229),
-        .init(index: 15, label: "QM 63", actualWinner: 72, alignedPredictedWinner: 66),
-        .init(index: 16, label: "QM 68", actualWinner: 242, alignedPredictedWinner: 182),
-        .init(index: 17, label: "QM 72", actualWinner: 108, alignedPredictedWinner: 126),
-        .init(index: 18, label: "M1", actualWinner: 305, alignedPredictedWinner: 211),
-        .init(index: 19, label: "M4", actualWinner: 176, alignedPredictedWinner: 386),
-        .init(index: 20, label: "M7", actualWinner: 404, alignedPredictedWinner: 372),
-        .init(index: 21, label: "M10", actualWinner: 212, alignedPredictedWinner: 225),
-        .init(index: 22, label: "Finals 2", actualWinner: 398, alignedPredictedWinner: 335)
-    ]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.heavy))
+                .tracking(1.8)
+                .foregroundStyle(Color.powerscoutGraphMuted)
+            Text(value)
+                .font(.system(size: 24, weight: .black))
+                .foregroundStyle(tint)
+                .monospacedDigit()
+            Text(detail)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Color.powerscoutGraphSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(tint.opacity(0.28), lineWidth: 1)
+        )
+    }
 }
 
 private extension Color {

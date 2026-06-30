@@ -3,7 +3,7 @@ import SwiftUI
 struct NextMatchDashboardView: View {
     let loadResult: NextMatchDashboardLoadResult
     let onRefresh: () -> Void
-    @State private var showsShifts = true
+    @State private var showsShifts = false
     private let shiftInstructionCardHeight: CGFloat = 108
     private var snapshot: NextMatchDashboardSnapshot { loadResult.snapshot }
 
@@ -116,7 +116,7 @@ struct NextMatchDashboardView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(loadResult.loadedFromLocalJSON ? "Local strategy snapshot" : "Fallback demo data")
                     .font(.callout.weight(.black))
-                Text(loadResult.loadedFromLocalJSON ? loadResult.message : "\(snapshot.sourceDetail) \(loadResult.message)")
+                Text(sourceNoticeMessage)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -130,6 +130,13 @@ struct NextMatchDashboardView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke((loadResult.loadedFromLocalJSON ? Color.green : Color.yellow).opacity(0.28), lineWidth: 1)
         )
+    }
+
+    private var sourceNoticeMessage: String {
+        if loadResult.loadedFromLocalJSON {
+            return loadResult.message
+        }
+        return "Load the local next-match-dashboard.json to replace this demo fixture before competition use."
     }
 
     private func metricTile(_ title: String, _ value: String, _ color: Color) -> some View {

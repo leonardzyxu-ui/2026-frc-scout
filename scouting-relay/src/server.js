@@ -210,6 +210,22 @@ export const createApp = ({ store = createStore(), auth = createAuth(), now = ()
   installCors(app);
   app.use(express.json({ limit: '64kb' }));
 
+  app.get('/', (_request, response) => {
+    response.json({
+      ok: true,
+      service: SERVICE_NAME,
+      purpose: 'PowerScout relay service for pager messages.',
+      health: '/health',
+      help: '/api/pager/messages',
+      routes: {
+        health: 'GET /health',
+        pagerMessages: 'GET, POST /api/pager/messages',
+        pagerStats: 'GET /api/pager/stats'
+      },
+      storage: store.kind
+    });
+  });
+
   app.get('/health', (_request, response) => {
     response.json({
       ok: true,

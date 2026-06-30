@@ -12,7 +12,7 @@ struct ReportsView: View {
                 subtitle: "Open the artifacts that sell the scouting system and preserve model evidence."
             )
 
-            PredictionEvidenceGraphView()
+            PredictionEvidenceGraphView(loadResult: store.predictionEvidenceLoadResult)
 
             PSCard {
                 VStack(alignment: .leading, spacing: 14) {

@@ -1,15 +1,15 @@
 import Foundation
 
-public enum PowerScoutSection: String, CaseIterable, Identifiable {
+public enum PowerScoutSection: String, CaseIterable, Identifiable, Sendable {
     case dashboard = "Dashboard"
     case liveOps = "Live Ops"
+    case reports = "Reports"
+    case allianceSelection = "Alliance Selection"
+    case historyRewards = "History / Rewards"
     case systemAudit = "System Audit"
     case preScout = "Pre Scout"
     case pitScout = "Pit Scout"
     case matchScout = "Match Scout"
-    case allianceSelection = "Alliance Selection"
-    case historyRewards = "History / Rewards"
-    case reports = "Reports"
     case relay = "Relay"
     case commands = "Commands"
 

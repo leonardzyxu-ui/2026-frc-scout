@@ -1,5 +1,12 @@
 # Scouting Task Queue (Completed)
 
+- [x] Redesign the admin-only PowerScout Mac app from first principles, making beautiful decision graphs a first-class head-scout command surface instead of hiding them in old reports.
+- [x] Fix the Render scouting relay root URL locally so `/` returns a friendly PowerScout relay service summary instead of `{"ok":false,"service":"powerscout-relay","error":"Not found."}`.
+- [x] Run adversarial QA with subagents after the PowerScout redesign: visual/native QA, data-truth QA, and relay/deploy QA.
+- [x] Fix relay setup/runbook commands so Leo uses the real Render URL `https://powerscout-relay.onrender.com` instead of the literal placeholder, and verify the documented relay routes exist.
+- [x] Expand the native Winner Prediction Evidence graph from a short rendered demo series into a full-event prediction-ledger graph when event data is available, with demo data only as fallback.
+- [x] Add a bottom-right per-section notes subwindow across PowerScout, persist notes locally by app section, and provide one JSON export containing personalized feedback from every part of the app.
+- [x] Fix the native winner prediction evidence graph so it does not visually over-punish the model with raw score noise; it now leads with decision-call accuracy, Brier, score MAE, and margin MAE.
 - [x] Apply Leo's product constraint that `PowerScout` is admin/head-scout only, not scout-facing, across README, native SwiftUI copy, and report copy.
 - [x] Apply the Render scouting relay setup fix externally by backporting `scouting-relay/` and the setup guide to `origin/main` in commit `70b0f73`.
 - [x] Continue Sanya prescout beyond the first pass by adding Godel's second manual-review report and machine-readable identity recommendations in `Scouting/sanyaSpecial/Pre-Scout/`.

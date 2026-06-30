@@ -185,12 +185,12 @@
 
     <section class="danger">
       <h2>Fix The Render Screen You Are On Right Now</h2>
-      <p>The screenshot shows Render trying to deploy the whole app as a normal frontend. Your latest Render log also shows it is deploying <code>main</code>, but <code>scouting-relay/</code> is currently on <code>codex/adminv4-snapshot-20260620</code>. For this relay, change these fields before clicking deploy:</p>
+      <p>The screenshot shows Render trying to deploy the whole app as a normal frontend. The relay folder is now on <code>main</code>, so keep the Branch field on <code>main</code> and make Render run only the <code>scouting-relay/</code> folder:</p>
       <table>
         <tr><th>Render field</th><th>Fill this in</th><th>Why</th></tr>
         <tr><td>Name</td><td><code>powerscout-relay</code></td><td>A clear service name for the scouting-only relay.</td></tr>
         <tr><td>Language</td><td><code>Node</code></td><td>Correct.</td></tr>
-        <tr><td>Branch</td><td><code>codex/adminv4-snapshot-20260620</code> now; switch to <code>main</code> only after the relay folder is merged there.</td><td>Render must use a branch that contains the <code>scouting-relay</code> folder. The current failing log checked out <code>main</code>, where that folder is missing.</td></tr>
+        <tr><td>Branch</td><td><code>main</code></td><td>Render should deploy the production branch. The <code>scouting-relay</code> folder has been backported there.</td></tr>
         <tr><td>Region</td><td><code>Oregon (US West)</code></td><td>Fine for the current screen. If Render offers Singapore later, that may be better for Sanya.</td></tr>
         <tr><td>Root Directory</td><td><code>scouting-relay</code></td><td>This is the critical fix. Render must run only the relay folder, not the Firebase/Vite app.</td></tr>
         <tr><td>Build Command</td><td><code>npm install &amp;&amp; npm run check</code></td><td>Installs the relay deps and runs the relay smoke tests before deploy.</td></tr>
@@ -263,7 +263,7 @@ UPSTASH_REDIS_REST_TOKEN
             <tr><th>Field</th><th>Value</th></tr>
             <tr><td>Name</td><td><code>powerscout-relay</code></td></tr>
             <tr><td>Language</td><td><code>Node</code></td></tr>
-            <tr><td>Branch</td><td><code>codex/adminv4-snapshot-20260620</code> for today's setup. Use <code>main</code> only after the relay folder is on <code>main</code>.</td></tr>
+            <tr><td>Branch</td><td><code>main</code></td></tr>
             <tr><td>Region</td><td><code>Oregon (US West)</code></td></tr>
             <tr><td>Root Directory</td><td><code>scouting-relay</code></td></tr>
             <tr><td>Build Command</td><td><code>npm install &amp;&amp; npm run check</code></td></tr>
@@ -300,10 +300,10 @@ UPSTASH_REDIS_REST_TOKEN
 
     <section>
       <h2>After Deploy: Verify It Works</h2>
-      <p>Render will give you a service URL like:</p>
+      <p>Render should give you this service URL if the service name is <code>powerscout-relay</code>:</p>
       <pre>https://powerscout-relay.onrender.com</pre>
       <h3>Health check</h3>
-      <pre>curl -sS https://YOUR-RENDER-SERVICE.onrender.com/health</pre>
+      <pre>curl -sS https://powerscout-relay.onrender.com/health</pre>
       <p>Expected result:</p>
       <pre>{
   "ok": true,
@@ -315,12 +315,13 @@ UPSTASH_REDIS_REST_TOKEN
 
       <h3>Admin stats check</h3>
       <pre>curl -sS \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
-  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/stats?eventKey=2026CASNV"</pre>
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE" \
+  "https://powerscout-relay.onrender.com/api/pager/stats?eventKey=2026CASNV"</pre>
+      <p class="warn">Do not paste the text <code>PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE</code>. Replace it with the real Render environment variable value for <code>POWERSCOUT_RELAY_ADMIN_TOKEN</code>.</p>
 
       <h3>Send one test scout message</h3>
       <pre>curl -sS -X POST \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_ADMIN_TOKEN&gt;" \
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_ADMIN_TOKEN_HERE" \
   -H "Content-Type: application/json" \
   -d '{
     "eventKey": "2026CASNV",
@@ -329,12 +330,13 @@ UPSTASH_REDIS_REST_TOKEN
     "body": "If this appears, PowerScout relay messages are working.",
     "ttlMs": 600000
   }' \
-  https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages</pre>
+  https://powerscout-relay.onrender.com/api/pager/messages</pre>
 
       <h3>Read the test message as Scout #7</h3>
       <pre>curl -sS \
-  -H "Authorization: Bearer &lt;POWERSCOUT_RELAY_SCOUT_TOKEN&gt;" \
-  "https://YOUR-RENDER-SERVICE.onrender.com/api/pager/messages?eventKey=2026CASNV&amp;scoutNumber=7"</pre>
+  -H "Authorization: Bearer PASTE_THE_ACTUAL_SCOUT_TOKEN_HERE" \
+  "https://powerscout-relay.onrender.com/api/pager/messages?eventKey=2026CASNV&amp;scoutNumber=7"</pre>
+      <p class="warn">Do not paste the text <code>PASTE_THE_ACTUAL_SCOUT_TOKEN_HERE</code>. Replace it with the real Render environment variable value for <code>POWERSCOUT_RELAY_SCOUT_TOKEN</code>.</p>
     </section>
 
     <section>
@@ -342,7 +344,7 @@ UPSTASH_REDIS_REST_TOKEN
       <p>Once the Render service passes the checks above, record this information for the app configuration:</p>
       <table>
         <tr><th>Thing</th><th>Value to keep</th></tr>
-        <tr><td>Relay base URL</td><td><code>https://YOUR-RENDER-SERVICE.onrender.com</code></td></tr>
+        <tr><td>Relay base URL</td><td><code>https://powerscout-relay.onrender.com</code></td></tr>
         <tr><td>Admin token</td><td><code>POWERSCOUT_RELAY_ADMIN_TOKEN</code> value from Render</td></tr>
         <tr><td>Scout token</td><td><code>POWERSCOUT_RELAY_SCOUT_TOKEN</code> value from Render</td></tr>
         <tr><td>Storage health</td><td><code>storage: upstash</code> from <code>/health</code></td></tr>
