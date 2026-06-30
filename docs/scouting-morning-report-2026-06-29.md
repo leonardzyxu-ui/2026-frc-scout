@@ -11,7 +11,7 @@ The product is better because it now speaks in head-scout language: Contribution
 
 ## What Users Can Now Do
 
-- Scouts and analysts can read robot value through clearer metrics instead of the old PPC/PPA naming.
+- Head scouts and analysts can read robot value through clearer metrics instead of the old PPC/PPA naming; field scouts produce that evidence in the web scout interface.
 - Admin V4 and PowerScout can show the renamed contribution/range/deviation language, with DPR treated as context instead of causal defense truth.
 - Strategy code can search every offense/defense/stockpile role combination for both alliances, compare expected margin, and estimate win probability from the combined standard deviation.
 - The model caps defense so it does not pretend an alliance can deny more points than the opponent can actually score.
@@ -118,4 +118,4 @@ Checkpoint commits already made:
 
 ## Business Bottom Line
 
-PowerScout is now closer to a real head-scout command center. It does not just ask "who is good?" It can begin answering "what role should each robot play, how risky is that plan, what ranking-point upside do we have, and which scout data should we trust?"
+PowerScout is now closer to a real head-scout command center. It does not just ask "who is good?" It can begin answering "what role should each robot play, how risky is that plan, what ranking-point upside do we have, and which web-scout evidence should we trust?"

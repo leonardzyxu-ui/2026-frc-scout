@@ -17,7 +17,7 @@ struct HistoryRewardsView: View {
             PSPageHeader(
                 eyebrow: "local evidence",
                 title: "History / Rewards",
-                subtitle: "A native command surface for scout history, PowerCoin wallet state, and the evidence exports that keep the head scout from losing data under match pressure."
+                subtitle: "A head-scout command surface for reviewing scout history, PowerCoin wallet state, and the evidence exports that keep admin operations from losing data under match pressure."
             )
 
             PSCard {
@@ -28,7 +28,7 @@ struct HistoryRewardsView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Event mirror")
                             .font(.title3.weight(.bold))
-                        Text("PowerScout keeps its own local sync ledger, mirrors the scout browser cache contract, and opens the exact web cache/Admin controls when deeper review is needed.")
+                        Text("PowerScout keeps its own admin-side local sync ledger, mirrors the scout browser cache contract, and opens the exact web cache/Admin controls when deeper review is needed.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }

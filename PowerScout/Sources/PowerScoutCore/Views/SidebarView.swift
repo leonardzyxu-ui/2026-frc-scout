@@ -15,7 +15,7 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Powerhouse")
                     .font(.caption.weight(.bold))
-                Text("Scouting command center")
+                Text("Head-scout command center")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

@@ -1,0 +1,122 @@
+{
+  "eventKey": "2026SANYA",
+  "generatedAt": "2026-06-30",
+  "agent": {
+    "name": "Godel / Faraday",
+    "model": "gpt-5.4-mini",
+    "reasoningEffort": "medium",
+    "scope": "public-source review of flagged manual-identity Sanya teams"
+  },
+  "recommendations": [
+    {
+      "row": "6487",
+      "status": "confirmed",
+      "recommendedAction": "Use as the public identity for SFLS / 上外附中.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/6487",
+        "https://frc-events.firstinspires.org/team/6487"
+      ]
+    },
+    {
+      "row": "6488",
+      "status": "conflict",
+      "recommendedAction": "Do not treat this as the Sanya SFLS team; public FRC 6488 is RoboRams in Houston. Prefer 6487 for SFLS unless Leo confirms otherwise.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/6488",
+        "https://frc-events.firstinspires.org/team/6488"
+      ]
+    },
+    {
+      "row": "9599",
+      "status": "likely-correction",
+      "recommendedAction": "Use as likely Songjiang / Colorful Panda identity after human confirmation.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/9599",
+        "https://frc-events.firstinspires.org/team/9599"
+      ]
+    },
+    {
+      "row": "8814",
+      "status": "confirmed-public-identity",
+      "recommendedAction": "Treat as Blackhole, not Songjiang. Move Songjiang review to 9599.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/8814",
+        "https://frc-events.firstinspires.org/team/8814"
+      ]
+    },
+    {
+      "row": "9997",
+      "status": "placeholder-only",
+      "recommendedAction": "Keep as a Sanya-local placeholder for FoundryX only; do not use as public FRC team 9997.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/9997",
+        "https://frc-events.firstinspires.org/team/9997"
+      ]
+    },
+    {
+      "row": "9999",
+      "status": "placeholder-only",
+      "recommendedAction": "Keep as a Sanya-local placeholder for Moonshot Academy if desired; do not use as public FRC team 9999.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/9999",
+        "https://frc-events.firstinspires.org/team/9999"
+      ]
+    },
+    {
+      "row": "10541",
+      "status": "confirmed-public-anchor",
+      "recommendedAction": "Keep public anchor; human-check exact school-owner naming.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/10541",
+        "https://frc-events.firstinspires.org/team/10541"
+      ]
+    },
+    {
+      "row": "5823",
+      "status": "confirmed-public-anchor",
+      "recommendedAction": "Keep public anchor as ACE.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/5823",
+        "https://frc-events.firstinspires.org/team/5823"
+      ]
+    },
+    {
+      "row": "6970",
+      "status": "confirmed-public-anchor",
+      "recommendedAction": "Keep public anchor as Barbarian / Qingdao Amerasia International School.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/6970",
+        "https://frc-events.firstinspires.org/team/6970"
+      ]
+    },
+    {
+      "row": "11352",
+      "status": "confirmed-public-anchor",
+      "recommendedAction": "Keep public anchor as Flying Tiger / Chongqing Bashu Education Group Middle School.",
+      "sourceUrls": [
+        "https://www.thebluealliance.com/team/11352",
+        "https://frc-events.firstinspires.org/team/11352"
+      ]
+    },
+    {
+      "row": "11028",
+      "status": "still-manual",
+      "recommendedAction": "Public lead exists but does not cleanly map to the Sanya organization yet.",
+      "sourceUrls": [
+        "https://github.com/frc6941/Iron-Tank-2025"
+      ]
+    },
+    {
+      "row": "11199",
+      "status": "still-manual",
+      "recommendedAction": "No usable public FIRST/TBA trail found.",
+      "sourceUrls": []
+    },
+    {
+      "row": "NEW-44",
+      "status": "still-manual",
+      "recommendedAction": "No usable public trail found.",
+      "sourceUrls": []
+    }
+  ]
+}

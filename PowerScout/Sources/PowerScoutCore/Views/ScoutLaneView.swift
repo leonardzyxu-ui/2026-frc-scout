@@ -10,9 +10,9 @@ struct ScoutLaneView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             PSPageHeader(
-                eyebrow: "Scout lane",
+                eyebrow: "Admin lane audit",
                 title: lane.rawValue,
-                subtitle: lane.purpose
+                subtitle: "\(lane.purpose) PowerScout is for head-scout review; field scouts use the web scout interface."
             )
 
             PSCard {

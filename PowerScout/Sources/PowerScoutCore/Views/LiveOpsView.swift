@@ -9,7 +9,7 @@ struct LiveOpsView: View {
             PSPageHeader(
                 eyebrow: "match-day command",
                 title: "Live Ops",
-                subtitle: "PowerScout is the local command center: scout devices feed it, Firebase syncs with it, official APIs refresh it, and the driver team gets the next useful inference."
+                subtitle: "PowerScout is the local head-scout command center: scout devices feed the web interface, Firebase syncs the evidence, official APIs refresh it, and the driver team gets the next useful inference."
             )
 
             PSCard {

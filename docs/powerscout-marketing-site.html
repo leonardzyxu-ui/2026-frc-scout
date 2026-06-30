@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PowerScout - Head-Scout Command Center</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050914;
+      --panel: #0d1524;
+      --panel-soft: #121d2f;
+      --line: #253856;
+      --text: #f4f7fb;
+      --muted: #9fb0c7;
+      --blue: #4cc9f0;
+      --yellow: #ffcf3a;
+      --green: #37d67a;
+      --red: #ff4b55;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      letter-spacing: 0;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .page {
+      min-height: 100vh;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px clamp(20px, 5vw, 64px);
+      background: rgba(5, 9, 20, 0.86);
+      border-bottom: 1px solid rgba(37, 56, 86, 0.76);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      font-size: 17px;
+    }
+
+    .mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 9px;
+      background: #111d2e;
+      border: 1px solid var(--line);
+      color: var(--yellow);
+      font-weight: 900;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: #0b1321;
+      border-radius: 999px;
+      padding: 9px 13px;
+    }
+
+    .hero {
+      min-height: calc(100vh - 72px);
+      display: grid;
+      align-items: center;
+      padding: 42px clamp(20px, 5vw, 64px) 28px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.82fr) minmax(440px, 1.18fr);
+      gap: 36px;
+      align-items: center;
+      width: 100%;
+    }
+
+    .eyebrow {
+      margin: 0 0 16px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0;
+      font-size: clamp(54px, 7vw, 112px);
+      line-height: 0.9;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 620px;
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: clamp(18px, 2.2vw, 23px);
+      line-height: 1.45;
+      font-weight: 620;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 850;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .button.primary {
+      background: var(--blue);
+      color: #04101d;
+      border-color: transparent;
+    }
+
+    .visual {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--panel);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+    }
+
+    .visual img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .band {
+      padding: 56px clamp(20px, 5vw, 64px);
+      border-top: 1px solid rgba(37, 56, 86, 0.72);
+    }
+
+    .section-title {
+      margin: 0 0 24px;
+      font-size: clamp(34px, 4vw, 56px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      min-height: 210px;
+      padding: 22px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .tag {
+      display: inline-flex;
+      margin-bottom: 18px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      color: #07131f;
+      background: var(--yellow);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .card:nth-child(2) .tag {
+      background: var(--blue);
+    }
+
+    .card:nth-child(3) .tag {
+      background: var(--green);
+    }
+
+    .card:nth-child(4) .tag {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .card p {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-weight: 620;
+      line-height: 1.42;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .proof {
+      padding: 24px;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    .proof h3 {
+      margin: 0 0 14px;
+      font-size: 28px;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      padding: 16px 0;
+      border-top: 1px solid rgba(37, 56, 86, 0.72);
+      color: var(--muted);
+      font-weight: 720;
+    }
+
+    .metric-row strong {
+      color: var(--text);
+      font-size: 22px;
+    }
+
+    .shot {
+      overflow: hidden;
+      border-radius: 28px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .shot img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .footer {
+      padding: 34px clamp(20px, 5vw, 64px) 46px;
+      color: var(--muted);
+      font-weight: 650;
+      border-top: 1px solid rgba(37, 56, 86, 0.72);
+    }
+
+    @media (max-width: 980px) {
+      .hero-grid,
+      .split,
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        min-height: auto;
+      }
+
+      .visual {
+        border-radius: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="nav">
+      <div class="brand">
+        <span class="mark">P</span>
+        <span>PowerScout</span>
+      </div>
+      <div class="nav-actions">
+        <span class="pill">Powerhouse Scouting</span>
+        <span class="pill">Admin Only</span>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero">
+        <div class="hero-grid">
+          <div>
+            <p class="eyebrow">Head-scout command center</p>
+            <h1>Know the next match before it starts.</h1>
+            <p class="lead">PowerScout turns scout evidence, official APIs, relay health, and model outputs into fast match strategy for the person making competition decisions.</p>
+            <div class="hero-actions">
+              <a class="button primary" href="../PowerScout/README.md">Read the App Brief</a>
+              <a class="button" href="./scouting-relay-render-upstash-setup.html">Relay Setup</a>
+              <a class="button" href="./scouting-morning-report-2026-06-29.html">Progress Report</a>
+            </div>
+          </div>
+          <figure class="visual">
+            <img src="../output/playwright/adminv4-command.png" alt="PowerScout command dashboard screenshot">
+          </figure>
+        </div>
+      </section>
+
+      <section class="band">
+        <h2 class="section-title">Built for the head scout, not the pit table.</h2>
+        <div class="cards">
+          <article class="card">
+            <span class="tag">Strategy</span>
+            <h3>Next-match decisions</h3>
+            <p>Projected scores, win probability, margin, role assignments, and shift-level plans stay focused on what the drive team can use.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Evidence</span>
+            <h3>Scout data with history</h3>
+            <p>Every version matters. PowerScout treats browser cache, Firebase, and local Mac storage as synchronized evidence surfaces.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Reliability</span>
+            <h3>Relays with fallback</h3>
+            <p>Render, DirectChat, The Button, and Cloudflare paths give the operation multiple ways to keep messages and scout data moving.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Modeling</span>
+            <h3>Readable robot value</h3>
+            <p>Contribution, floor, ceiling, defense, deviation, EPA, OPR, and DPR are separated so the model can explain instead of hand-wave.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="band">
+        <div class="split">
+          <div class="proof">
+            <h3>Competition proof</h3>
+            <div class="metric-row">
+              <span>Synthetic Silicon Valley replay</span>
+              <strong>89 matches</strong>
+            </div>
+            <div class="metric-row">
+              <span>Score-consistent scout rows</span>
+              <strong>534</strong>
+            </div>
+            <div class="metric-row">
+              <span>Full-event winner accuracy</span>
+              <strong>77.9%</strong>
+            </div>
+            <div class="metric-row">
+              <span>Future leakage, coverage, score gates</span>
+              <strong>3/3</strong>
+            </div>
+          </div>
+          <figure class="shot">
+            <img src="../output/playwright/prediction-vs-actual-shanghai-panel.png" alt="Actual versus predicted winner graph">
+          </figure>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      PowerScout is the admin/head-scout Mac app. Field scouts use the web scout interface.
+    </footer>
+  </div>
+</body>
+</html>

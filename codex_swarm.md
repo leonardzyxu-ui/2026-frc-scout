@@ -116,6 +116,11 @@ Find concrete code, math, or logic bugs in the PowerScout/scouting web app, Mac 
 | Epicurus | WEB-SNAPSHOT-QA-004 | Verifier / web snapshot QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Small fast verifier is enough for focused web snapshot checks. | 2026-06-29T13:11:31+00:00 |
 | Ptolemy | MAC-SNAPSHOT-QA-004 | Verifier / PowerScout snapshot QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Small fast verifier is enough for bounded Swift/local JSON QA. | 2026-06-29T13:11:31+00:00 |
 | Hegel | STRATEGY-LOGIC-QA-004 | Verifier / strategy logic QA | gpt-5.3-codex-spark / medium | launch | read-only | launched | Focused logic audit benefits from independent eyes but not a high-tier model. | 2026-06-29T13:11:32+00:00 |
+| Gauss / Git Relay Scout | GIT-RELAY-MAIN-001 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | Git branch/deploy strategy is separable and risky enough to benefit from independent eyes. | 2026-06-29T23:57:19+00:00 |
+| Curie / Admin-Only Copy Scout | POWERSCOUT-ADMIN-ONLY-001 | Explorer | gpt-5.4-mini / medium | launch | read-only | launched | Copy/product framing search is parallel and low-risk. | 2026-06-29T23:57:52+00:00 |
+| Gauss | git-relay-main-001 | explorer | gpt-5.4-mini / medium | close | read-only | completed | Use a minimal main backport for Render instead of merging 100+ feature branch commits. | 2026-06-30T00:02:29+00:00 |
+| Curie | admin-only-copy-001 | explorer | gpt-5.4-mini / medium | close | read-only | completed | Copy boundary review is broad search work that benefits from a separate read-only pass. | 2026-06-30T00:04:05+00:00 |
+| Godel | sanya-deep-prescout-001 | explorer | gpt-5.4-mini / medium | close | read-only | completed | Sanya prescout benefits from parallel public-source lookup while main thread handles deployment and integration. | 2026-06-30T00:09:34+00:00 |
 
 ## Integration Notes
 

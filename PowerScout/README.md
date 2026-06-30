@@ -2,7 +2,7 @@
 
 PowerScout is Powerhouse's native macOS command center for the 2026 scouting system.
 
-It is intentionally built in SwiftUI as a desktop app, not a web wrapper. The first version focuses on the head-scout job: competition readiness, prediction evidence, alliance-selection prep, relay status, local report access, and a sober audit of pre-scout, pit scout, and match scout coverage.
+It is intentionally built in SwiftUI as a desktop app, not a web wrapper. PowerScout is admin/head-scout only; regular scouts use the web scout interface. The first version focuses on the head-scout job: competition readiness, prediction evidence, alliance-selection prep, relay status, local report access, and a sober audit of pre-scout, pit scout, and match scout coverage.
 
 ## Run
 

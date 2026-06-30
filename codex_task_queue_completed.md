@@ -1,5 +1,11 @@
 # Scouting Task Queue (Completed)
 
+- [x] Apply Leo's product constraint that `PowerScout` is admin/head-scout only, not scout-facing, across README, native SwiftUI copy, and report copy.
+- [x] Apply the Render scouting relay setup fix externally by backporting `scouting-relay/` and the setup guide to `origin/main` in commit `70b0f73`.
+- [x] Continue Sanya prescout beyond the first pass by adding Godel's second manual-review report and machine-readable identity recommendations in `Scouting/sanyaSpecial/Pre-Scout/`.
+- [x] Push and deploy the clearer invalid-key recovery/site bundle after Leo provided fresh direct authorization.
+- [x] Add the persistent goal/subagent/PowerScout-admin-only rules to `/Users/leoxu/.codex/AGENTS.md` after Leo provided fresh direct authorization.
+- [x] Add the conditional PowerScout marketing-site artifact as `docs/powerscout-marketing-site.html`.
 - [x] Create a step-by-step Render + Upstash relay setup HTML file on Leo's Desktop.
 - [x] Record the final QA subagent reports for Curie/WebLogic, Leibniz/MathModel, and Plato/MacParity with exact model and reasoning specs.
 - [x] Fix scout pager inbox delivery so messages from prior events cannot appear in the current event's Match Scout V4 inbox.
